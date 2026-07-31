@@ -1,0 +1,1667 @@
+立洋社区 · 项目整改与重构任务书
+角色声明：本文档以架构师 / CTO / QA 三视角输出，基于完整代码审查 + 数据库 schema 核对 + 后端日志核对（app.log 多次出现 operation_logs has no column named user_id OperationalError + AI ConnectError × 3 90 秒阻塞）+ 前端单页面 100% 元素遍历得出。 整改原则：禁止新增任何新功能，只允许检查、整理、重构、修复、补齐已声明但未实现的能力。
+
+第一阶段 · 全面检查报告
+1. 页面检查
+#	页面	路由	状态	问题描述
+1	社区首页	/	⚠️ 单页面塞所有功能	CommunityHome.vue 一个文件 358 行同时承担首页 / 登录 / 注册 / 发帖 / 帖子流 / 评论 / 个人卡片 / 公告 / 统计 9 种职责
+2	管理员后台	无	❌ 完全未开发	后端有 9 个 /admin/* 接口但前端零页面
+3	个人中心	无	❌ 完全未开发	后端 GET /users/{id}、GET /users/{id}/posts、PATCH /users/me 全部 0 调用
+4	帖子详情页	无	❌ 完全未开发	帖子展开评论仍在首页卡片内完成，无独立路由
+5	草稿箱	无	❌ 完全未开发	后端 is_draft=True 落库后无找回入口
+6	我的收藏	无	❌ 完全未开发	后端 favorites 表有数据但无 /users/me/favorites 接口、无前端页面
+7	我的点赞	无	❌ 完全未开发	同上
+8	通知中心	无	❌ 完全未开发	notifications 表零接口零页面
+9	私信会话	无	❌ 完全未开发	messages 表零接口零页面
+10	搜索结果页	无	❌ 完全未开发	前端搜索框无绑定，后端无 /posts?q=
+11	用户协议页	无	❌ 完全未开发	注册弹窗「阅读并同意社区协议」纯文字
+12	404 页	无	❌ 完全未开发	访问任意非 / 路径落到空白 RouterView
+13	500 错误页	无	❌ 完全未开发	无 errorHandler、无兜底
+14	设置页	无	❌ 完全未开发	无修改密码 / 修改头像 / 修改背景图 UI
+重复页面：无。 设计不合理：
+
+首页「右侧栏」放了个人主页卡片，但用户期望个人主页是独立页面而非首页侧边小卡。
+顶部「通知」与「头像」两个按钮挨在一起但功能完全不对等（通知是死的，头像只能弹登录框）。
+左侧菜单 9 项中 7 项与 el-segmented 的 4 个视图（全校/本校区/热门/最新）语义重叠（"热门" 既在菜单又在 segmented），用户认知混乱。
+2. 页面元素检查（逐项）
+2.1 顶部 Header（CommunityHome.vue#L203-L219）
+元素	类型	可用	绑定事件	调用接口	状态	问题
+LY Logo + 立洋校园社区 + LY Community	静态	✅	—	—	正常	—
+搜索框 input	输入	⚠️	❌ 无 @keyup.enter / @input	❌ 无 /posts?q=	❌ 点击无反应	后端无搜索接口，前端无绑定
+Bell 通知按钮	按钮	⚠️	❌ 无 @click	❌ 无 /notifications	❌ 点击无反应	notifications 表零接口
+User 头像按钮	按钮	⚠️	✅ @click="showAuth = true"	❌	⚠️ 只有 UI	登录后不显示真实头像，无下拉菜单
+登出按钮	按钮	❌	❌ 无 @click	❌	❌ 不存在	session.logout() 已实现但无入口
+个人中心入口	按钮	❌	❌	❌	❌ 不存在	—
+设置入口	按钮	❌	❌	❌	❌ 不存在	—
+2.2 左侧菜单（CommunityHome.vue#L222-L227）
+元素	可用	绑定事件	调用接口	状态	问题
+9 个菜单按钮（首页/我的校区/热门/树洞/表白/二手/失物招领/公告/个人中心）	⚠️	❌ 全部无 @click	❌	❌ 点击无反应	v-for 渲染但完全无交互
+菜单图标 <HomeFilled />	⚠️	—	—	⚠️ 只有 UI	9 项全部用同一个图标
+激活高亮态	❌	—	—	❌ 存在 Bug	无 :class="{active}"，用户无法判断当前所在视图
+「我的校区」与 segmented「本校区」语义重复	—	—	—	⚠️ 设计不合理	二者都切到 view=school，但用户认知为两个不同入口
+2.3 发帖区（CommunityHome.vue#L230-L246）
+元素	可用	绑定事件	调用接口	状态	问题
+校区 select	✅	v-model	/schools	正常	—
+分类 select	✅	v-model	—	正常	—
+匿名开关	✅	v-model	—	正常	—
+内容 textarea	✅	v-model	—	正常	—
+图片 URL textarea	⚠️	v-model	❌ 未调 /images	⚠️ 只有 UI	后端有上传接口但前端用「手贴 URL」替代
+is_public 开关	❌	❌	—	❌ 不存在	postForm.is_public 字段存在但模板无对应开关
+草稿按钮	⚠️	✅ @click="publishPost(true)"	POST /posts (is_draft=true)	⚠️ 功能未完成	落库后无找回入口
+发布按钮	✅	✅	POST /posts	正常	—
+2.4 视图切换 + 帖子列表（CommunityHome.vue#L248-L294）
+元素	可用	绑定事件	调用接口	状态	问题
+el-segmented 4 视图	✅	@change="loadPosts"	GET /posts	正常	—
+「X 条帖子」计数	⚠️	—	—	❌ 存在 Bug	posts.length 是当前页 50 条上限内的数量，非真实总数；后端不返回 total
+分页	❌	—	—	❌ 不存在	后端 limit(50) 写死，前端无 el-pagination
+空状态提示	✅	—	—	正常	—
+2.5 帖子卡片（CommunityHome.vue#L254-L290）
+元素	可用	绑定事件	调用接口	状态	问题
+作者名 / 校区 / 分类	✅	—	—	正常	—
+帖子正文	✅	—	—	正常	—
+图片网格 <img>	⚠️	—	—	❌ 存在 Bug	无 lazy、无预览、URL 404 时破图
+点赞按钮	⚠️	✅ @click="likePost"	POST /likes/post/{id}	⚠️ 功能未完成	无「已点赞」高亮；后端 DELETE /likes 前端从未调用
+评论按钮	✅	✅ @click="toggleComments"	GET /posts/{id}/comments	正常	—
+收藏按钮	⚠️	✅ @click="favoritePost"	POST /favorites/{id}	⚠️ 功能未完成	无「已收藏」高亮；后端 DELETE /favorites 前端从未调用；无「我的收藏」列表
+举报按钮	⚠️	✅ @click="reportPost"	POST /reports	⚠️ 功能未完成	硬编码 reason="用户举报：请管理员复核"，无用户输入
+标签 #tag	❌	❌ 无 @click	—	❌ 点击无反应	—
+编辑帖子入口	❌	❌	❌ 未调 PATCH /posts/{id}	❌ 点击无反应	后端实现，前端无按钮
+删除帖子入口	❌	❌	❌ 未调 DELETE /posts/{id}	❌ 点击无反应	后端实现，前端无按钮
+2.6 评论区（CommunityHome.vue#L280-L289）
+元素	可用	绑定事件	调用接口	状态	问题
+评论列表渲染	⚠️	—	—	⚠️ 功能未完成	v-for 平铺所有评论，未按 parent_id 分层，二级回复无缩进
+评论输入框 + 发送	✅	✅ @click="publishComment"	POST /posts/{id}/comments	正常	—
+回复评论按钮	❌	❌	—	❌ 点击无反应	后端 CommentCreate.parent_id 支持，前端无入口
+评论点赞按钮	❌	❌	❌ 未调 POST /likes/comment/{id}	❌ 点击无反应	—
+删除评论按钮	❌	❌	❌ 未调 DELETE /posts/{id}/comments/{cid}	❌ 点击无反应	—
+comment_count 同步	⚠️	—	—	⚠️ 数据 Bug	前端 post.comment_count += 1 手动加，后端也加，可能短暂不一致
+2.7 右侧栏（CommunityHome.vue#L297-L325）
+元素	可用	绑定事件	调用接口	状态	问题
+个人主页卡片	⚠️	—	GET /users/me	⚠️ 只有 UI	未渲染 avatar_url；无「编辑资料」入口（PATCH /users/me 0 调用）
+公告卡片	❌	—	❌ 未调 /announcements	❌ 存在 Bug	硬编码文案，数据库已有 1 条公告未显示
+今日统计卡片	❌	—	—	❌ 存在 Bug	posts.length 非今日新帖；「4 校区」写死字面量
+AI 审核提示卡片	✅	—	—	正常	静态文案
+2.8 登录 / 注册弹窗（CommunityHome.vue#L328-L356）
+元素	可用	绑定事件	调用接口	状态	问题
+昵称 / 手机号 / 密码 / 确认密码 / 校区	✅	v-model	/auth/register	正常	—
+验证码输入框	⚠️	v-model	❌ 未调 /auth/send-code	⚠️ 功能未完成	authForm.code = '123456' 写死；无「发送验证码」按钮
+「阅读并同意社区协议」	⚠️	v-model	—	⚠️ 只有 UI	无协议链接
+「去注册 / 去登录」切换	✅	✅ @click	—	正常	—
+登录 / 注册按钮	✅	✅ @click="submitAuth"	/auth/login//auth/register	正常	—
+忘记密码入口	❌	❌	—	❌ 点击无反应	后端无 reset 接口
+表单关闭后清空	❌	❌	—	❌ 存在 Bug	showAuth=false 后 authForm 不重置
+登录后保存 nickname	❌	—	—	❌ 存在 Bug	session.login 只存 userId，不存 nickname；validateSession 才会保存
+3. 功能检查（全量清单）
+功能	状态	详情
+用户注册	✅ 已完成	bcrypt + JWT Cookie + 审计日志
+用户登录（密码 / 验证码）	⚠️ 部分完成	验证码固定 123456；登录失败锁定用内存变量，进程重启即清空
+用户登出	⚠️ 部分完成	后端实现，前端无按钮
+会话校验 /auth/me	✅ 已完成	—
+Token 刷新	❌ 完全未完成	access_token 30 分钟过期后无 refresh 接口，强制重登
+发送验证码	⚠️ 部分完成	后端 stub，前端无按钮调用
+发帖	✅ 已完成	AI 文本审核 + 标签生成（AI 不可用时阻塞 90 秒）
+编辑帖子	⚠️ 部分完成	后端实现，前端无入口
+删除帖子	⚠️ 部分完成	后端实现，前端无入口
+帖子列表（4 视图）	⚠️ 部分完成	写死 limit(50)，无分页 / 搜索 / 分类过滤
+帖子草稿	⚠️ 部分完成	落库成功，无找回入口
+发表评论	✅ 已完成	—
+二级回复	⚠️ 部分完成	后端支持 parent_id，前端无回复按钮 + 未分层渲染
+删除评论	⚠️ 部分完成	后端实现，前端无入口
+评论点赞	⚠️ 部分完成	后端支持，前端无按钮
+帖子点赞	⚠️ 部分完成	只能点赞不能取消，无 active 态
+帖子收藏	⚠️ 部分完成	只能收藏不能取消，无 active 态，无收藏列表
+帖子举报	⚠️ 部分完成	硬编码 reason，无用户输入
+个人主页查看	⚠️ 部分完成	右侧栏小卡片，无独立页面，无头像渲染
+编辑个人资料	⚠️ 部分完成	后端实现，前端无入口
+头像 / 背景图上传	❌ 完全未完成	后端 /images 接口前端 0 调用
+图片上传到帖子	❌ 完全未完成	同上
+公告展示	⚠️ 部分完成	后端实现，前端硬编码不调用
+公告按校区过滤	❌ 完全未完成	school_id 字段存在但路由未过滤
+通知中心	❌ 完全未完成	notifications 表零接口零页面；互动发生时不写通知
+私信	❌ 完全未完成	messages 表零接口零页面
+WebSocket 推送	❌ 完全未完成	仅 echo，前端无集成
+管理员登录	❌ 存在 Bug	密码走 URL query，无 admin Cookie 下发
+管理员后台	❌ 完全未完成	后端有 9 个接口，前端无页面
+管理员鉴权	❌ 存在 Bug	/admin/* 全部无依赖校验，任意未登录用户可访问
+管理员帖子/评论/用户/举报管理	⚠️ 部分完成	后端有 list 接口，无 delete/封禁/处理接口；前端无页面
+搜索	❌ 完全未完成	前端搜索框无绑定，后端无 /posts?q=
+标签搜索	❌ 完全未完成	—
+用户操作审计日志	✅ 已完成	log_user_action 落库 + 文件日志
+登录日志	⚠️ 部分完成	写入 login_logs，无查看入口
+AI 文本审核	⚠️ 部分完成	网络异常时阻塞 90 秒
+AI 图片审核	❌ 存在 Bug	把 URL 字符串当 prompt 喂给文本 LLM，无意义
+AI 标签生成	⚠️ 部分完成	AI 不可用时返回空数组
+AI 举报摘要	⚠️ 部分完成	AI 不可用时返回 "AI 摘要暂不可用"
+MinIO 存储	⚠️ 部分完成	无 MinIO 时兜底到 uploads/，但生产部署需校验
+404 / 500 兜底	❌ 完全未完成	—
+全局错误处理	❌ 完全未完成	App.vue 无 errorHandler
+4. API 检查
+接口	真实调用	真实数据	Mock	前端调用	问题
+POST /auth/send-code	✅	✅	⚠️ dev_code=123456	❌ 0 调用	前端无按钮
+POST /auth/register	✅	✅	—	✅	—
+POST /auth/login	✅	✅	—	✅	—
+POST /auth/logout	✅	✅	—	❌ 0 调用	前端无按钮
+GET /auth/me	✅	✅	—	✅	—
+GET /schools	✅	✅	—	✅	失败时 fallback 到 4 条假数据
+GET /posts	✅	✅	—	✅	写死 limit(50)
+POST /posts	✅	✅	—	✅	AI 阻塞 90 秒
+PATCH /posts/{id}	✅	✅	—	❌ 0 调用	前端无入口
+DELETE /posts/{id}	✅	✅	—	❌ 0 调用	前端无入口
+GET /posts/{id}/comments	✅	✅	—	✅	—
+POST /posts/{id}/comments	✅	✅	—	✅	—
+DELETE /posts/{id}/comments/{cid}	✅	✅	—	❌ 0 调用	前端无入口
+POST /likes/{type}/{id}	✅	✅	—	✅（仅 post）	comment 类型未调用
+DELETE /likes/{type}/{id}	✅	✅	—	❌ 0 调用	前端无取消按钮
+POST /favorites/{id}	✅	✅	—	✅	—
+DELETE /favorites/{id}	✅	✅	—	❌ 0 调用	前端无取消按钮
+POST /reports	✅	✅	—	✅	reason 硬编码
+GET /users/me	✅	✅	—	✅	—
+PATCH /users/me	✅	✅	—	❌ 0 调用	前端无入口
+GET /users/{id}	✅	✅	—	❌ 0 调用	前端无入口
+GET /users/{id}/posts	✅	✅	—	❌ 0 调用	前端无入口
+POST /images	✅	✅	—	❌ 0 调用	前端用「手贴 URL」替代
+GET /announcements	✅	✅	—	❌ 0 调用	前端硬编码
+POST /admin/login	✅	✅	—	❌ 0 调用	前端无页面
+GET /admin/posts	✅	✅	—	❌ 0 调用	无鉴权
+DELETE /admin/posts/{id}	✅	✅	—	❌ 0 调用	无鉴权
+GET /admin/comments	✅	✅	—	❌ 0 调用	无鉴权
+GET /admin/users	✅	✅	—	❌ 0 调用	无鉴权
+GET /admin/reports	✅	✅	—	❌ 0 调用	无鉴权
+POST /admin/announcements	✅	✅	—	❌ 0 调用	无鉴权
+GET /admin/logs	✅	✅	—	❌ 0 调用	无鉴权
+GET /admin/user-logs	✅	✅	—	❌ 0 调用	无鉴权
+WS /ws	✅	✅	—	❌ 0 调用	仅 echo
+GET /health	✅	✅	—	❌ 0 调用	—
+接口统计：35 个接口，前端调用 12 个，0 调用 23 个。
+
+5. 数据库检查
+表	真正写入	真正读取	孤立数据	冗余字段	未使用	缺索引	逻辑错误
+schools	✅	✅	—	—	—	—	—
+users	✅	✅	—	—	—	—	—
+posts	✅	✅	—	—	—	—	—
+comments	✅	✅	—	—	—	parent_id 已有索引；post_id 已有索引	二级回复未按 parent_id 分层查询
+likes	✅	⚠️ 仅写入未读取	⚠️ 当前 0 条	—	⚠️ like_count 在 posts/comments 表冗余维护	—	like_count 与 likes 表可能不一致（IntegrityError 时 rollback 但 target.like_count 已 +1）
+favorites	✅	⚠️ 仅写入未读取	⚠️ 当前 2 条	—	—	—	无「我的收藏」查询接口
+reports	✅	⚠️ 仅写入未读取	⚠️ 当前 0 条	—	—	—	status 字段无 admin 处理接口更新
+messages	❌	❌	—	—	❌ 完全未使用	—	—
+notifications	❌	❌	—	—	❌ 完全未使用	—	互动发生时不写通知
+admin	⚠️ admin_login 时自动创建	⚠️ 仅 admin_login 读	—	—	—	—	默认 admin/admin123456 后门
+login_logs	✅	❌	⚠️ 当前 0 条	—	—	—	无查看入口
+operation_logs	✅	⚠️ 仅 /admin/user-logs 读	—	—	—	user_id / admin_id / action 均无索引	曾出现 schema 缺 user_id 列的 OperationalError（已手工 ALTER）
+tokens	✅	❌	⚠️ refresh_token 写入但从未校验	—	⚠️ revoked 字段从未被设置 true	—	logout 未标记 revoked，refresh_token 可继续使用
+images	✅	❌	—	—	⚠️ 上传成功后 URL 不再读取	—	—
+announcement	✅	✅	—	—	—	—	school_id 字段存在但路由未过滤
+严重数据问题：
+
+operation_logs schema 历史不一致：日志 app.log#L74-L92 显示 2026-07-26 09:58:18 注册时 OperationalError: table operation_logs has no column named user_id；当前 schema 已含该列（手工 ALTER 过），但 Base.metadata.create_all 不会自动迁移老库，未来字段变更会再次踩坑。
+tokens 表形同虚设：refresh_token 写入但 logout 不撤销、无 refresh 接口使用。
+messages / notifications 两张表完全孤立。
+6. 前后端联调检查
+流程	前端	接口	后端	数据库	是否跑通
+注册	✅	/auth/register	✅	✅ users + login_logs + operation_logs + tokens	✅
+登录	✅	/auth/login	✅	✅	✅
+登出	❌ 无按钮	/auth/logout	✅	✅	❌ 前端断
+会话校验	✅	/auth/me	✅	✅	✅
+发帖	✅	/posts	✅	✅	✅（AI 阻塞 90 秒）
+编辑帖子	❌ 无按钮	/posts/{id} PATCH	✅	✅	❌ 前端断
+删除帖子	❌ 无按钮	/posts/{id} DELETE	✅	✅	❌ 前端断
+评论列表	✅	/posts/{id}/comments	✅	✅	✅
+发表评论	✅	/posts/{id}/comments POST	✅	✅	✅
+回复评论	❌ 无按钮	同上（带 parent_id）	✅	✅	❌ 前端断
+删除评论	❌ 无按钮	/posts/{id}/comments/{cid} DELETE	✅	✅	❌ 前端断
+帖子点赞	✅	/likes/post/{id}	✅	✅	✅
+取消点赞	❌ 无按钮	/likes/{type}/{id} DELETE	✅	✅	❌ 前端断
+评论点赞	❌ 无按钮	/likes/comment/{id}	✅	✅	❌ 前端断
+帖子收藏	✅	/favorites/{id}	✅	✅	✅
+取消收藏	❌ 无按钮	/favorites/{id} DELETE	✅	✅	❌ 前端断
+举报	✅	/reports	✅	✅	✅（reason 硬编码）
+个人主页	✅	/users/me	✅	✅	✅
+编辑资料	❌ 无按钮	/users/me PATCH	✅	✅	❌ 前端断
+图片上传	❌ 用手贴 URL	/images	✅	✅	❌ 前端断
+公告	❌ 硬编码	/announcements	✅	✅	❌ 前端断
+管理员	❌ 无页面	/admin/*	⚠️ 无鉴权	✅	❌ 前端断
+通知	❌ 无按钮	❌ 无接口	❌	✅ 表存在	❌ 全断
+消息	❌ 无页面	❌ 无接口	❌	✅ 表存在	❌ 全断
+Token 刷新	❌	❌ 无接口	❌	⚠️ tokens 表闲置	❌ 全断
+联调通过率：12 / 24 = 50%。
+
+7. Bug 检查（全量）
+7.1 功能 Bug
+#	Bug	位置
+F1	帖子点赞无 active 态、无取消	CommunityHome.vue#L265 + interactions.py
+F2	帖子收藏无 active 态、无取消、无列表	CommunityHome.vue#L270
+F3	举报 reason 硬编码	CommunityHome.vue#L129
+F4	评论未按 parent_id 分层	CommunityHome.vue#L281
+F5	公告接口前端 0 调用，硬编码文案	CommunityHome.vue#L312
+F6	「今日统计」写死 4 校区、posts.length 非今日	CommunityHome.vue#L317
+F7	验证码固定 123456，无发送按钮	CommunityHome.vue#L43
+F8	表单关闭不重置 authForm	CommunityHome.vue#L328
+F9	session.login 不保存 nickname	session.ts#L41-45
+F10	帖子无分页，超 50 条永远看不到	posts.py#L49
+F11	posts.length 不是真实总数，无 total	posts.py#L50
+F12	图片上传接口前端 0 调用	images.py
+F13	编辑/删除帖子前端无入口	CommunityHome.vue
+F14	编辑/删除评论前端无入口	CommunityHome.vue
+F15	评论点赞前端无入口	CommunityHome.vue
+F16	is_public 字段无对应开关	CommunityHome.vue#L55
+F17	草稿落库后无找回入口	—
+F18	comment_count 前端手动 +1 与后端可能不一致	CommunityHome.vue#L160
+F19	like_count 在 IntegrityError rollback 时已 +1 未回滚	interactions.py#L27-34
+F20	公告未按 school_id 过滤	announcements.py#L14
+F21	logout 未标记 tokens.revoked	auth.py#L101-108
+F22	登录失败锁定用内存变量，重启即失效	auth.py#L19
+F23	AI 不可用时阻塞 90 秒	ai_service.py#L22-31
+F24	AI 图片审核把 URL 当 prompt 喂文本 LLM	ai_service.py#L41-43
+F25	notifications 表零接口，互动发生时不写通知	—
+F26	messages 表零接口	—
+F27	WebSocket 仅 echo	ws.py
+F28	loadSchools 失败时 fallback 到 4 条假数据	session.ts#L22-28
+7.2 UI Bug
+#	Bug	位置
+U1	左侧菜单 9 项全部无 @click	CommunityHome.vue#L223
+U2	9 项菜单全部用同一个 <HomeFilled /> 图标	CommunityHome.vue#L224
+U3	菜单无 active 高亮	CommunityHome.vue#L223
+U4	顶部搜索框无绑定	CommunityHome.vue#L214
+U5	通知按钮无 @click	CommunityHome.vue#L216
+U6	头像按钮登录后不显示真实头像	CommunityHome.vue#L217
+U7	标签 #tag 无 @click	CommunityHome.vue#L278
+U8	图片无 lazy、无预览、URL 404 时破图	CommunityHome.vue#L262
+U9	「阅读并同意社区协议」无链接	CommunityHome.vue#L350
+U10	右侧栏个人主页卡片不渲染 avatar_url	CommunityHome.vue#L300
+7.3 数据 Bug
+#	Bug	位置
+D1	operation_logs schema 历史不一致（已手工 ALTER，但 create_all 不会迁移老库）	日志 app.log#L74-L92
+D2	like_count 与 likes 表可能不一致	interactions.py#L27-34
+D3	comment_count 前端手动 +1	CommunityHome.vue#L160
+D4	tokens 表 refresh_token 写入但从未校验/撤销	auth.py
+D5	login_logs 写入但无读取入口	—
+D6	images 表上传后 URL 不再读取	—
+7.4 逻辑 Bug
+#	Bug	位置
+L1	点赞 IntegrityError 时 target.like_count += 1 已执行，rollback 不回滚 count	interactions.py#L27-34
+L2	收藏 IntegrityError 同上	interactions.py#L50-60
+L3	validateSession 失败时清空 localStorage，但 showAuth 未置 true，用户看不到登录框	CommunityHome.vue#L191-197
+L4	authForm.code 写死 123456，注册/登录都用这个值	CommunityHome.vue#L43
+L5	postForm.school_id = session.schools[0]?.id 在 loadSchools 失败 fallback 假数据时取到 id=1	CommunityHome.vue#L189
+L6	顶部「我的校区」菜单与 segmented「本校区」语义重复	—
+L7	admin 接口无 admin_id 写入，OperationLog.admin_id 永远 None	admin.py
+L8	admin_login 无 admin Cookie 下发，后续 /admin/* 无法鉴权	admin.py#L19-29
+7.5 安全 Bug
+#	Bug	严重性	位置
+S1	/admin/* 全部无鉴权依赖，任意未登录用户可访问	🔴 高	admin.py
+S2	admin_login 默认创建 admin/admin123456 后门	🔴 高	admin.py#L22-26
+S3	admin_login 密码走 URL query，会出现在访问日志/浏览器历史	🔴 高	admin.py#L20
+S4	jwt_secret = "change-me" 默认值未强制修改	🟡 中	config.py#L11
+S5	CORS allow_origins=[frontend_origin] + allow_credentials=True，生产需校验	🟡 中	main.py#L20-26
+S6	无 CSRF 防护（Cookie + CORS 凭证）	🟡 中	—
+S7	无登录失败锁定持久化（内存变量）	🟡 中	auth.py#L19
+S8	无 IP/设备限流	🟡 中	—
+S9	上传图片无内容嗅探（仅靠 content_type）	🟡 中	images.py#L21
+S10	extract_ip 信任 x-forwarded-for 第一段，可伪造	🟢 低	deps.py#L15-17
+7.6 权限 Bug
+#	Bug	位置
+P1	/admin/* 无 admin 鉴权	admin.py
+P2	admin_login 不下发 admin Cookie/Token	admin.py#L19-29
+P3	OperationLog.admin_id 永远 None	admin.py
+P4	帖子 is_public=false 时 list_posts 仍然返回	posts.py#L42
+P5	帖子 is_draft=true 时已被过滤，但作者自己也看不到自己的草稿列表	—
+7.7 性能问题
+#	问题	位置
+PR1	AI 不可用时阻塞 90 秒（3 次 × 30 秒）	ai_service.py#L22-31
+PR2	_profile 中 like_count 用子查询统计用户所有帖子点赞数，帖子多时慢	users.py#L20-21
+PR3	list_comments 一次拉全部评论无分页	comments.py#L35
+PR4	list_posts 一次拉 50 条无分页	posts.py#L49
+PR5	帖子卡片图片无 lazy loading	CommunityHome.vue#L262
+PR6	operation_logs 表无 user_id / admin_id / action 索引，/admin/user-logs 查询慢	entities.py#L140-148
+7.8 崩溃风险
+#	风险	位置
+C1	AI 超时 90 秒可能触发 uvicorn worker timeout	ai_service.py
+C2	Base.metadata.create_all 不会迁移老库 schema，老用户启动后报 OperationalError	main.py#L61
+C3	failed_login 内存变量在多 worker 部署时不共享	auth.py#L19
+C4	App.vue 无 errorHandler，未捕获的 Promise rejection 会让页面卡白	App.vue
+8. 架构检查
+8.1 当前是否适合继续开发？
+结论：❌ 不适合。 必须先重构再继续。
+
+8.2 架构问题清单
+#	问题	严重性	详情
+A1	前端单页面塞所有功能	🔴 高	CommunityHome.vue 358 行同时承担 9 种职责：顶部 header / 左侧菜单 / 发帖 / 帖子流 / 帖子卡片 / 评论 / 右侧个人卡 / 右侧公告 / 右侧统计 / 登录注册弹窗。任何修改都要在单文件里来回滚动，merge conflict 概率极高
+A2	前端零组件拆分	🔴 高	views/ 只有 1 个文件，无 components/ 目录，无 layouts/ 目录
+A3	前端零模块化路由	🔴 高	router/index.ts 只注册 1 条路由，无路由守卫、无 meta、无懒加载
+A4	前端 Pinia 只用 1 个 store	🟡 中	stores/session.ts 把校区、登录态、用户信息全塞一起，无 usePostStore / useUserStore / useAdminStore 拆分
+A5	前端 API 层无模块化	🟡 中	api/http.ts 只有 axios 实例，无 api/auth.ts / api/post.ts / api/user.ts 拆分，调用散落在 vue 文件里
+A6	后端路由文件职责过重	🟡 中	posts.py 既做查询又做 AI 审核 + 标签生成 + 审计日志，无 service 层抽象
+A7	后端无 service 层	🟡 中	业务逻辑直接写在 route 里，只有 ai_service / storage_service / audit_log 三个 service
+A8	后端 admin 鉴权缺失	🔴 高	见 S1
+A9	数据库无迁移工具	🟡 中	用 Base.metadata.create_all，无 Alembic
+A10	配置默认值不安全	🟡 中	jwt_secret="change-me"、admin/admin123456
+A11	AI 服务无降级策略	🔴 高	网络异常时阻塞 90 秒
+A12	WebSocket 仅 echo	🟢 低	未接入业务
+A13	前端无全局错误处理	🟡 中	App.vue 无 errorHandler
+A14	前端 http 拦截器只处理 code !== 0	🟡 中	不处理 401 自动跳登录、不处理网络错误统一提示
+A15	后端无统一响应类型	🟢 低	全部用 dict 返回，无 Pydantic response model
+A16	前后端类型定义重复	🟢 低	前端 interface Post 与后端 _post_dict 字段重复维护
+8.3 重构方案
+前端拆分：
+
+
+Plain Text
+
+src/
+├── api/
+│   ├── http.ts            # axios 实例 + 拦截器
+│   ├── auth.ts            # 注册/登录/登出/send-code/refresh
+│   ├── post.ts            # 帖子 CRUD + 列表 + 搜索
+│   ├── comment.ts         # 评论 CRUD
+│   ├── interaction.ts     # 点赞/收藏/举报
+│   ├── user.ts            # 个人主页/资料/收藏列表
+│   ├── image.ts           # 图片上传
+│   ├── announcement.ts    # 公告
+│   ├── notification.ts    # 通知
+│   └── admin.ts           # 管理员
+├── stores/
+│   ├── session.ts         # 登录态 + 校验
+│   ├── school.ts          # 校区
+│   ├── post.ts            # 帖子列表 + 视图
+│   ├── user.ts            # 当前用户资料
+│   └── admin.ts           # 管理员后台状态
+├── router/
+│   └── index.ts           # 路由 + 守卫 + meta
+├── layouts/
+│   ├── DefaultLayout.vue  # 顶栏 + 左菜单 + 右栏 + RouterView
+│   └── AdminLayout.vue    # 管理员布局
+├── views/
+│   ├── CommunityHome.vue   # 仅首页内容
+│   ├── PostDetail.vue      # 帖子详情
+│   ├── UserHome.vue        # 个人主页
+│   ├── MyFavorites.vue     # 我的收藏
+│   ├── MyDrafts.vue        # 我的草稿
+│   ├── Settings.vue        # 设置
+│   ├── Search.vue          # 搜索结果
+│   ├── Notifications.vue   # 通知中心
+│   ├── Admin/
+│   │   ├── Login.vue
+│   │   ├── Posts.vue
+│   │   ├── Comments.vue
+│   │   ├── Users.vue
+│   │   ├── Reports.vue
+│   │   ├── Announcements.vue
+│   │   └── Logs.vue
+│   └── Error/404.vue
+├── components/
+│   ├── post/
+│   │   ├── PostCard.vue
+│   │   ├── PostEditor.vue
+│   │   ├── PostImages.vue
+│   │   └── PostTags.vue
+│   ├── comment/
+│   │   ├── CommentItem.vue
+│   │   ├── CommentReply.vue
+│   │   └── CommentList.vue
+│   ├── header/
+│   │   ├── AppHeader.vue
+│   │   ├── SearchBox.vue
+│   │   ├── NotificationBell.vue
+│   │   └── UserMenu.vue
+│   ├── sidebar/
+│   │   └── SideMenu.vue
+│   ├── auth/
+│   │   ├── AuthDialog.vue
+│   │   ├── LoginForm.vue
+│   │   └── RegisterForm.vue
+│   └── common/
+│       ├── EmptyState.vue
+│       └── Pagination.vue
+└── App.vue
+后端拆分：
+
+
+Plain Text
+
+app/
+├── api/
+│   ├── deps.py
+│   └── routes/             # 仅做参数校验 + 调 service
+├── services/                # 业务逻辑层
+│   ├── auth_service.py
+│   ├── post_service.py
+│   ├── comment_service.py
+│   ├── interaction_service.py
+│   ├── user_service.py
+│   ├── admin_service.py
+│   ├── notification_service.py
+│   ├── ai_service.py
+│   ├── storage_service.py
+│   └── audit_log.py
+├── repositories/            # 数据访问层
+│   ├── post_repo.py
+│   ├── user_repo.py
+│   └── ...
+├── schemas/                 # 入参 + 出参 model
+├── models/
+└── core/
+数据库拆分：引入 Alembic，废弃 Base.metadata.create_all。
+
+第二阶段 · 整改计划（按优先级分阶段）
+阶段 1 · 项目架构重构（最高优先级）
+目标：把单页面拆成可维护的多文件结构，为后续修复铺路。 范围：前端组件 / 路由 / store / api 拆分 + 后端 service 层抽象。 完成标准：CommunityHome.vue 不超过 100 行，仅负责组合子组件。
+
+阶段 2 · 安全与鉴权修复
+目标：堵住 admin 后门、密码 URL 泄露、token 不撤销等安全漏洞。 范围：admin 鉴权依赖 + admin Cookie 下发 + jwt_secret 强制 + logout 撤销 token + refresh 接口。 完成标准：未登录访问 /admin/* 返回 401；admin 登录后下发独立 Cookie。
+
+阶段 3 · 数据库整改
+目标：引入 Alembic，清理孤立表，补索引，统一 schema。 范围：Alembic env.py + 初始迁移 + operation_logs 索引 + messages/notifications 接口或暂禁用。 完成标准：alembic upgrade head 可在空库重建全部表。
+
+阶段 4 · 接口整改
+目标：补齐前端 0 调用的 23 个接口的对接 + 后端缺失接口（refresh、search、notifications、user favorites）。 范围：见任务书 T4-1 ~ T4-12。 完成标准：前后端联调通过率从 50% 提升到 95%+。
+
+阶段 5 · 页面拆分与新增
+目标：新增个人中心、设置、管理员后台、404 等缺失页面。 范围：见任务书 T5-1 ~ T5-8。 完成标准：14 个页面全部存在并可访问。
+
+阶段 6 · 功能修复
+目标：修复点赞/收藏/评论/编辑/删除等部分完成功能。 范围：见任务书 T6-1 ~ T6-10。 完成标准：完整功能流程跑通。 UI 小问题：发帖区"仅自己可见"开关点击命中区域被兄弟元素遮挡，需多次点击才能切换（不阻塞功能，仅影响交互体验）
+
+阶段 7 · Bug 修复
+目标：修复 28 个功能 Bug + 10 个 UI Bug + 6 个数据 Bug + 8 个逻辑 Bug。 范围：见任务书 T7-1 ~ T7-15。 完成标准：Bug 清单全部关闭。
+
+阶段 8 · 性能优化
+目标：AI 超时降级、分页、索引、lazy loading。 范围：见任务书 T8-1 ~ T8-5。 完成标准：AI 不可用时发帖响应 < 1 秒。
+
+阶段 9 · 上线验收
+目标：完整回归测试 + 安全扫描 + 部署文档。 范围：见任务书 T9-1 ~ T9-3。 完成标准：所有验收标准通过。
+
+第三阶段 · 工程师任务书
+任务编号规则：T{阶段}-{序号} 每个任务包含 11 个字段：任务名称 / 修改目标 / 修改原因 / 涉及文件 / 涉及页面 / 涉及数据库 / 涉及接口 / 修改步骤 / 完成标准 / 验收标准 / 预计风险
+
+阶段 1 · 项目架构重构
+T1-1 · 前端组件拆分
+任务名称：将 CommunityHome.vue 拆分为多个独立组件
+修改目标：单文件 358 行 → 主文件 < 100 行 + 10+ 子组件
+修改原因：当前所有逻辑挤在 1 个文件，merge conflict 概率高、维护成本高、无法复用
+涉及文件：
+新建 frontend/src/components/header/AppHeader.vue、SearchBox.vue、NotificationBell.vue、UserMenu.vue
+新建 frontend/src/components/sidebar/SideMenu.vue
+新建 frontend/src/components/post/PostCard.vue、PostEditor.vue、PostImages.vue
+新建 frontend/src/components/comment/CommentList.vue、CommentItem.vue
+新建 frontend/src/components/auth/AuthDialog.vue
+新建 frontend/src/components/common/EmptyState.vue、Pagination.vue
+修改 frontend/src/views/CommunityHome.vue
+涉及页面：社区首页
+涉及数据库：无
+涉及接口：无（仅前端重构）
+修改步骤：
+按上述目录结构创建空组件文件
+把 CommunityHome.vue 的 template 按区块剪切到对应组件
+把 script setup 中的状态/方法按职责迁移：帖子相关 → PostCard.vue / PostEditor.vue；评论相关 → CommentList.vue；登录相关 → AuthDialog.vue
+父子组件用 defineProps + defineEmits 通信
+父组件 CommunityHome.vue 仅保留布局 + 子组件组合
+完成标准：CommunityHome.vue < 100 行；所有子组件独立可测；功能与拆分前完全一致
+验收标准：
+npm run build 无报错
+注册 → 登录 → 发帖 → 评论 → 点赞 → 收藏 → 举报 全流程通过
+浏览器 Console 无 warning
+预计风险：props/emit 定义错误导致父子通信失败；拆分时遗漏响应式依赖
+T1-2 · 前端 API 层模块化
+任务名称：拆分 api/http.ts 为多模块
+修改目标：1 个 axios 实例 → 1 个实例 + 9 个业务 API 模块
+修改原因：当前接口调用散落在 vue 文件里，无统一管理，复用困难
+涉及文件：
+修改 frontend/src/api/http.ts（仅保留 axios 实例 + 拦截器）
+新建 frontend/src/api/auth.ts、post.ts、comment.ts、interaction.ts、user.ts、image.ts、announcement.ts、notification.ts、admin.ts
+修改所有调用 http.get/post 的 vue 文件，改为调用对应 API 模块
+涉及页面：所有
+涉及数据库：无
+涉及接口：无
+修改步骤：
+每个模块导出命名函数，如 export function listPosts(view: string) { return http.get('/posts', { params: { view } }) }
+类型定义集中在 frontend/src/types/api.ts
+替换所有 vue 文件中的 http.xxx 调用
+完成标准：vue 文件中不再直接 import http
+验收标准：所有原有功能不变；TypeScript 编译无 error
+预计风险：函数签名变更导致调用处需同步修改
+T1-3 · 前端 Pinia store 拆分
+任务名称：把 useSessionStore 拆成 5 个 store
+修改目标：1 个 store → 5 个（session / school / post / user / admin）
+修改原因：当前 store 同时管校区、登录态、用户信息，职责混乱
+涉及文件：
+修改 frontend/src/stores/session.ts（仅保留登录态 + validateSession）
+新建 frontend/src/stores/school.ts、post.ts、user.ts、admin.ts
+涉及页面：所有
+涉及数据库：无
+涉及接口：无
+修改步骤：
+school.ts 接管 loadSchools
+post.ts 接管 posts / activeView / loadPosts
+user.ts 接管 profile / loadProfile
+admin.ts 接管管理员后台状态
+session.ts 仅保留 userId / nickname / register / login / logout / validateSession / clearSession
+完成标准：5 个 store 文件各自独立
+验收标准：所有功能不变；store 间无循环依赖
+预计风险：跨 store 调用时序错误
+T1-4 · 前端路由模块化 + 守卫
+任务名称：路由表扩展 + 全局守卫
+修改目标：1 条路由 → 14+ 条路由 + 登录守卫
+修改原因：当前无个人中心/管理员/404 等页面，无登录守卫
+涉及文件：修改 frontend/src/router/index.ts
+涉及页面：所有
+涉及数据库：无
+涉及接口：无
+修改步骤：
+定义路由表，含 meta: { requiresAuth: boolean, requiresAdmin: boolean }
+加 beforeEach 守卫：未登录访问 requiresAuth 路由 → 跳首页 + 弹登录框
+加 :pathMatch(.*)* 兜底 404
+路由懒加载 () => import('...')
+完成标准：14 个路由全部注册
+验收标准：未登录访问 /settings 被拦截；访问 /abc 跳 404
+预计风险：懒加载导致首屏闪烁
+T1-5 · 后端 service 层抽象
+任务名称：把业务逻辑从 route 迁到 service
+修改目标：route 仅做参数校验，业务逻辑下沉到 service
+修改原因：当前 posts.py 既做查询又做 AI 审核 + 标签生成 + 审计日志，职责过重
+涉及文件：
+新建 backend/app/services/post_service.py、comment_service.py、interaction_service.py、user_service.py、admin_service.py、auth_service.py
+修改 backend/app/api/routes/posts.py、comments.py、interactions.py、users.py、admin.py、auth.py
+涉及页面：无
+涉及数据库：无（仅代码重构）
+涉及接口：所有
+修改步骤：
+把 route 函数体中的查询/写入逻辑迁到 service 函数
+route 函数仅调用 service.xxx() + 返回 ok(data)
+service 函数签名接收 db: Session + 业务参数
+完成标准：所有 route 文件平均 < 30 行
+验收标准：原有接口行为不变；pytest 全部通过
+预计风险：事务边界变更导致 commit 时机错误
+阶段 2 · 安全与鉴权修复
+T2-1 · admin 鉴权依赖
+任务名称：新增 admin_user 依赖并应用到所有 /admin/* 路由
+修改目标：未登录用户访问 /admin/* 返回 401
+修改原因：当前 /admin/* 全部无鉴权，任意用户可直接删除帖子/创建公告/查看用户列表（S1）
+涉及文件：
+修改 backend/app/api/deps.py：新增 admin_user 依赖
+修改 backend/app/api/routes/admin.py：所有函数加 admin: Admin = Depends(admin_user)
+涉及页面：无
+涉及数据库：无
+涉及接口：/admin/* 全部
+修改步骤：
+在 deps.py 新增 admin_user(access_token: str | None = Cookie(default=None, alias="admin_token"), db: Session = Depends(get_db)) -> Admin
+校验 admin_token Cookie + 查 Admin 表
+失败抛 ErrorCode.NOT_LOGGED_IN
+admin.py 所有函数加 Depends(admin_user)
+完成标准：未带 admin_token Cookie 访问 /admin/posts 返回 {code: -100, msg: "未登录"}
+验收标准：
+curl 不带 cookie 访问 /admin/posts 返回 401 业务码
+admin 登录后带 cookie 访问正常
+预计风险：admin_token Cookie 名与前端约定不一致
+T2-2 · admin 登录改 Body + 下发 Cookie
+任务名称：admin_login 改用 Pydantic Body + 下发 admin_token Cookie
+修改目标：密码不再走 URL query；登录后下发独立 admin Cookie
+修改原因：当前 def admin_login(username: str, password: str) 密码出现在 URL（S3）；不下发 Cookie 导致后续接口无法鉴权（L8）
+涉及文件：
+修改 backend/app/schemas/auth.py：新增 AdminLoginIn
+修改 backend/app/api/routes/admin.py#admin_login
+涉及页面：无
+涉及数据库：无
+涉及接口：POST /admin/login
+修改步骤：
+AdminLoginIn(BaseModel): username: str; password: str
+admin_login(payload: AdminLoginIn, response: Response, db: Session)
+验证通过后 response.set_cookie("admin_token", jwt, httponly=True, max_age=...)
+返回 {admin_id, username, role}
+完成标准：curl POST /admin/login -d '{"username":"admin","password":"admin123456"}' 返回 200 + Set-Cookie
+验收标准：
+URL 中不出现密码
+后续请求带 Cookie 可访问 /admin/posts
+预计风险：admin_token 与 access_token Cookie 冲突，需用不同 name
+T2-3 · 移除默认 admin 后门
+任务名称：删除 admin_login 中自动创建 admin/admin123456 的逻辑
+修改目标：首次登录不再自动创建默认管理员
+修改原因：当前代码相当于后门（S2）
+涉及文件：修改 backend/app/api/routes/admin.py#L22-26
+涉及页面：无
+涉及数据库：admin 表
+涉及接口：POST /admin/login
+修改步骤：
+删除 if not admin: admin = Admin(username="admin", ...) 分支
+admin 不存在时直接抛 ErrorCode.LOGIN_FAILED
+新增 CLI 脚本 backend/scripts/create_admin.py 用于初始化管理员
+完成标准：未通过 CLI 创建 admin 时，任何登录尝试都返回 -103
+验收标准：
+空数据库访问 /admin/login 返回 -103
+python scripts/create_admin.py admin <password> 后可登录
+预计风险：现有部署的 admin 无法登录（需先跑 CLI）
+T2-4 · jwt_secret 强制校验
+任务名称：启动时校验 jwt_secret != "change-me"
+修改目标：生产环境必须修改默认 secret
+修改原因：默认 secret 公开可见，JWT 可被伪造（S4）
+涉及文件：修改 backend/app/core/config.py + backend/app/main.py
+涉及页面：无
+涉及数据库：无
+涉及接口：无
+修改步骤：
+Settings 新增 env: str 校验
+main.py startup 中 if settings.env != "dev" and settings.jwt_secret == "change-me": raise RuntimeError
+完成标准：ENV=prod + JWT_SECRET=change-me 时启动失败
+验收标准：dev 环境正常启动；prod 环境未改 secret 时报错
+预计风险：现有 .env 未设置 ENV 导致误判
+T2-5 · logout 撤销 refresh_token
+任务名称：登出时把 tokens.revoked = True
+修改目标：refresh_token 登出后不可再用
+修改原因：当前 logout 仅清 Cookie，数据库 token 仍有效（F21 / D4）
+涉及文件：修改 backend/app/api/routes/auth.py#logout
+涉及页面：无
+涉及数据库：tokens 表
+涉及接口：POST /auth/logout
+修改步骤：
+logout 中 db.execute(update(Token).where(Token.user_id == user.id, Token.revoked.is_(False)).values(revoked=True))
+commit
+完成标准：登出后数据库 tokens 表对应记录 revoked=1
+验收标准：登出后用旧 refresh_token 调 refresh 接口返回 401
+预计风险：无
+T2-6 · 新增 refresh token 接口
+任务名称：实现 POST /auth/refresh
+修改目标：access_token 过期后可用 refresh_token 换新
+修改原因：当前 30 分钟后被强制重登（F-Refresh）
+涉及文件：修改 backend/app/api/routes/auth.py
+涉及页面：无
+涉及数据库：tokens 表
+涉及接口：新增 POST /auth/refresh
+修改步骤：
+接收 refresh_token: str = Cookie() 参数
+查 Token 表：token 存在 + revoked=False
+解码 JWT 拿 user_id
+颁发新 access_token，写 Cookie
+可选：轮转 refresh_token（旧 revoke + 新写入）
+完成标准：access_token 过期后前端可自动刷新
+验收标准：access_token 过期后调用 /auth/refresh 返回新 token
+预计风险：refresh_token 也过期时需返回 401 让用户重登
+T2-7 · 前端 http 拦截器自动 refresh
+任务名称：401 时自动调 refresh，失败再跳登录
+修改目标：用户无感知续期
+修改原因：当前 30 分钟到期直接被踢
+涉及文件：修改 frontend/src/api/http.ts
+涉及页面：无
+涉及数据库：无
+涉及接口：POST /auth/refresh
+修改步骤：
+拦截器捕获 code === -101（TOKEN_INVALID）
+调 POST /auth/refresh
+成功后重发原请求
+失败时清 session + 跳首页 + 弹登录框
+完成标准：access_token 过期后用户操作不中断
+验收标准：手动等 31 分钟后点赞，仍然成功
+预计风险：并发请求同时触发 refresh 需用队列
+阶段 3 · 数据库整改
+T3-1 · 引入 Alembic
+任务名称：配置 Alembic + 生成初始迁移
+修改目标：废弃 Base.metadata.create_all，用迁移管理 schema
+修改原因：当前无迁移工具，老库 schema 不一致（D1 / C2）
+涉及文件：
+新建 backend/alembic.ini
+新建 backend/alembic/env.py、alembic/script.py.mako
+新建 backend/alembic/versions/0001_initial.py
+修改 backend/app/main.py#L61：删除 Base.metadata.create_all
+涉及页面：无
+涉及数据库：全部表
+涉及接口：无
+修改步骤：
+pip install alembic + alembic init alembic
+env.py 中导入 Base.metadata
+alembic revision --autogenerate -m "initial"
+删除 main.py startup 中的 create_all
+文档：部署前必须 alembic upgrade head
+完成标准：空数据库执行 alembic upgrade head 后所有表创建
+验收标准：
+删除 sqlite 文件后 alembic upgrade head 重建
+启动应用无 OperationalError
+预计风险：autogenerate 漏检索引/约束，需人工核对
+T3-2 · operation_logs 补索引
+任务名称：给 operation_logs 加 user_id / admin_id / action 索引
+修改目标：/admin/user-logs 查询性能提升
+修改原因：当前 user_id / admin_id / action 均无索引（PR6）
+涉及文件：修改 backend/app/models/entities.py#OperationLog
+涉及页面：无
+涉及数据库：operation_logs
+涉及接口：无
+修改步骤：
+user_id 加 index=True
+admin_id 加 index=True
+action 加 index=True
+alembic revision --autogenerate -m "add indexes to operation_logs"
+alembic upgrade head
+完成标准：迁移成功 + schema 含 3 个新索引
+验收标准：PRAGMA table_info(operation_logs) 含 3 个索引
+预计风险：老数据量大时迁移慢
+T3-3 · 清理孤立表
+任务名称：决定 messages / notifications 表的去留
+修改目标：要么补接口使用，要么暂注释模型
+修改原因：两张表完全孤立（D-孤立）
+涉及文件：backend/app/models/entities.py
+涉及页面：无
+涉及数据库：messages / notifications
+涉及接口：无
+修改步骤：
+本次整改不开发私信/通知功能（禁止新功能）
+在模型注释标记 # TODO: Phase 2 - 待开发通知/消息功能
+保留表结构，但不写入数据
+完成标准：模型文件含明确 TODO 注释
+验收标准：代码审查通过
+预计风险：无
+T3-4 · like_count / comment_count 一致性
+任务名称：修复 IntegrityError 时 count 不回滚
+修改目标：点赞/收藏重复时 count 不被错误 +1
+修改原因：当前 target.like_count += 1 在 try 块中，IntegrityError rollback 后 count 仍 +1（L1 / L2 / D2）
+涉及文件：修改 backend/app/api/routes/interactions.py
+涉及页面：无
+涉及数据库：posts.like_count / comments.like_count
+涉及接口：POST /likes/{type}/{id}、POST /favorites/{id}
+修改步骤：
+改为：先 db.add(Like) + db.flush()，捕获 IntegrityError 后直接 return 已有 count
+成功 flush 后才 target.like_count += 1
+favorites 同理
+完成标准：重复点赞后 count 不变
+验收标准：连续点赞同一帖子 2 次，第二次返回的 like_count 与第一次相同
+预计风险：无
+T3-5 · is_public=false 帖子过滤
+任务名称：list_posts 过滤掉非本人的 is_public=false 帖子
+修改目标：私密帖子只有作者能看到
+修改原因：当前 is_public=false 帖子仍然出现在列表里（P4）
+涉及文件：修改 backend/app/api/routes/posts.py#list_posts 或 post_service.py
+涉及页面：无
+涉及数据库：无
+涉及接口：GET /posts
+修改步骤：
+query 加 .where(or_(Post.is_public.is_(True), Post.author_id == user.id))
+完成标准：A 的私密帖子在 B 视图中不出现
+验收标准：A 发私密帖子，B 调 /posts 看不到
+预计风险：无
+阶段 4 · 接口整改
+T4-1 · 前端调用 /auth/logout
+任务名称：用户菜单加「登出」按钮
+修改目标：用户可登出
+修改原因：session.logout() 已实现但前端无入口（U-登出）
+涉及文件：
+修改 frontend/src/components/header/UserMenu.vue（T1-1 拆分后的组件）
+涉及页面：首页
+涉及数据库：无
+涉及接口：POST /auth/logout
+修改步骤：
+UserMenu.vue 用 el-dropdown
+菜单项：「个人中心」「设置」「登出」
+登出 @click="session.logout()" 后跳首页
+完成标准：登录后头像下拉可见「登出」
+验收标准：点击登出后 Cookie 清除 + 右侧栏显示「登录查看」
+预计风险：无
+T4-2 · 前端调用 /images 上传图片
+任务名称：发帖区接入 el-upload
+修改目标：用户可上传图片，不再手贴 URL
+修改原因：后端 /images 接口前端 0 调用（F12）
+涉及文件：
+修改 frontend/src/components/post/PostEditor.vue
+新建 frontend/src/api/image.ts
+涉及页面：首页发帖区
+涉及数据库：images 表
+涉及接口：POST /images
+修改步骤：
+el-upload :http-request="customUpload" 自定义上传
+上传成功后把返回的 url push 到 postForm.image_urls
+显示已上传图片缩略图 + 删除按钮
+限制 9 张
+完成标准：发帖时可上传图片
+验收标准：上传 1 张 jpg 后发帖，帖子卡片显示该图片
+预计风险：MinIO 未部署时需走本地 uploads/，前端需正确拼接 URL
+T4-3 · 前端调用 /announcements
+任务名称：右侧栏公告卡片调用真实接口
+修改目标：显示数据库中的真实公告
+修改原因：当前硬编码文案（F5）
+涉及文件：
+修改 frontend/src/views/CommunityHome.vue 或新建 frontend/src/components/sidebar/AnnouncementCard.vue
+新建 frontend/src/api/announcement.ts
+涉及页面：首页右侧栏
+涉及数据库：announcement 表
+涉及接口：GET /announcements
+修改步骤：
+onMounted 中调 listAnnouncements()
+渲染列表（最多 5 条）
+失败时显示空状态
+完成标准：右侧栏显示「欢迎来到立洋校园社区」公告
+验收标准：数据库新增公告后，刷新首页可见
+预计风险：无
+T4-4 · 前端调用 PATCH /users/me
+任务名称：新增「编辑资料」弹窗
+修改目标：用户可修改昵称/头像/背景图/简介
+修改原因：后端接口 0 调用（F-编辑资料）
+涉及文件：
+新建 frontend/src/components/user/ProfileEditDialog.vue
+新建 frontend/src/api/user.ts
+涉及页面：首页右侧栏 + 设置页
+涉及数据库：users 表
+涉及接口：PATCH /users/me + POST /images（上传头像）
+修改步骤：
+弹窗含 4 个表单项：nickname / avatar_url（el-upload）/ background_url（el-upload）/ bio
+提交时调 PATCH /users/me
+成功后刷新 profile
+完成标准：修改昵称后右侧栏立即更新
+验收标准：修改头像后数据库 users.avatar_url 字段更新
+预计风险：头像上传需先调 /images 拿 URL 再 PATCH
+T4-5 · 前端调用 PATCH/DELETE /posts/{id}
+任务名称：帖子卡片加「编辑」「删除」按钮
+修改目标：作者可编辑/删除自己的帖子
+修改原因：后端接口 0 调用（F13 / F14）
+涉及文件：
+修改 frontend/src/components/post/PostCard.vue
+新建 frontend/src/api/post.ts
+涉及页面：首页帖子流
+涉及数据库：posts 表
+涉及接口：PATCH /posts/{id}、DELETE /posts/{id}
+修改步骤：
+帖子卡片在 post.author_id === session.userId 时显示「编辑」「删除」按钮
+编辑：弹窗复用 PostEditor.vue，预填内容
+删除：el-message-box.confirm 二次确认
+完成标准：作者可见操作按钮
+验收标准：删除后帖子从列表消失
+预计风险：当前 _post_dict 不返回 author_id，需后端补字段
+T4-6 · 前端调用 DELETE /likes + DELETE /favorites
+任务名称：点赞/收藏支持取消 + active 态
+修改目标：用户可取消点赞/收藏
+修改原因：前端只调 POST 不调 DELETE（F1 / F2）
+涉及文件：
+修改 frontend/src/components/post/PostCard.vue
+新建 frontend/src/api/interaction.ts
+涉及页面：首页帖子流
+涉及数据库：likes / favorites 表
+涉及接口：DELETE /likes/{type}/{id}、DELETE /favorites/{id}
+修改步骤：
+新增 GET /users/me/likes + GET /users/me/favorites 接口（后端补）
+前端维护 likedPostIds: Set<number>
+点赞按钮 :class="{ active: likedPostIds.has(post.id) }"
+点击时根据 active 态调 POST 或 DELETE
+完成标准：点赞后按钮高亮，再点击取消
+验收标准：点赞 → 刷新页面 → 按钮仍高亮
+预计风险：需后端补「我的点赞列表」接口
+T4-7 · 前端调用 DELETE /posts/{id}/comments/{cid}
+任务名称：评论加「删除」按钮
+修改目标：作者可删除自己的评论
+修改原因：后端接口 0 调用（F14-评论）
+涉及文件：修改 frontend/src/components/comment/CommentItem.vue
+涉及页面：首页评论区
+涉及数据库：comments 表
+涉及接口：DELETE /posts/{id}/comments/{cid}
+修改步骤：
+评论项在 comment.user_id === session.userId 时显示「删除」
+二次确认后调用 DELETE
+成功后从列表移除 + post.comment_count -= 1（用接口返回值）
+完成标准：作者可见删除按钮
+验收标准：删除后评论消失 + count 减少
+预计风险：当前 _comment_dict 不返回 user_id，需后端补字段
+T4-8 · 评论二级回复
+任务名称：评论项加「回复」按钮 + 分层渲染
+修改目标：支持二级回复
+修改原因：后端 parent_id 支持但前端无入口（F4）
+涉及文件：修改 frontend/src/components/comment/CommentList.vue + CommentItem.vue
+涉及页面：首页评论区
+涉及数据库：无
+涉及接口：POST /posts/{id}/comments（带 parent_id）
+修改步骤：
+CommentList.vue 用 computed 按 parent_id 分组
+一级评论下渲染 replies: CommentItem[]
+二级评论缩进 24px
+评论项加「回复」按钮，点击后显示输入框 + 提交时带 parent_id
+完成标准：二级回复有缩进
+验收标准：回复一级评论后，回复显示在该评论下方
+预计风险：后端排序需调整为一级评论 asc + 二级回复 asc
+T4-9 · 评论点赞
+任务名称：评论项加点赞按钮
+修改目标：可点赞评论
+修改原因：后端支持但前端无入口（F15）
+涉及文件：修改 frontend/src/components/comment/CommentItem.vue
+涉及页面：首页评论区
+涉及数据库：likes 表
+涉及接口：POST /likes/comment/{id}、DELETE /likes/comment/{id}
+修改步骤：
+评论项加「赞 N」按钮
+复用帖子的点赞逻辑（target_type='comment'）
+完成标准：评论点赞数实时更新
+验收标准：点赞后 comment.like_count +1
+预计风险：无
+T4-10 · 举报理由输入
+任务名称：举报改为弹窗输入
+修改目标：用户可填写举报理由
+修改原因：当前硬编码 reason（F3）
+涉及文件：修改 frontend/src/components/post/PostCard.vue
+涉及页面：首页帖子流
+涉及数据库：无
+涉及接口：POST /reports
+修改步骤：
+el-dialog 含 textarea + 类型选择（垃圾广告 / 人身攻击 / 色情 / 其他）
+提交时把类型 + 理由拼接传给后端
+完成标准：举报弹窗可输入
+验收标准：数据库 reports.reason 字段含用户输入
+预计风险：无
+T4-11 · 帖子分页 + 搜索
+任务名称：后端 list_posts 加 page/page_size/q/category
+修改目标：支持分页和搜索
+修改原因：当前写死 limit(50)（F10 / F11）
+涉及文件：
+修改 backend/app/api/routes/posts.py#list_posts
+修改 backend/app/schemas/post.py：新增 PostListResponse
+涉及页面：无
+涉及数据库：无
+涉及接口：GET /posts
+修改步骤：
+参数加 page: int = 1, page_size: int = 20, q: str | None = None, category: str | None = None
+query 加 where(Post.content.like(f"%{q}%")) 当 q 非空
+加 where(Post.category == category) 当 category 非空
+返回 {items: [...], total: N, page, page_size}
+前端 PostList.vue 加 el-pagination
+完成标准：第 2 页返回不同数据
+验收标准：搜索「测试」只返回含该关键词的帖子
+预计风险：LIKE 查询性能差，需后续加全文索引
+T4-12 · 前端搜索框绑定
+任务名称：顶部搜索框调用搜索接口
+修改目标：搜索可用
+修改原因：当前搜索框无绑定（U4）
+涉及文件：
+修改 frontend/src/components/header/SearchBox.vue
+新建 frontend/src/views/Search.vue
+涉及页面：首页 + 搜索结果页
+涉及数据库：无
+涉及接口：GET /posts?q=
+修改步骤：
+搜索框 @keyup.enter="goSearch"
+goSearch 跳转 /search?q=xxx
+Search.vue 读 query 参数调 listPosts({q})
+完成标准：输入关键词回车跳转
+验收标准：搜索「测试」显示含测试的帖子
+预计风险：无
+阶段 5 · 页面拆分与新增
+T5-1 · 个人主页页面
+任务名称：新增 UserHome.vue 页面
+修改目标：用户有独立个人主页
+修改原因：当前只有右侧栏小卡片（A2）
+涉及文件：
+新建 frontend/src/views/UserHome.vue
+修改 frontend/src/router/index.ts
+涉及页面：/user/:id
+涉及数据库：无
+涉及接口：GET /users/{id}、GET /users/{id}/posts
+修改步骤：
+顶部头像 banner + 头像 + 昵称 + 简介 + 统计
+Tab：「帖子」「收藏」「点赞」
+帖子列表复用 PostCard.vue
+路由 /user/:id
+完成标准：访问 /user/1 显示用户 1 的主页
+验收标准：点击帖子作者名跳转
+预计风险：需后端补「用户收藏列表」「用户点赞列表」接口
+T5-2 · 设置页面
+任务名称：新增 Settings.vue
+修改目标：用户可修改资料 + 密码
+修改原因：当前无设置入口
+涉及文件：新建 frontend/src/views/Settings.vue
+涉及页面：/settings
+涉及数据库：users 表
+涉及接口：PATCH /users/me、新增 POST /auth/change-password
+修改步骤：
+Tab：「基本资料」「账号安全」「通知设置」
+基本资料复用 ProfileEditDialog.vue 的表单
+账号安全：修改密码（需后端补接口）
+完成标准：访问 /settings 显示设置页
+验收标准：修改密码后可用新密码登录
+预计风险：change-password 接口需后端补
+T5-3 · 我的草稿页面
+任务名称：新增 MyDrafts.vue
+修改目标：用户可查看未发布草稿
+修改原因：草稿落库后无找回入口（F17）
+涉及文件：新建 frontend/src/views/MyDrafts.vue
+涉及页面：/my/drafts
+涉及数据库：posts 表（is_draft=true）
+涉及接口：新增 GET /users/me/drafts
+修改步骤：
+后端补 GET /users/me/drafts 返回 is_draft=True 的帖子
+前端列表渲染 + 「编辑」「发布」「删除」操作
+完成标准：保存草稿后在该页可见
+验收标准：草稿点击「发布」后从草稿页消失 + 出现在首页
+预计风险：无
+T5-4 · 我的收藏页面
+任务名称：新增 MyFavorites.vue
+修改目标：用户可查看收藏的帖子
+修改原因：无收藏列表（F2-列表）
+涉及文件：新建 frontend/src/views/MyFavorites.vue
+涉及页面：/my/favorites
+涉及数据库：favorites 表
+涉及接口：新增 GET /users/me/favorites
+修改步骤：
+后端补接口 join favorites + posts
+前端列表渲染 PostCard.vue + 取消收藏按钮
+完成标准：收藏的帖子在该页可见
+验收标准：取消收藏后从列表消失
+预计风险：无
+T5-5 · 通知中心页面
+任务名称：新增 Notifications.vue
+修改目标：用户可查看通知
+修改原因：notifications 表零接口（F25）
+涉及文件：新建 frontend/src/views/Notifications.vue
+涉及页面：/notifications
+涉及数据库：notifications 表
+涉及接口：新增 GET /notifications、PATCH /notifications/{id}/read
+修改步骤：
+后端补接口
+互动发生时（点赞/评论/收藏）写通知
+前端列表渲染 + 已读/未读状态
+完成标准：A 评论 B 的帖子，B 通知中心可见
+验收标准：通知显示 + 点击标记已读
+预计风险：通知写入逻辑散落多个 service
+T5-6 · 管理员后台页面
+任务名称：新增 Admin/ 目录及子页面
+修改目标：管理员有独立后台
+修改原因：后端有 9 个接口但前端零页面
+涉及文件：
+新建 frontend/src/layouts/AdminLayout.vue
+新建 frontend/src/views/Admin/Login.vue、Posts.vue、Comments.vue、Users.vue、Reports.vue、Announcements.vue、Logs.vue
+涉及页面：/admin/*
+涉及数据库：无
+涉及接口：/admin/* 全部
+修改步骤：
+AdminLayout.vue 左侧菜单 + 顶栏 + RouterView
+每个子页面用 el-table 渲染列表
+路由 meta: { requiresAdmin: true }
+守卫校验 admin_token Cookie
+完成标准：admin 登录后可访问 7 个子页面
+验收标准：未登录跳 /admin/login
+预计风险：admin_token Cookie 与 access_token 区分
+T5-7 · 404 页面
+任务名称：新增 Error/404.vue
+修改目标：未知路由有兜底
+修改原因：当前空白（P-404）
+涉及文件：新建 frontend/src/views/Error/404.vue + 修改 router/index.ts
+涉及页面：/:pathMatch(.*)*
+涉及数据库：无
+涉及接口：无
+修改步骤：
+简单的 404 提示 + 「返回首页」按钮
+路由表加兜底
+完成标准：访问 /abc 显示 404
+验收标准：点击「返回首页」跳 /
+预计风险：无
+T5-8 · 全局错误处理
+任务名称：App.vue 加 errorHandler
+修改目标：未捕获异常有兜底
+修改原因：当前无（C4）
+涉及文件：修改 frontend/src/main.ts + App.vue
+涉及页面：无
+涉及数据库：无
+涉及接口：无
+修改步骤：
+app.config.errorHandler = (err) => { ElMessage.error('系统错误'); console.error(err) }
+window.addEventListener('unhandledrejection', ...)
+完成标准：抛错时显示提示而非白屏
+验收标准：手动抛错测试
+预计风险：无
+阶段 6 · 功能修复
+T6-1 · 发送验证码按钮 + 倒计时
+任务名称：登录弹窗加「发送验证码」按钮
+修改目标：用户可触发发送
+修改原因：当前 authForm.code = '123456' 写死（F7）
+涉及文件：修改 frontend/src/components/auth/AuthDialog.vue
+涉及页面：登录弹窗
+涉及数据库：无
+涉及接口：POST /auth/send-code
+修改步骤：
+验证码输入框右侧加「发送验证码」按钮
+点击调 POST /auth/send-code?phone=xxx
+60 秒倒计时禁用按钮
+删除 authForm.code = '123456' 默认值
+完成标准：点击发送后按钮变倒计时
+验收标准：发送后弹提示「验证码已发送」
+预计风险：dev stub 仍返回 123456，需前端提示用户
+T6-2 · 用户协议链接
+任务名称：注册弹窗「社区协议」可点击
+修改目标：用户可查看协议
+修改原因：当前纯文字（U9）
+涉及文件：修改 AuthDialog.vue
+涉及页面：注册弹窗 + 新建协议页
+涉及数据库：无
+涉及接口：无
+修改步骤：
+「《社区协议》」加 <a> 跳 /agreement
+新建 Agreement.vue 显示协议文本
+完成标准：点击协议可跳转
+验收标准：协议页可滚动阅读
+预计风险：无
+T6-3 · 表单关闭重置
+任务名称：AuthDialog 关闭时重置表单
+修改目标：再次打开不残留
+修改原因：当前 authForm 不重置（F8）
+涉及文件：修改 AuthDialog.vue
+涉及页面：登录弹窗
+涉及数据库：无
+涉及接口：无
+修改步骤：
+<el-dialog @close="resetForm">
+resetForm 用 Object.assign(authForm, initial) 还原初始值
+完成标准：关闭后再打开字段为空
+验收标准：填写后关闭再打开无残留
+预计风险：无
+T6-4 · 登录后保存 nickname
+任务名称：session.login 同步保存 nickname
+修改目标：登录后立即有 nickname
+修改原因：当前只存 userId（F9）
+涉及文件：修改 frontend/src/stores/session.ts#login
+涉及页面：无
+涉及数据库：无
+涉及接口：需后端 POST /auth/login 返回 nickname
+修改步骤：
+后端 login 返回 {user_id, nickname, ...}
+前端 login 中 nickname.value = data.data.nickname; localStorage.setItem('nickname', ...)
+完成标准：登录后立即刷新页面右侧栏显示昵称
+验收标准：登录后 localStorage.nickname 有值
+预计风险：后端需返回 nickname
+T6-5 · is_public 开关
+任务名称：发帖区加「公开/私密」开关
+修改目标：用户可选帖子可见性
+修改原因：postForm.is_public 字段存在但无开关（F16）
+涉及文件：修改 PostEditor.vue
+涉及页面：发帖区
+涉及数据库：无
+涉及接口：无
+修改步骤：
+加 <el-switch v-model="postForm.is_public" active-text="公开" inactive-text="仅自己可见" />
+完成标准：发私密帖子后他人看不到
+验收标准：见 T3-5
+预计风险：无
+T6-6 · comment_count 用接口返回值
+任务名称：发评论后用后端返回的 count 覆盖
+修改目标：避免前后端不一致
+修改原因：当前前端手动 +1（F18 / D3）
+涉及文件：修改 CommunityHome.vue 或 CommentList.vue
+涉及页面：无
+涉及数据库：无
+涉及接口：POST /posts/{id}/comments 需返回新 count
+修改步骤：
+后端 create_comment 返回 {comment, post_comment_count}
+前端用返回值更新 post.comment_count
+完成标准：刷新后 count 不变
+验收标准：发评论后 count +1，刷新后仍正确
+预计风险：无
+T6-7 · 左侧菜单激活态 + 点击
+任务名称：左侧 9 项菜单绑定 @click + active 高亮
+修改目标：菜单可点击
+修改原因：当前全部无 @click（U1 / U3）
+涉及文件：修改 SideMenu.vue
+涉及页面：左侧菜单
+涉及数据库：无
+涉及接口：无
+修改步骤：
+每项 @click="onMenuClick(item)"
+「首页」→ /、「热门」→ 切 view=hot、「树洞/表白/二手/失物招领」→ 切 category、「公告」→ /announcements、「个人中心」→ /user/:id
+当前激活项加 class="active"
+不同菜单项用不同图标（替换 HomeFilled）
+完成标准：点击菜单有响应
+验收标准：点击「树洞」筛选树洞分类
+预计风险：菜单与 segmented 语义重叠需明确
+T6-8 · 帖子标签可点击搜索
+任务名称：标签 #tag 加 @click
+修改目标：点击标签搜索同标签帖子
+修改原因：当前纯展示（U7）
+涉及文件：修改 PostCard.vue 或 PostTags.vue
+涉及页面：无
+涉及数据库：无
+涉及接口：GET /posts?tag=
+修改步骤：
+后端 list_posts 加 tag 参数
+前端 @click="goTagSearch(tag)"
+完成标准：点击标签跳搜索结果
+验收标准：点击「#学习」显示所有含「学习」标签的帖子
+预计风险：需后端补 tag 过滤
+T6-9 · 图片 lazy + 预览
+任务名称：帖子图片用 el-image 替代 <img>
+修改目标：lazy loading + 点击预览
+修改原因：当前无 lazy、无预览、URL 404 破图（U8 / PR5）
+涉及文件：修改 PostImages.vue
+涉及页面：帖子卡片
+涉及数据库：无
+涉及接口：无
+修改步骤：
+<el-image :src="url" lazy :preview-src-list="urls" />
+加 fit="cover"
+完成标准：图片懒加载 + 点击可预览大图
+验收标准：滚动时图片延迟加载；点击图片弹出预览
+预计风险：无
+T6-10 · 右侧栏头像渲染
+任务名称：个人主页卡片显示真实头像
+修改目标：渲染 profile.avatar_url
+修改原因：当前不渲染（U10）
+涉及文件：修改右侧栏 ProfileCard.vue
+涉及页面：首页右侧栏
+涉及数据库：无
+涉及接口：无
+修改步骤：
+<el-avatar :src="profile.avatar_url" />
+无头像时显示 nickname 首字
+完成标准：上传头像后右侧栏显示
+验收标准：见 T4-4
+预计风险：无
+阶段 7 · Bug 修复
+T7-1 · AI 服务降级
+任务名称：AI 不可用时立即降级
+修改目标：发帖/评论不阻塞 90 秒
+修改原因：当前 3 次 × 30 秒 = 90 秒阻塞（F23 / PR1 / C1）
+涉及文件：修改 backend/app/services/ai_service.py
+涉及页面：无
+涉及数据库：无
+涉及接口：所有调 AI 的接口
+修改步骤：
+timeout 从 30s 改为 5s
+重试次数从 3 改为 1
+ConnectError / TimeoutException 立即返回空，不重试
+check_text 失败时返回 {pass: True, reason: "AI 不可用，已放行"}
+generate_tags 失败时返回 []
+summary 失败时返回 ""
+完成标准：AI 不可用时发帖响应 < 1 秒
+验收标准：断网状态下发帖 1 秒内成功
+预计风险：审核被绕过，需后续补关键词过滤
+T7-2 · AI 图片审核修正
+任务名称：暂时跳过图片审核或接入视觉模型
+修改目标：图片审核有意义
+修改原因：当前把 URL 字符串当 prompt 喂文本 LLM（F24）
+涉及文件：修改 backend/app/services/ai_service.py#check_image
+涉及页面：无
+涉及数据库：无
+涉及接口：POST /images
+修改步骤：
+本次整改不接入视觉模型（禁止新功能）
+check_image 直接返回 {pass: True}
+注释 # TODO: Phase 2 - 接入视觉模型
+完成标准：图片上传不再调 LLM
+验收标准：上传图片不触发 AI 请求
+预计风险：无审核，需后台管理员人工复核
+T7-3 · validateSession 失败时弹登录框
+任务名称：Cookie 失效时显示登录弹窗
+修改目标：用户可见登录入口
+修改原因：当前 validateSession 失败时 clearSession 但 showAuth 未置 true（L3）
+涉及文件：修改 CommunityHome.vue#L191-197
+涉及页面：首页
+涉及数据库：无
+涉及接口：无
+修改步骤：
+else 分支加 showAuth.value = true
+完成标准：Cookie 过期后刷新页面自动弹登录框
+验收标准：清空 Cookie 后刷新页面
+预计风险：无
+T7-4 · postForm.school_id 兜底
+任务名称：loadSchools 失败时不取假数据第一项
+修改目标：避免用假校区发帖
+修改原因：当前 fallback 到 4 条假数据后 postForm.school_id = session.schools[0]?.id（L5 / F28）
+涉及文件：修改 CommunityHome.vue#L189 + session.ts#loadSchools
+涉及页面：无
+涉及数据库：无
+涉及接口：无
+修改步骤：
+loadSchools 失败时 fallback 仅用于展示，不写入 schools.value
+改为 schools.value = [] + ElMessage.error('校区加载失败')
+postForm.school_id 保持 undefined 直到加载成功
+完成标准：后端挂掉时发帖提示「请选择校区」
+验收标准：断开后端时打开页面不发帖成功
+预计风险：无
+T7-5 · http 拦截器补 401 处理
+任务名称：401 时清 session + 弹登录框
+修改目标：未登录错误统一处理
+修改原因：当前只抛错让 ElMessage 展示（A14）
+涉及文件：修改 frontend/src/api/http.ts
+涉及页面：无
+涉及数据库：无
+涉及接口：无
+修改步骤：
+拦截器中 if (body.code === -100 || body.code === -101) { useSessionStore().clearSession(); router.push('/') }
+网络错误统一 ElMessage.error('网络错误')
+完成标准：401 时自动跳首页
+验收标准：清空 Cookie 后操作任何按钮自动跳首页
+预计风险：拦截器引入 store / router 依赖需注意循环引用
+T7-6 · admin OperationLog.admin_id 写入
+任务名称：admin 操作日志写入 admin_id
+修改目标：admin 操作可追溯
+修改原因：当前永远 None（L7）
+涉及文件：修改 backend/app/api/routes/admin.py
+涉及页面：无
+涉及数据库：operation_logs.admin_id
+涉及接口：/admin/*
+修改步骤：
+所有 admin 函数加 admin: Admin = Depends(admin_user)（T2-1）
+OperationLog(admin_id=admin.id, action=..., detail=...)
+完成标准：admin 删除帖子后日志含 admin_id
+验收标准：GET /admin/logs 返回的记录含 admin_id
+预计风险：无
+T7-7 · 公告按校区过滤
+任务名称：GET /announcements 加 school_id 过滤
+修改目标：用户只看本校公告
+修改原因：当前不过滤（F20）
+涉及文件：修改 backend/app/api/routes/announcements.py
+涉及页面：无
+涉及数据库：无
+涉及接口：GET /announcements
+修改步骤：
+加 school_id: int | None = Query(default=None)
+query 加 .where(or_(Announcement.school_id == school_id, Announcement.school_id.is_(None)))
+完成标准：选择校区后只看本校 + 全校公告
+验收标准：创建校区公告后其他校区看不到
+预计风险：无
+T7-8 · 登录失败锁定持久化
+任务名称：failed_login 改用 Redis
+修改目标：进程重启不丢失锁定
+修改原因：当前内存变量（F22 / C3 / S7）
+涉及文件：修改 backend/app/api/routes/auth.py
+涉及页面：无
+涉及数据库：无（用 Redis）
+涉及接口：POST /auth/login
+修改步骤：
+新建 backend/app/core/redis.py 提供 get_redis()
+failed_login 改为 redis.incr(f"login_fail:{phone}") + expire(1800)
+登录成功 redis.delete(f"login_fail:{phone}")
+完成标准：重启后端后锁定计数仍存在
+验收标准：失败 10 次后等 30 分钟再试
+预计风险：Redis 未部署时需 fallback
+T7-9 · IP 限流
+任务名称：登录/注册接口加 IP 限流
+修改目标：防暴力破解
+修改原因：当前无（S8）
+涉及文件：修改 backend/app/api/routes/auth.py
+涉及页面：无
+涉及数据库：无
+涉及接口：POST /auth/login、POST /auth/register、POST /auth/send-code
+修改步骤：
+Redis 计数 IP:xxx 每分钟最多 10 次
+超限返回 429
+完成标准：1 分钟内 11 次请求被拒
+验收标准：curl 循环 11 次第 11 次返回 429
+预计风险：NAT 后多用户共享 IP
+T7-10 · 图片上传内容嗅探
+任务名称：上传图片校验 magic bytes
+修改目标：防止伪装 content_type 上传可执行文件
+修改原因：当前仅靠 content_type（S9）
+涉及文件：修改 backend/app/api/routes/images.py
+涉及页面：无
+涉及数据库：无
+涉及接口：POST /images
+修改步骤：
+用 python-magic 或手写 magic bytes 校验
+jpeg: \xFF\xD8\xFF、png: \x89PNG\r\n\x1a\n、gif: GIF87a/GIF89a、webp: RIFF....WEBP
+完成标准：伪装 content_type 上传 .exe 被拒
+验收标准：curl 传 exe 返回 400
+预计风险：无
+T7-11 · 帖子图片 URL 校验
+任务名称：发帖时校验 image_urls 是合法 URL
+修改目标：防止 XSS via image URL
+修改原因：当前前端手贴 URL 直接落库
+涉及文件：修改 backend/app/schemas/post.py#PostCreate
+涉及页面：无
+涉及数据库：无
+涉及接口：POST /posts
+修改步骤：
+image_urls: list[HttpUrl] 用 Pydantic HttpUrl 类型
+或自定义 validator 校验 startswith('http') + 不含 javascript:
+完成标准：javascript:alert(1) 被拒
+验收标准：传非法 URL 返回 -1000
+预计风险：相对路径 /uploads/xxx 需特殊处理
+T7-12 · CORS 生产收紧
+任务名称：生产环境 CORS 不允许 *
+修改目标：防止跨域攻击
+修改原因：当前 allow_origins=[frontend_origin] 但 allow_methods=["*"]（S5）
+涉及文件：修改 backend/app/main.py
+涉及页面：无
+涉及数据库：无
+涉及接口：无
+修改步骤：
+allow_methods=["GET", "POST", "PATCH", "DELETE", "PUT"]
+allow_headers=["Content-Type", "Authorization"]
+完成标准：OPTIONS 请求只允许上述方法
+验收标准：curl OPTIONS 不允许 TRACE
+预计风险：无
+T7-13 · extract_ip 安全
+任务名称：x-forwarded-for 取第一个但校验格式
+修改目标：防 IP 伪造
+修改原因：当前信任第一段（S10）
+涉及文件：修改 backend/app/api/deps.py#extract_ip
+涉及页面：无
+涉及数据库：无
+涉及接口：无
+修改步骤：
+用 ipaddress.ip_address(ip) 校验
+失败时 fallback 到 request.client.host
+完成标准：伪造 XFF 头不写入日志
+验收标准：curl -H "X-Forwarded-For: not-an-ip" 日志显示真实 client
+预计风险：无
+T7-14 · 用户操作日志 IP 必填
+任务名称：log_user_action 中 ip 为 None 时记录 unknown
+修改目标：日志可追溯
+修改原因：当前 None 时 ip 列为 NULL
+涉及文件：修改 backend/app/services/audit_log.py
+涉及页面：无
+涉及数据库：无
+涉及接口：无
+修改步骤：
+ip = ip or "unknown"
+完成标准：日志表 ip 列无 NULL
+验收标准：查表无 NULL ip
+预计风险：无
+T7-15 · 帖子 _post_dict 补 author_id + user_id
+任务名称：_post_dict 返回 author_id + _comment_dict 返回 user_id
+修改目标：前端可判断「是否本人」
+修改原因：当前不返回，前端无法显示编辑/删除按钮
+涉及文件：修改 backend/app/api/routes/posts.py#_post_dict + comments.py#_comment_dict
+涉及页面：无
+涉及数据库：无
+涉及接口：GET /posts、GET /posts/{id}/comments
+修改步骤：
+_post_dict 加 "author_id": post.author_id
+_comment_dict 加 "user_id": comment.user_id
+完成标准：前端可读到 author_id
+验收标准：帖子列表 JSON 含 author_id
+预计风险：暴露 user_id 需评估隐私
+阶段 8 · 性能优化
+T8-1 · AI 超时降级（同 T7-1）
+T8-2 · 帖子分页（同 T4-11）
+T8-3 · 评论分页
+任务名称：list_comments 加分页
+修改目标：评论多时不卡
+修改原因：当前一次拉全部（PR3）
+涉及文件：修改 backend/app/api/routes/comments.py
+涉及页面：无
+涉及数据库：无
+涉及接口：GET /posts/{id}/comments
+修改步骤：
+加 page: int = 1, page_size: int = 50
+返回 {items, total}
+前端「加载更多」按钮
+完成标准：100 条评论时首屏只加载 50
+验收标准：点击「加载更多」显示剩余
+预计风险：无
+T8-4 · 用户 like_count 查询优化
+任务名称：_profile 中 like_count 用 join 替代子查询
+修改目标：用户主页加载快
+修改原因：当前用子查询统计所有帖子点赞（PR2）
+涉及文件：修改 backend/app/api/routes/users.py#_profile
+涉及页面：无
+涉及数据库：无
+涉及接口：GET /users/me
+修改步骤：
+改为 select(func.count()).select_from(Like).join(Post, Post.id == Like.target_id).where(Post.author_id == user.id, Like.target_type == 'post')
+完成标准：查询时间 < 100ms
+验收标准：1000 帖子时仍快
+预计风险：无
+T8-5 · 前端图片 lazy（同 T6-9）
+阶段 9 · 上线验收
+T9-1 · 回归测试用例
+任务名称：编写端到端测试用例
+修改目标：覆盖所有核心流程
+修改原因：当前只有 test_auth_posts.py 覆盖 6 个用例
+涉及文件：新建 backend/tests/test_*.py
+涉及页面：无
+涉及数据库：无
+涉及接口：所有
+修改步骤：
+test_auth.py：注册/登录/登出/refresh/send-code/失败锁定
+test_post.py：发帖/编辑/删除/草稿/分页/搜索/is_public 过滤
+test_comment.py：发评论/回复/删除/二级分层
+test_interaction.py：点赞/取消/收藏/取消/举报
+test_user.py：个人主页/编辑资料/我的收藏/我的草稿
+test_admin.py：admin 登录/鉴权/各管理接口
+test_security.py：未登录访问 admin / 伪造 IP / 伪装 content_type
+完成标准：覆盖率 > 80%
+验收标准：pytest 全部通过
+预计风险：无
+T9-2 · 安全扫描
+任务名称：用 bandit + npm audit 扫描
+修改目标：发现已知漏洞
+修改原因：上线前必做
+涉及文件：无
+涉及页面：无
+涉及数据库：无
+涉及接口：无
+修改步骤：
+后端 bandit -r app/
+前端 npm audit
+修复 high/critical
+完成标准：无 high 漏洞
+验收标准：扫描报告无红色项
+预计风险：无
+T9-3 · 部署文档更新
+任务名称：更新 README + 部署脚本
+修改目标：工程师可按文档部署
+修改原因：本次整改后流程变化（需跑 alembic + 创建 admin）
+涉及文件：修改 README.md + 启动立洋社区.bat
+涉及页面：无
+涉及数据库：无
+涉及接口：无
+修改步骤：
+README 加「部署前必须 alembic upgrade head」
+README 加「首次部署必须 python scripts/create_admin.py」
+README 加「生产必须修改 jwt_secret」
+.bat 脚本加 alembic 迁移步骤
+完成标准：文档完整
+验收标准：新工程师按文档可独立部署
+预计风险：无
+任务总览
+阶段	任务数	优先级
+1. 项目架构重构	5	🔴 最高
+2. 安全与鉴权修复	7	🔴 高
+3. 数据库整改	5	🟠 高
+4. 接口整改	12	🟡 中
+5. 页面拆分与新增	8	🟡 中
+6. 功能修复	10	🟡 中
+7. Bug 修复	15	🟠 高
+8. 性能优化	5（含与 6/4 重复）	🟢 低
+9. 上线验收	3	🟢 低
+合计	约 60 个独立任务	—
+执行约束
+禁止新增任何新功能：本任务书所有任务均为「补齐已声明能力」或「修复现有问题」，不得新增私信、AI 对话、视频上传等未声明功能。
+禁止跳过阶段：阶段 1（架构重构）必须先完成，否则后续任务的代码修改会因单文件过大而冲突。
+每个任务独立提交：git commit message 格式 [T{阶段}-{序号}] 任务名称。
+每个任务完成后必须跑验收标准：未通过不得合并。
+禁止 silently 改动未提及的文件：如需改动，需在 PR 说明中标注。
+任务书输出完毕。是否需要我把这份任务书写入到项目根目录的 项目整改与重构任务书.md 文件中以便工程师跟踪？还是直接进入阶段 1 的执行？
+
+============================================================
+附录 · 已知未修复问题清单（T9-1/T9-2/T9-3 阶段整理）
+============================================================
+说明：以下问题在阶段 1-9 整改过程中发现，但因属于「禁止新增功能」范畴、或需生产环境配套、或属低优先级 UI 体验问题，未在本轮整改中实现。列出以便后续阶段或生产部署前处理。
+
+A. 需生产环境配套才能实现（非代码 Bug，部署前需配置）
+
+A1. 验证码仍是开发 stub（对应任务书 F7 / T6-1 部分）
+- 现状：send_code 固定返回 dev_code=123456，前端有「发送验证码」按钮但后端不接短信。
+- 原因：接短信服务属于新增功能，本轮禁止。
+- 部署前必须：接入阿里云/腾讯云短信 + Redis 60 秒冷却 + 手机号频控。
+
+A2. 登录失败锁定 / IP 限流用 SQLite 持久化（对应 T7-8/T7-9）
+- 现状：已用 SQLite 持久化（rate_limits / login_failures 表），单进程可用。
+- 待办：多 worker 部署时需切换到 Redis，避免计数分散。
+- 风险：不切换 Redis，多 worker 下限流阈值会按 worker 数倍增。
+
+A3. CSRF 防护未实现（对应任务书 S6）
+- 现状：Cookie + CORS 凭证模式，无 CSRF token。
+- 原因：CSRF 防护需引入中间件 + 前端 token 注入，属新增功能。
+- 缓解：CORS 已收紧到 FRONTEND_ORIGIN，且 Cookie httponly=True 降低可利用性。
+- 生产前建议：加 double-submit cookie 或 SameSite=strict。
+
+A4. HTTPS 未在应用层强制（对应任务书 S5）
+- 现状：应用层不强制 HTTPS，由 Nginx 反代处理。
+- 待办：生产 Nginx 配置 TLS 证书 + HSTS 头。
+
+B. 已知功能限制（属「禁止新增功能」范畴，未在本轮实现）
+
+B1. 私信 / messages 表完全未接入业务（对应任务书 F26）
+- 现状：表结构存在，零接口零页面。
+- 原因：任务书明确「禁止新增私信功能」。
+- 处理：表保留但不写入数据，待后续版本。
+
+B2. WebSocket 仅 echo（对应任务书 F27）
+- 现状：/ws 端点存在但不接业务。
+- 原因：实时推送属新增功能。
+- 处理：通知中心当前用 HTTP 轮询即可，待后续需要实时性时再接。
+
+B3. AI 图片审核未接入视觉模型（对应任务书 F24 / T7-2）
+- 现状：check_image 直接返回 {pass: True}。
+- 原因：任务书明确「本次整改不接入视觉模型」。
+- 风险：图片内容无审核，依赖管理员人工复核。
+- 待办：接入豆包 VL / GPT-4o 等视觉模型。
+
+B4. AI 文本审核降级后无关键词过滤兜底（对应任务书 T7-1 预计风险）
+- 现状：AI 不可用时直接放行，无关键词黑名单。
+- 原因：关键词库属新增功能。
+- 建议：生产环境如需更严格策略，可在 ai_service.check_text 失败分支加敏感词库匹配。
+
+C. 低优先级 UI / 体验问题（不阻塞功能）
+
+C1. 发帖区「仅自己可见」开关点击命中区域被遮挡（对应任务书阶段 6 备注）
+- 现状：is_public 开关点击命中区域被兄弟元素遮挡，需多次点击才能切换。
+- 影响：功能正常，仅影响交互体验。
+- 待办：调整 z-index 或调整兄弟元素布局。
+
+C2. AI 审核被跳过时用户感知不足
+- 现状：发帖/评论时若 AI 不可用，会通过 ElMessage.warning 提示，但提示 500ms 后才弹出。
+- 影响：用户可能错过提示。
+- 待办：可考虑在发帖区常驻一个 AI 状态徽标。
+
+C3. 帖子编辑器未支持 markdown / 富文本
+- 现状：仅纯文本 textarea。
+- 原因：任务书未要求，属新增功能。
+- 处理：保持纯文本，符合校园社区轻量定位。
+
+C4. 评论分页前端「加载更多」按钮（T9-1 已修复）
+- 现状：后端支持分页（page/page_size），前端 CommentList 已添加「加载更多」按钮。
+- 修复：CommentList.vue 新增 currentPage/total/loadingMore 状态，hasMore 计算属性，loadMore() 调 listComments(page+1) 追加到列表。
+- 回归风险：无。
+
+D. 已修复但需关注回归的 Bug（验证用）
+
+D1. 搜索页第二次搜索不刷新（T9-1 已修复）
+- 根因：Vue Router 同路由组件复用，onMounted 不重新触发。
+- 修复：Search.vue 用 watch(() => route.query, ...) 监听参数变化。
+- 回归风险：其他带 query 参数的列表页若未加 watch 也会出现同样问题。
+
+D2. 发布帖子后列表不刷新（T9-1 已修复）
+- 根因：未重置页码，用户在第 2 页发布时 loadPosts 仍加载第 2 页。
+- 修复：PostEditor.publish 中 postStore.setPage(1) + CommunityHome.onPostPublished 滚动到顶部。
+- 回归风险：其他发布场景（如管理员后台发公告）需检查是否也重置页码。
+
+D3. 0 个评论却显示 1 个（T9-1 已修复）
+- 根因：删除根评论时子回复成为孤立数据，comment_count 与列表不一致。
+- 修复：delete_comment 级联删除子回复 + 重新统计 comment_count 返回绝对值；前端用 count-updated(total) 替代 count-changed(delta)。
+- 回归风险：无。
+
+E. 部署相关待办（T9-3 已更新文档，但需执行）
+
+E1. 生产环境 .env 必须修改 JWT_SECRET
+- 现状：默认值 change-me，ENV=prod 时启动失败（T2-4 强校验）。
+- 待办：生成 ≥ 32 位强随机字符串填入。
+
+E2. 生产环境必须通过 CLI 创建管理员
+- 现状：已移除 admin/admin123456 后门（T2-3）。
+- 命令：python scripts/create_admin.py <username> <password> [--role admin]
+
+E3. 生产环境数据库建议用 MySQL
+- 现状：默认 sqlite:///./ly_community.sqlite3，开发可用。
+- 生产：改为 mysql+pymysql://user:pwd@host:3306/ly_community，性能与并发更好。
+
+E4. MinIO 未部署时图片回退到本地 uploads/
+- 现状：无 MinIO 时图片存 backend/uploads/，URL 为 /uploads/xxx。
+- 生产建议：部署 MinIO 或用对象存储（OSS/COS），避免单机磁盘瓶颈。

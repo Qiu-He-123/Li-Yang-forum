@@ -1,0 +1,1233 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>消息 - 立洋社区</title>
+    <style id="theme-vars">
+/*
+ * Pinguo design tokens
+ * Brand: Pinguo
+ * Domain: Consumer imaging product
+ * Style: Restrained, elegant, Apple-inspired
+ * Theme mode: light-dark
+ * Source language: zh
+ * Output language: en
+ *
+ * Color architecture (two layers):
+ *   1. Primitive palette - six categories. brand / background / text / icon
+ *      are each a 10-step scale (50 lightest to 900 darkest). state-success and
+ *      state-error are functional colors anchored on Apple system colors.
+ *      Anchors follow Apple Human Interface Guidelines system colors
+ *      (System Blue #007AFF, System Green #34C759, System Red #FF3B30,
+ *      system grays / label / background colors).
+ *   2. Semantic tokens - :root (light) and .dark map roles onto primitives.
+ *      Components and UI kits must only consume the semantic tokens below.
+ */
+
+/* @group-priority: brand, background, text, icon, state-success, state-error */
+
+:root {
+  /* ===== PRIMITIVE PALETTE ===== */
+
+  /* brand */
+  --brand-50: #e8f2ff;
+  --brand-100: #cfe5ff;
+  --brand-200: #9fcbff;
+  --brand-300: #66abff;
+  --brand-400: #2e8dff;
+  --brand-500: #007aff; /* @primary */
+  --brand-600: #0064d6;
+  --brand-700: #004fad;
+  --brand-800: #003b82;
+  --brand-900: #00275a;
+
+  /* background */
+  --background-50: #ffffff;
+  --background-100: #f7f7fa;
+  --background-200: #f2f2f7;
+  --background-300: #e5e5ea;
+  --background-400: #d1d1d6;
+  --background-500: #aeaeb2;
+  --background-600: #8e8e93;
+  --background-700: #3a3a3c;
+  --background-800: #1c1c1e;
+  --background-900: #000000;
+
+  /* text */
+  --text-50: #f5f5f7;
+  --text-100: #e3e3e8;
+  --text-200: #c7c7cc;
+  --text-300: #aeaeb2;
+  --text-400: #8e8e93;
+  --text-500: #6e6e73;
+  --text-600: #48484a;
+  --text-700: #3c3c43;
+  --text-800: #1d1d1f;
+  --text-900: #000000;
+
+  /* icon */
+  --icon-50: #f5f5f7;
+  --icon-100: #e5e5ea;
+  --icon-200: #d1d1d6;
+  --icon-300: #c7c7cc;
+  --icon-400: #aeaeb2;
+  --icon-500: #8e8e93;
+  --icon-600: #6e6e73;
+  --icon-700: #48484a;
+  --icon-800: #2c2c2e;
+  --icon-900: #1d1d1f;
+
+  /* state-success */
+  --state-success: #34c759; /* @primary */
+  --state-success-dark: #30d158;
+  --state-success-surface: #e9f9ee;
+  --state-success-foreground: #ffffff;
+
+  /* state-error */
+  --state-error: #ff3b30; /* @primary */
+  --state-error-dark: #ff453a;
+  --state-error-surface: #ffecea;
+  --state-error-foreground: #ffffff;
+
+  /* ===== SEMANTIC ROLES ===== */
+
+  /* semantic */
+  --background: var(--background-50);
+  --foreground: var(--text-800);
+  --card: var(--background-50);
+  --card-foreground: var(--text-800);
+  --popover: var(--background-50);
+  --popover-foreground: var(--text-900);
+
+  --primary: var(--brand-500);
+  --primary-foreground: var(--background-50);
+  --secondary: var(--background-200);
+  --secondary-foreground: var(--text-800);
+  --muted: var(--background-200);
+  --muted-foreground: var(--text-400);
+  --accent: var(--background-100);
+  --accent-foreground: var(--text-800);
+  --destructive: var(--state-error);
+  --destructive-foreground: var(--state-error-foreground);
+  --success: var(--state-success);
+  --success-foreground: var(--state-success-foreground);
+  --border: var(--background-300);
+  --input: var(--background-400);
+  --ring: var(--brand-500);
+
+  --icon: var(--icon-900);
+  --icon-muted: var(--icon-500);
+
+  /* chart */
+  --chart-1: var(--state-success);
+  --chart-2: var(--brand-500);
+  --chart-3: #ff9500;
+  --chart-4: #5856d6;
+  --chart-5: #af52de;
+
+  /* sidebar */
+  --sidebar: var(--background-200);
+  --sidebar-foreground: var(--text-800);
+  --sidebar-primary: var(--brand-500);
+  --sidebar-primary-foreground: var(--background-50);
+  --sidebar-accent: var(--background-300);
+  --sidebar-accent-foreground: var(--text-800);
+  --sidebar-border: var(--background-300);
+  --sidebar-ring: var(--brand-500);
+
+  /* TYPOGRAPHY */
+  --font-sans: DM Sans, ui-sans-serif, sans-serif, system-ui;
+  --font-serif: DM Sans, ui-sans-serif, sans-serif, system-ui;
+  --font-mono: JetBrains Mono, monospace;
+  --tracking-normal: 0em;
+
+  /* RADIUS */
+  --radius: 1.2rem;
+  --radius-sm: 0.6rem;
+  --radius-md: 0.8rem;
+  --radius-lg: 1.2rem;
+
+  /* SHADOWS */
+  --shadow-2xs: 0 1px 2px -1px rgba(0, 0, 0, 0.04); /* Hairline */
+  --shadow-xs: 0 1px 2px 0 rgba(0, 0, 0, 0.04); /* Subtle */
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05), 0 1px 3px -1px rgba(0, 0, 0, 0.05); /* Card */
+  --shadow: 0 2px 4px -1px rgba(0, 0, 0, 0.06), 0 1px 2px -1px rgba(0, 0, 0, 0.05); /* Raised */
+  --shadow-md: 0 4px 8px -2px rgba(0, 0, 0, 0.06), 0 2px 4px -2px rgba(0, 0, 0, 0.05); /* Card Hover */
+  --shadow-lg: 0 8px 24px -8px rgba(0, 0, 0, 0.08), 0 4px 8px -4px rgba(0, 0, 0, 0.05); /* Float */
+  --shadow-xl: 0 16px 40px -10px rgba(0, 0, 0, 0.10), 0 8px 16px -8px rgba(0, 0, 0, 0.06); /* Overlay */
+  --shadow-2xl: 0 24px 64px -12px rgba(0, 0, 0, 0.12); /* Modal */
+
+  /* SPACING */
+  --spacing: 0.24rem;
+}
+
+/* ===== SEMANTIC ROLES - dark (primitive palette inherited) ===== */
+.dark {
+  --background: var(--background-900);
+  --foreground: var(--text-50);
+  --card: var(--background-800);
+  --card-foreground: var(--text-50);
+  --popover: var(--background-700);
+  --popover-foreground: var(--text-50);
+
+  --primary: var(--brand-400);
+  --primary-foreground: var(--background-900);
+  --secondary: var(--background-800);
+  --secondary-foreground: var(--text-50);
+  --muted: var(--background-800);
+  --muted-foreground: var(--text-400);
+  --accent: var(--background-700);
+  --accent-foreground: var(--text-50);
+  --destructive: var(--state-error-dark);
+  --destructive-foreground: var(--state-error-foreground);
+  --success: var(--state-success-dark);
+  --success-foreground: var(--state-success-foreground);
+  --border: var(--background-700);
+  --input: var(--background-700);
+  --ring: var(--brand-400);
+
+  --icon: var(--icon-50);
+  --icon-muted: var(--icon-500);
+
+  --chart-1: var(--state-success-dark);
+  --chart-2: var(--brand-400);
+  --chart-3: #ff9f0a;
+  --chart-4: #5e5ce6;
+  --chart-5: #bf5af2;
+
+  --sidebar: var(--background-800);
+  --sidebar-foreground: var(--text-50);
+  --sidebar-primary: var(--brand-400);
+  --sidebar-primary-foreground: var(--background-900);
+  --sidebar-accent: var(--background-700);
+  --sidebar-accent-foreground: var(--text-50);
+  --sidebar-border: var(--background-700);
+  --sidebar-ring: var(--brand-400);
+
+  --shadow-2xs: 0 1px 2px -1px rgba(0, 0, 0, 0.30);
+  --shadow-xs: 0 1px 2px 0 rgba(0, 0, 0, 0.30);
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.36), 0 1px 3px -1px rgba(0, 0, 0, 0.36);
+  --shadow: 0 2px 4px -1px rgba(0, 0, 0, 0.40), 0 1px 2px -1px rgba(0, 0, 0, 0.36);
+  --shadow-md: 0 4px 8px -2px rgba(0, 0, 0, 0.44), 0 2px 4px -2px rgba(0, 0, 0, 0.36);
+  --shadow-lg: 0 8px 24px -8px rgba(0, 0, 0, 0.50), 0 4px 8px -4px rgba(0, 0, 0, 0.40);
+  --shadow-xl: 0 16px 40px -10px rgba(0, 0, 0, 0.55), 0 8px 16px -8px rgba(0, 0, 0, 0.44);
+  --shadow-2xl: 0 24px 64px -12px rgba(0, 0, 0, 0.60);
+}
+
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4.3.1/dist/index.global.js"></script>
+    <script src="https://unpkg.com/lucide@1.8.0/dist/umd/lucide.min.js"></script>
+    <style type="text/tailwindcss">
+  @theme inline {
+    --color-background: var(--background);
+    --color-foreground: var(--foreground);
+    --color-card: var(--card);
+    --color-card-foreground: var(--card-foreground);
+    --color-popover: var(--popover);
+    --color-popover-foreground: var(--popover-foreground);
+    --color-primary: var(--primary);
+    --color-primary-foreground: var(--primary-foreground);
+    --color-secondary: var(--secondary);
+    --color-secondary-foreground: var(--secondary-foreground);
+    --color-muted: var(--muted);
+    --color-muted-foreground: var(--muted-foreground);
+    --color-accent: var(--accent);
+    --color-accent-foreground: var(--accent-foreground);
+    --color-destructive: var(--destructive);
+    --color-destructive-foreground: var(--destructive-foreground);
+    --color-border: var(--border);
+    --color-input: var(--input);
+    --color-ring: var(--ring);
+    --color-chart-1: var(--chart-1);
+    --color-chart-2: var(--chart-2);
+    --color-chart-3: var(--chart-3);
+    --color-chart-4: var(--chart-4);
+    --color-chart-5: var(--chart-5);
+    --color-sidebar: var(--sidebar);
+    --color-sidebar-foreground: var(--sidebar-foreground);
+    --color-sidebar-primary: var(--sidebar-primary);
+    --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+    --color-sidebar-accent: var(--sidebar-accent);
+    --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+    --radius-sm: var(--radius-sm);
+    --radius-md: var(--radius-md);
+    --radius-lg: var(--radius-lg);
+  }
+  @layer base {
+    body { background: var(--background); color: var(--foreground); }
+    td, th { @apply break-words; word-break: break-all; word-break: auto-phrase; }
+    th { @apply whitespace-nowrap; }
+  }
+    </style>
+    <style id="semantic-token-fallback">
+      .bg-background { background-color: var(--background); }
+      .text-background { color: var(--background); }
+      .border-background { border-color: var(--background); }
+      .ring-background { --tw-ring-color: var(--background); }
+      .bg-foreground { background-color: var(--foreground); }
+      .text-foreground { color: var(--foreground); }
+      .border-foreground { border-color: var(--foreground); }
+      .ring-foreground { --tw-ring-color: var(--foreground); }
+      .bg-card { background-color: var(--card); }
+      .text-card { color: var(--card); }
+      .border-card { border-color: var(--card); }
+      .ring-card { --tw-ring-color: var(--card); }
+      .bg-card-foreground { background-color: var(--card-foreground); }
+      .text-card-foreground { color: var(--card-foreground); }
+      .border-card-foreground { border-color: var(--card-foreground); }
+      .ring-card-foreground { --tw-ring-color: var(--card-foreground); }
+      .bg-popover { background-color: var(--popover); }
+      .text-popover { color: var(--popover); }
+      .border-popover { border-color: var(--popover); }
+      .ring-popover { --tw-ring-color: var(--popover); }
+      .bg-popover-foreground { background-color: var(--popover-foreground); }
+      .text-popover-foreground { color: var(--popover-foreground); }
+      .border-popover-foreground { border-color: var(--popover-foreground); }
+      .ring-popover-foreground { --tw-ring-color: var(--popover-foreground); }
+      .bg-primary { background-color: var(--primary); }
+      .text-primary { color: var(--primary); }
+      .border-primary { border-color: var(--primary); }
+      .ring-primary { --tw-ring-color: var(--primary); }
+      .bg-primary-foreground { background-color: var(--primary-foreground); }
+      .text-primary-foreground { color: var(--primary-foreground); }
+      .border-primary-foreground { border-color: var(--primary-foreground); }
+      .ring-primary-foreground { --tw-ring-color: var(--primary-foreground); }
+      .bg-secondary { background-color: var(--secondary); }
+      .text-secondary { color: var(--secondary); }
+      .border-secondary { border-color: var(--secondary); }
+      .ring-secondary { --tw-ring-color: var(--secondary); }
+      .bg-secondary-foreground { background-color: var(--secondary-foreground); }
+      .text-secondary-foreground { color: var(--secondary-foreground); }
+      .border-secondary-foreground { border-color: var(--secondary-foreground); }
+      .ring-secondary-foreground { --tw-ring-color: var(--secondary-foreground); }
+      .bg-muted { background-color: var(--muted); }
+      .text-muted { color: var(--muted); }
+      .border-muted { border-color: var(--muted); }
+      .ring-muted { --tw-ring-color: var(--muted); }
+      .bg-muted-foreground { background-color: var(--muted-foreground); }
+      .text-muted-foreground { color: var(--muted-foreground); }
+      .border-muted-foreground { border-color: var(--muted-foreground); }
+      .ring-muted-foreground { --tw-ring-color: var(--muted-foreground); }
+      .bg-accent { background-color: var(--accent); }
+      .text-accent { color: var(--accent); }
+      .border-accent { border-color: var(--accent); }
+      .ring-accent { --tw-ring-color: var(--accent); }
+      .bg-accent-foreground { background-color: var(--accent-foreground); }
+      .text-accent-foreground { color: var(--accent-foreground); }
+      .border-accent-foreground { border-color: var(--accent-foreground); }
+      .ring-accent-foreground { --tw-ring-color: var(--accent-foreground); }
+      .bg-destructive { background-color: var(--destructive); }
+      .text-destructive { color: var(--destructive); }
+      .border-destructive { border-color: var(--destructive); }
+      .ring-destructive { --tw-ring-color: var(--destructive); }
+      .bg-destructive-foreground { background-color: var(--destructive-foreground); }
+      .text-destructive-foreground { color: var(--destructive-foreground); }
+      .border-destructive-foreground { border-color: var(--destructive-foreground); }
+      .ring-destructive-foreground { --tw-ring-color: var(--destructive-foreground); }
+      .bg-border { background-color: var(--border); }
+      .text-border { color: var(--border); }
+      .border-border { border-color: var(--border); }
+      .ring-border { --tw-ring-color: var(--border); }
+      .bg-input { background-color: var(--input); }
+      .text-input { color: var(--input); }
+      .border-input { border-color: var(--input); }
+      .ring-input { --tw-ring-color: var(--input); }
+      .bg-ring { background-color: var(--ring); }
+      .text-ring { color: var(--ring); }
+      .border-ring { border-color: var(--ring); }
+      .ring-ring { --tw-ring-color: var(--ring); }
+      .bg-chart-1 { background-color: var(--chart-1); }
+      .text-chart-1 { color: var(--chart-1); }
+      .border-chart-1 { border-color: var(--chart-1); }
+      .ring-chart-1 { --tw-ring-color: var(--chart-1); }
+      .bg-chart-2 { background-color: var(--chart-2); }
+      .text-chart-2 { color: var(--chart-2); }
+      .border-chart-2 { border-color: var(--chart-2); }
+      .ring-chart-2 { --tw-ring-color: var(--chart-2); }
+      .bg-chart-3 { background-color: var(--chart-3); }
+      .text-chart-3 { color: var(--chart-3); }
+      .border-chart-3 { border-color: var(--chart-3); }
+      .ring-chart-3 { --tw-ring-color: var(--chart-3); }
+      .bg-chart-4 { background-color: var(--chart-4); }
+      .text-chart-4 { color: var(--chart-4); }
+      .border-chart-4 { border-color: var(--chart-4); }
+      .ring-chart-4 { --tw-ring-color: var(--chart-4); }
+      .bg-chart-5 { background-color: var(--chart-5); }
+      .text-chart-5 { color: var(--chart-5); }
+      .border-chart-5 { border-color: var(--chart-5); }
+      .ring-chart-5 { --tw-ring-color: var(--chart-5); }
+      .bg-sidebar { background-color: var(--sidebar); }
+      .text-sidebar { color: var(--sidebar); }
+      .border-sidebar { border-color: var(--sidebar); }
+      .ring-sidebar { --tw-ring-color: var(--sidebar); }
+      .bg-sidebar-foreground { background-color: var(--sidebar-foreground); }
+      .text-sidebar-foreground { color: var(--sidebar-foreground); }
+      .border-sidebar-foreground { border-color: var(--sidebar-foreground); }
+      .ring-sidebar-foreground { --tw-ring-color: var(--sidebar-foreground); }
+      .bg-sidebar-primary { background-color: var(--sidebar-primary); }
+      .text-sidebar-primary { color: var(--sidebar-primary); }
+      .border-sidebar-primary { border-color: var(--sidebar-primary); }
+      .ring-sidebar-primary { --tw-ring-color: var(--sidebar-primary); }
+      .bg-sidebar-primary-foreground { background-color: var(--sidebar-primary-foreground); }
+      .text-sidebar-primary-foreground { color: var(--sidebar-primary-foreground); }
+      .border-sidebar-primary-foreground { border-color: var(--sidebar-primary-foreground); }
+      .ring-sidebar-primary-foreground { --tw-ring-color: var(--sidebar-primary-foreground); }
+      .bg-sidebar-accent { background-color: var(--sidebar-accent); }
+      .text-sidebar-accent { color: var(--sidebar-accent); }
+      .border-sidebar-accent { border-color: var(--sidebar-accent); }
+      .ring-sidebar-accent { --tw-ring-color: var(--sidebar-accent); }
+      .bg-sidebar-accent-foreground { background-color: var(--sidebar-accent-foreground); }
+      .text-sidebar-accent-foreground { color: var(--sidebar-accent-foreground); }
+      .border-sidebar-accent-foreground { border-color: var(--sidebar-accent-foreground); }
+      .ring-sidebar-accent-foreground { --tw-ring-color: var(--sidebar-accent-foreground); }
+    </style>
+    <style>
+      .no-scrollbar::-webkit-scrollbar { display: none; }
+      .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+      [data-icon] {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        -webkit-mask-size: contain;
+        mask-size: contain;
+        -webkit-mask-repeat: no-repeat;
+        mask-repeat: no-repeat;
+        -webkit-mask-position: center;
+        mask-position: center;
+        background-color: currentColor;
+      }
+    </style>
+
+  <!-- ====== MESSAGE PAGE EXCLUSIVE STYLES ====== -->
+  <style>
+    /* ================================================
+       RESET & BASE
+       ================================================ */
+    *, *::before, *::after { box-sizing: border-box; }
+    html { -webkit-text-size-adjust: 100%; }
+
+    body {
+      margin: 0;
+      background: var(--background-100);
+      color: var(--text-800);
+      font-family: var(--font-sans);
+      font-size: 14px;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      /* Header height on top; floating dock clearance on bottom (all breakpoints) */
+      padding-top: 56px;
+      padding-bottom: calc(56px + 28px + env(safe-area-inset-bottom));
+    }
+
+    a { color: inherit; text-decoration: none; }
+    button { font-family: inherit; cursor: pointer; border: none; background: none; padding: 0; color: inherit; }
+    input { font-family: inherit; }
+    img { display: block; max-width: 100%; }
+    ol, ul { margin: 0; padding: 0; list-style: none; }
+
+    :focus-visible {
+      outline: 2px solid var(--brand-500);
+      outline-offset: 2px;
+      border-radius: 4px;
+    }
+
+    /* ================================================
+       ICONS (CSS mask using apple SVG icons)
+       ================================================ */
+    .icon {
+      display: inline-block;
+      width: 18px;
+      height: 18px;
+      flex-shrink: 0;
+      background-color: currentColor;
+      -webkit-mask-position: center;
+      mask-position: center;
+      -webkit-mask-repeat: no-repeat;
+      mask-repeat: no-repeat;
+      -webkit-mask-size: contain;
+      mask-size: contain;
+    }
+    .icon-house               { -webkit-mask-image: url('../assets/icons/apple/house.svg'); mask-image: url('../assets/icons/apple/house.svg'); }
+    .icon-map-pin             { -webkit-mask-image: url('../assets/icons/apple/map-pin.svg'); mask-image: url('../assets/icons/apple/map-pin.svg'); }
+    .icon-message             { -webkit-mask-image: url('../assets/icons/apple/message-circle-more.svg'); mask-image: url('../assets/icons/apple/message-circle-more.svg'); }
+    .icon-user                { -webkit-mask-image: url('../assets/icons/apple/user.svg'); mask-image: url('../assets/icons/apple/user.svg'); }
+    .icon-pen-line            { -webkit-mask-image: url('../assets/icons/apple/pen-line.svg'); mask-image: url('../assets/icons/apple/pen-line.svg'); }
+    .icon-heart               { -webkit-mask-image: url('../assets/icons/apple/heart.svg'); mask-image: url('../assets/icons/apple/heart.svg'); }
+    .icon-thumbs-up           { -webkit-mask-image: url('../assets/icons/apple/thumbs-up.svg'); mask-image: url('../assets/icons/apple/thumbs-up.svg'); }
+    .icon-circle-alert        { -webkit-mask-image: url('../assets/icons/apple/circle-alert.svg'); mask-image: url('../assets/icons/apple/circle-alert.svg'); }
+    .icon-circle-check        { -webkit-mask-image: url('../assets/icons/apple/circle-check.svg'); mask-image: url('../assets/icons/apple/circle-check.svg'); }
+    .icon-circle-question     { -webkit-mask-image: url('../assets/icons/apple/circle-question-mark.svg'); mask-image: url('../assets/icons/apple/circle-question-mark.svg'); }
+    .icon-chevron-right       { -webkit-mask-image: url('../assets/icons/apple/chevron-right.svg'); mask-image: url('../assets/icons/apple/chevron-right.svg'); }
+    .icon-star                { -webkit-mask-image: url('../assets/icons/apple/star.svg'); mask-image: url('../assets/icons/apple/star.svg'); }
+    .icon-mail                { -webkit-mask-image: url('../assets/icons/apple/mail.svg'); mask-image: url('../assets/icons/apple/mail.svg'); }
+    .icon-send                { -webkit-mask-image: url('../assets/icons/apple/send-horizontal.svg'); mask-image: url('../assets/icons/apple/send-horizontal.svg'); }
+    .icon-tag                 { -webkit-mask-image: url('../assets/icons/apple/tag.svg'); mask-image: url('../assets/icons/apple/tag.svg'); }
+    .icon-box                 { -webkit-mask-image: url('../assets/icons/apple/box.svg'); mask-image: url('../assets/icons/apple/box.svg'); }
+
+    /* ================================================
+       AVATARS (gradient placeholders, from v4)
+       ================================================ */
+    .avatar {
+      display: inline-block;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .avatar-sm { width: 22px; height: 22px; }
+    .avatar-md { width: 28px; height: 28px; }
+    .avatar-lg { width: 44px; height: 44px; }
+
+    .av-1 { background: linear-gradient(135deg, var(--brand-300), var(--brand-500)); }
+    .av-2 { background: linear-gradient(135deg, var(--state-success), var(--brand-400)); }
+    .av-3 { background: linear-gradient(135deg, var(--chart-3), var(--brand-500)); }
+    .av-4 { background: linear-gradient(135deg, var(--chart-4), var(--brand-600)); }
+    .av-5 { background: linear-gradient(135deg, var(--background-400), var(--background-600)); }
+
+    /* ================================================
+       MESSAGE PAGE HEADER (fixed, white, centered title)
+       ================================================ */
+    .msg-header {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 100;
+      height: 56px;
+      background: var(--background-50);
+      border-bottom: 0.5px solid var(--border);
+    }
+    .msg-header-inner {
+      max-width: 640px;
+      margin: 0 auto;
+      height: 100%;
+      padding: 0 12px;
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .msg-title {
+      margin: 0;
+      font-size: 17px;
+      font-weight: 600;
+      color: var(--text-800);
+      letter-spacing: -0.01em;
+    }
+    .msg-action {
+      position: absolute;
+      right: 8px;
+      top: 50%;
+      transform: translateY(-50%);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      color: var(--text-500);
+      transition: background 150ms cubic-bezier(0.32, 0.72, 0, 1),
+                  color 150ms cubic-bezier(0.32, 0.72, 0, 1);
+    }
+    .msg-action:hover { background: var(--background-100); color: var(--text-800); }
+    .msg-action:active { background: var(--background-200); }
+    .msg-action .icon { width: 20px; height: 20px; }
+
+    /* ================================================
+       PAGE CONTAINER (centered, focused column)
+       ================================================ */
+    .msg-page {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 16px 20px 24px;
+    }
+
+    /* ================================================
+       DUAL-COLUMN LAYOUT (tablet/desktop >768px)
+       Left: PM list (fixed 352px)  Right: chat preview (flex:1)
+       ================================================ */
+    .msg-layout {
+      display: flex;
+      gap: 16px;
+      align-items: stretch;
+      min-height: 560px;
+    }
+    .msg-pm-col {
+      width: 352px;
+      flex-shrink: 0;
+      min-width: 0;
+    }
+    .msg-chat-col {
+      flex: 1;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ================================================
+       CHAT PREVIEW PANEL (right column)
+       ================================================ */
+    .chat-panel {
+      background: var(--background-50);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow-xs);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+    }
+    .chat-head {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 12px 14px;
+      border-bottom: 0.5px solid var(--border);
+      flex-shrink: 0;
+    }
+    .chat-head .avatar { width: 32px; height: 32px; }
+    .chat-head-meta { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+    .chat-head-name {
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--text-800);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      letter-spacing: -0.01em;
+    }
+    .chat-head-sub { font-size: 12px; color: var(--text-400); white-space: nowrap; }
+    .chat-head-action {
+      width: 32px; height: 32px; border-radius: 50%;
+      display: inline-flex; align-items: center; justify-content: center;
+      color: var(--text-500); flex-shrink: 0;
+      transition: background 150ms cubic-bezier(0.32, 0.72, 0, 1);
+    }
+    .chat-head-action:hover { background: var(--background-100); color: var(--text-800); }
+    .chat-head-action .icon { width: 18px; height: 18px; }
+
+    .chat-body {
+      flex: 1;
+      min-height: 0;
+      overflow-y: auto;
+      padding: 16px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      background: var(--background-50);
+    }
+    .chat-time {
+      font-size: 11px;
+      color: var(--text-400);
+      text-align: center;
+      margin: 4px 0 2px;
+      font-variant-numeric: tabular-nums;
+    }
+    .bubble-row { display: flex; }
+    .bubble-row--me { justify-content: flex-end; }
+    .bubble-row--them { justify-content: flex-start; }
+    .bubble {
+      max-width: 74%;
+      padding: 9px 13px;
+      border-radius: 16px;
+      font-size: 14px;
+      line-height: 1.45;
+      word-break: break-word;
+    }
+    .bubble--me {
+      background: var(--brand-50);
+      color: var(--brand-600);
+      border-bottom-right-radius: 5px;
+    }
+    .bubble--them {
+      background: var(--background-100);
+      color: var(--text-800);
+      border-bottom-left-radius: 5px;
+    }
+
+    .chat-input {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 12px;
+      border-top: 0.5px solid var(--border);
+      background: var(--background-50);
+      flex-shrink: 0;
+    }
+    .chat-input-field {
+      flex: 1;
+      min-width: 0;
+      height: 36px;
+      border-radius: 18px;
+      border: 0.5px solid var(--border);
+      background: var(--background-100);
+      padding: 0 14px;
+      font-size: 14px;
+      color: var(--text-800);
+      outline: none;
+      transition: border-color 150ms ease, background 150ms ease;
+    }
+    .chat-input-field::placeholder { color: var(--text-400); }
+    .chat-input-field:focus { border-color: var(--brand-400); background: var(--background-50); }
+    .chat-send {
+      width: 36px; height: 36px; border-radius: 50%;
+      background: var(--brand-500); color: var(--background-50);
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+      transition: transform 150ms cubic-bezier(0.32, 0.72, 0, 1);
+    }
+    .chat-send .icon { width: 18px; height: 18px; background-color: currentColor; }
+    .chat-send:active { transform: scale(0.92); }
+
+    /* ================================================
+       NOTICE CATEGORY CARD (4 circle entries)
+       ================================================ */
+    .notice-card {
+      background: var(--background-50);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow-xs);
+      padding: 18px 8px 16px;
+      margin-bottom: 16px;
+    }
+    .notice-row {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-around;
+      gap: 8px;
+    }
+    .notice-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      flex: 1;
+      min-width: 0;
+      color: inherit;
+      transition: opacity 150ms cubic-bezier(0.32, 0.72, 0, 1);
+    }
+    .notice-item:active { opacity: 0.6; }
+    .notice-circle {
+      position: relative;
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .notice-circle .icon { width: 20px; height: 20px; background-color: currentColor; }
+    .notice-circle--comment { background: var(--brand-50); color: var(--brand-500); }
+    .notice-circle--like    { background: var(--state-error-surface); color: var(--state-error); }
+    .notice-circle--fan     { background: color-mix(in srgb, var(--chart-4) 10%, var(--background-50)); color: var(--chart-4); }
+    .notice-circle--system  { background: var(--background-200); color: var(--text-500); }
+    .notice-label {
+      font-size: 12px;
+      color: var(--text-500);
+      text-align: center;
+      white-space: nowrap;
+    }
+
+    /* ================================================
+       UNREAD BADGE (state-error, compact)
+       ================================================ */
+    .notice-badge {
+      position: absolute;
+      top: -2px;
+      right: -2px;
+      min-width: 17px;
+      height: 17px;
+      padding: 0 4px;
+      border-radius: 999px;
+      background: var(--state-error);
+      color: var(--state-error-foreground);
+      font-size: 10px;
+      font-weight: 600;
+      line-height: 1;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-variant-numeric: tabular-nums;
+      box-shadow: 0 0 0 1.5px var(--background-50);
+    }
+
+    /* ================================================
+       PM LIST CARD (chat list, iOS-style hairlines)
+       ================================================ */
+    .pm-card {
+      background: var(--background-50);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow-xs);
+      overflow: hidden;
+    }
+    .pm-item {
+      position: relative;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 16px;
+      background: var(--background-50);
+      transition: background 150ms cubic-bezier(0.32, 0.72, 0, 1);
+    }
+    .pm-item:hover { background: var(--background-100); }
+    .pm-item:active { background: var(--background-200); }
+    /* Hairline divider between items, indented to align with text (after avatar+gap) */
+    .pm-item::after {
+      content: '';
+      position: absolute;
+      left: calc(44px + 12px + 16px); /* avatar + gap + left padding */
+      right: 0;
+      bottom: 0;
+      height: 0.5px;
+      background: var(--border);
+      opacity: 0.5;
+      pointer-events: none;
+    }
+    .pm-item:last-child::after { display: none; }
+
+    .pm-body {
+      flex: 1;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+    .pm-head,
+    .pm-sub {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 0;
+    }
+    .pm-head { justify-content: space-between; }
+    .pm-sub { justify-content: space-between; }
+    .pm-name {
+      flex: 1;
+      min-width: 0;
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--text-800);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      letter-spacing: -0.01em;
+    }
+    .pm-time {
+      flex-shrink: 0;
+      font-size: 11px;
+      color: var(--text-400);
+      white-space: nowrap;
+      font-variant-numeric: tabular-nums;
+    }
+    .pm-preview {
+      flex: 1;
+      min-width: 0;
+      font-size: 13px;
+      color: var(--text-500);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .pm-badge {
+      flex-shrink: 0;
+      min-width: 18px;
+      height: 18px;
+      padding: 0 5px;
+      border-radius: 999px;
+      background: var(--state-error);
+      color: var(--state-error-foreground);
+      font-size: 11px;
+      font-weight: 600;
+      line-height: 1;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-variant-numeric: tabular-nums;
+    }
+    /* Pinned/system style for treehole row */
+    .pm-item--muted .pm-preview { color: var(--text-400); }
+
+    /* ================================================
+       BOTTOM TAB BAR (all breakpoints; floating dock on tablet/desktop)
+       ================================================ */
+    .bottom-tabbar {
+      display: flex;
+      position: fixed;
+      bottom: 14px;
+      left: 0;
+      right: 0;
+      z-index: 100;
+      max-width: 460px;
+      margin: 0 auto;
+      height: 56px;
+      padding: 0 10px;
+      background: color-mix(in srgb, var(--background-50) 88%, transparent);
+      -webkit-backdrop-filter: blur(20px);
+      backdrop-filter: blur(20px);
+      border: 0.5px solid var(--border);
+      border-radius: 26px;
+      box-shadow: var(--shadow-lg);
+      align-items: stretch;
+      justify-content: space-around;
+    }
+    .bottom-tab {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 2px;
+      flex: 1;
+      color: var(--text-400);
+      text-decoration: none;
+      transition: color 150ms cubic-bezier(0.32, 0.72, 0, 1);
+      min-width: 0;
+    }
+    .bottom-tab .icon { width: 22px; height: 22px; background-color: currentColor; }
+    .bottom-tab-label {
+      font-size: 10px;
+      line-height: 1;
+      white-space: nowrap;
+    }
+    .bottom-tab.is-active { color: var(--brand-500); }
+
+    .bottom-tab--publish { position: relative; }
+    .publish-btn {
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      background: var(--brand-500);
+      color: var(--background-50);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-top: -16px;
+      box-shadow: var(--shadow-md);
+      transition: transform 150ms cubic-bezier(0.32, 0.72, 0, 1);
+    }
+    .publish-btn .icon { width: 20px; height: 20px; background-color: currentColor; }
+    .bottom-tab--publish:active .publish-btn { transform: scale(0.94); }
+
+    /* ================================================
+       RESPONSIVE — Mobile (<768px)
+       ================================================ */
+    @media (max-width: 768px) {
+      body {
+        padding-top: 48px; /* header 48 only */
+        padding-bottom: calc(52px + env(safe-area-inset-bottom) + 8px);
+      }
+      .msg-header { height: 48px; }
+      .msg-header-inner { padding: 0 10px; }
+      .msg-title { font-size: 16px; }
+      .msg-action { width: 34px; height: 34px; right: 6px; }
+      .msg-action .icon { width: 19px; height: 19px; }
+
+      .msg-page { padding: 10px 10px 24px; }
+
+      .notice-card { padding: 14px 6px 12px; margin-bottom: 10px; border-radius: calc(var(--radius) * 0.85); }
+      .notice-circle { width: 44px; height: 44px; }
+      .notice-circle .icon { width: 19px; height: 19px; }
+      .notice-label { font-size: 11px; }
+
+      .pm-card { border-radius: calc(var(--radius) * 0.85); }
+      .pm-item { padding: 11px 14px; }
+      .pm-item::after { left: calc(44px + 12px + 14px); }
+      .pm-name { font-size: 14px; }
+      .pm-preview { font-size: 12.5px; }
+
+      /* Dual-column collapses to single column: PM list only, chat panel hidden */
+      .msg-layout { flex-direction: column; min-height: 0; gap: 0; }
+      .msg-pm-col { width: 100%; flex-shrink: 0; }
+      .msg-chat-col { display: none; }
+
+      /* Bottom tabbar: full-width docked on mobile */
+      .bottom-tabbar {
+        max-width: 100%;
+        bottom: 0;
+        border-radius: 0;
+        border-left: none;
+        border-right: none;
+        border-bottom: none;
+        height: calc(52px + env(safe-area-inset-bottom));
+        padding: 0 10px;
+        padding-bottom: env(safe-area-inset-bottom);
+      }
+    }
+
+    /* ================================================
+       REDUCED MOTION
+       ================================================ */
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        transition-duration: 0.01ms !important;
+        animation-duration: 0.01ms !important;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ====== FIXED TOP HEADER (white, centered title "消息", right mark-all-read) ====== -->
+  <header class="msg-header" role="banner">
+    <div class="msg-header-inner">
+      <h1 class="msg-title">消息</h1>
+      <button class="msg-action" type="button" aria-label="全部标为已读" data-dom-id="msg-mark-read">
+        <span class="icon icon-circle-check" aria-hidden="true"></span>
+      </button>
+    </div>
+  </header>
+
+  <!-- ====== MAIN CONTENT (in flow, scrolls under header) ====== -->
+  <main class="msg-page">
+
+    <!-- ====== NOTICE CATEGORY ENTRIES (4 circles, white card) ====== -->
+    <section class="notice-card" aria-label="通知分类">
+      <div class="notice-row">
+        <a class="notice-item" href="#" data-dom-id="notice-comment">
+          <span class="notice-circle notice-circle--comment">
+            <span class="icon icon-message" aria-hidden="true"></span>
+            <span class="notice-badge">5</span>
+          </span>
+          <span class="notice-label">评论</span>
+        </a>
+        <a class="notice-item" href="#" data-dom-id="notice-like">
+          <span class="notice-circle notice-circle--like">
+            <span class="icon icon-heart" aria-hidden="true"></span>
+            <span class="notice-badge">12</span>
+          </span>
+          <span class="notice-label">点赞</span>
+        </a>
+        <a class="notice-item" href="#" data-dom-id="notice-fan">
+          <span class="notice-circle notice-circle--fan">
+            <span class="icon icon-user" aria-hidden="true"></span>
+            <span class="notice-badge">2</span>
+          </span>
+          <span class="notice-label">粉丝</span>
+        </a>
+        <a class="notice-item" href="#" data-dom-id="notice-system">
+          <span class="notice-circle notice-circle--system">
+            <span class="icon icon-circle-alert" aria-hidden="true"></span>
+            <span class="notice-badge">1</span>
+          </span>
+          <span class="notice-label">系统</span>
+        </a>
+      </div>
+    </section>
+
+    <!-- ====== DUAL-COLUMN: PM LIST (left) + CHAT PREVIEW (right) ====== -->
+    <div class="msg-layout">
+
+    <!-- ====== PRIVATE MESSAGE LIST (chat list, iOS hairlines) ====== -->
+    <section class="pm-card msg-pm-col" aria-label="私信列表">
+
+      <a class="pm-item" href="#" data-dom-id="pm-open-chat">
+        <span class="avatar avatar-lg av-3" aria-hidden="true"></span>
+        <div class="pm-body">
+          <div class="pm-head">
+            <span class="pm-name">摄影社·阿林</span>
+            <span class="pm-time">2分钟前</span>
+          </div>
+          <div class="pm-sub">
+            <span class="pm-preview">那张银杏照片发你了</span>
+            <span class="pm-badge">2</span>
+          </div>
+        </div>
+      </a>
+
+      <a class="pm-item" href="#" data-dom-id="pm-open-chat">
+        <span class="avatar avatar-lg av-2" aria-hidden="true"></span>
+        <div class="pm-body">
+          <div class="pm-head">
+            <span class="pm-name">吃货小王</span>
+            <span class="pm-time">15分钟前</span>
+          </div>
+          <div class="pm-sub">
+            <span class="pm-preview">香锅真的排半小时，值不值啊</span>
+            <span class="pm-badge">1</span>
+          </div>
+        </div>
+      </a>
+
+      <a class="pm-item" href="#" data-dom-id="pm-open-chat">
+        <span class="avatar avatar-lg av-4" aria-hidden="true"></span>
+        <div class="pm-body">
+          <div class="pm-head">
+            <span class="pm-name">街舞社J-Crew</span>
+            <span class="pm-time">1小时前</span>
+          </div>
+          <div class="pm-sub">
+            <span class="pm-preview">排练改到周五晚上七点，记得来</span>
+            <span class="pm-badge">3</span>
+          </div>
+        </div>
+      </a>
+
+      <a class="pm-item pm-item--muted" href="#" data-dom-id="pm-open-chat">
+        <span class="avatar avatar-lg av-5" aria-hidden="true"></span>
+        <div class="pm-body">
+          <div class="pm-head">
+            <span class="pm-name">匿名树洞</span>
+            <span class="pm-time">10分钟前</span>
+          </div>
+          <div class="pm-sub">
+            <span class="pm-preview">你的树洞有3条新回复</span>
+            <span class="pm-badge">3</span>
+          </div>
+        </div>
+      </a>
+
+      <a class="pm-item" href="#" data-dom-id="pm-open-chat">
+        <span class="avatar avatar-lg av-1" aria-hidden="true"></span>
+        <div class="pm-body">
+          <div class="pm-head">
+            <span class="pm-name">毕业学姐</span>
+            <span class="pm-time">昨天</span>
+          </div>
+          <div class="pm-sub">
+            <span class="pm-preview">那本高数书还在吗，学弟</span>
+          </div>
+        </div>
+      </a>
+
+      <a class="pm-item" href="#" data-dom-id="pm-open-chat">
+        <span class="avatar avatar-lg av-3" aria-hidden="true"></span>
+        <div class="pm-body">
+          <div class="pm-head">
+            <span class="pm-name">图书馆常客</span>
+            <span class="pm-time">周三</span>
+          </div>
+          <div class="pm-sub">
+            <span class="pm-preview">明天帮我占个座呗，靠窗那排</span>
+          </div>
+        </div>
+      </a>
+
+      <a class="pm-item" href="#" data-dom-id="pm-open-chat">
+        <span class="avatar avatar-lg av-2" aria-hidden="true"></span>
+        <div class="pm-body">
+          <div class="pm-head">
+            <span class="pm-name">猫咪观察员</span>
+            <span class="pm-time">周一</span>
+          </div>
+          <div class="pm-sub">
+            <span class="pm-preview">橘猫今天又胖了，投喂指南已更新</span>
+          </div>
+        </div>
+      </a>
+
+      <a class="pm-item" href="#" data-dom-id="pm-open-chat">
+        <span class="avatar avatar-lg av-1" aria-hidden="true"></span>
+        <div class="pm-body">
+          <div class="pm-head">
+            <span class="pm-name">着急的小张</span>
+            <span class="pm-time">5小时前</span>
+          </div>
+          <div class="pm-sub">
+            <span class="pm-preview">选课系统好了吗，蹲一个回复</span>
+            <span class="pm-badge">1</span>
+          </div>
+        </div>
+      </a>
+
+    </section>
+
+    <!-- ====== CHAT PREVIEW PANEL (right column, tablet/desktop only) ====== -->
+    <section class="chat-panel msg-chat-col" aria-label="聊天预览">
+      <header class="chat-head">
+        <span class="avatar av-3" aria-hidden="true"></span>
+        <div class="chat-head-meta">
+          <span class="chat-head-name">摄影社·阿林</span>
+          <span class="chat-head-sub">在线</span>
+        </div>
+        <button class="chat-head-action" type="button" aria-label="查看完整聊天">
+          <span class="icon icon-chevron-right" aria-hidden="true"></span>
+        </button>
+      </header>
+
+      <div class="chat-body">
+        <div class="chat-time">今天 14:02</div>
+        <div class="bubble-row bubble-row--them"><div class="bubble bubble--them">那张银杏照片发你了，看看咋样</div></div>
+        <div class="bubble-row bubble-row--me"><div class="bubble bubble--me">哇不错！构图绝了，啥时候拍的</div></div>
+        <div class="bubble-row bubble-row--them"><div class="bubble bubble--them">昨天傍晚图书馆那条路，光线刚好</div></div>
+        <div class="bubble-row bubble-row--me"><div class="bubble bubble--me">图书馆见？我正好要去自习</div></div>
+        <div class="bubble-row bubble-row--them"><div class="bubble bubble--them">行，我带着相机过来</div></div>
+        <div class="bubble-row bubble-row--me"><div class="bubble bubble--me">作业发你了，高数第三章</div></div>
+        <div class="bubble-row bubble-row--them"><div class="bubble bubble--them">收到，晚上一起对答案</div></div>
+        <div class="bubble-row bubble-row--me"><div class="bubble bubble--me">好嘞，占个靠窗的座</div></div>
+      </div>
+
+      <footer class="chat-input">
+        <input class="chat-input-field" type="text" placeholder="发条消息…" aria-label="输入消息">
+        <button class="chat-send" type="button" aria-label="发送">
+          <span class="icon icon-send" aria-hidden="true"></span>
+        </button>
+      </footer>
+    </section>
+
+    </div><!-- /.msg-layout -->
+
+  </main>
+
+  <!-- ====== MOBILE BOTTOM TAB BAR (message tab active) ====== -->
+  <nav class="bottom-tabbar" aria-label="底部导航">
+    <a class="bottom-tab" href="#" data-dom-id="tabbar-home">
+      <span class="icon icon-house" aria-hidden="true"></span>
+      <span class="bottom-tab-label">首页</span>
+    </a>
+    <a class="bottom-tab" href="#" data-dom-id="tabbar-discover">
+      <span class="icon icon-map-pin" aria-hidden="true"></span>
+      <span class="bottom-tab-label">圈子</span>
+    </a>
+    <a class="bottom-tab bottom-tab--publish" href="#" data-dom-id="tabbar-publish">
+      <span class="publish-btn" data-dom-id="open-publish">
+        <span class="icon icon-pen-line" aria-hidden="true"></span>
+      </span>
+    </a>
+    <a class="bottom-tab is-active" href="#" data-dom-id="tabbar-message">
+      <span class="icon icon-message" aria-hidden="true"></span>
+      <span class="bottom-tab-label">消息</span>
+    </a>
+    <a class="bottom-tab" href="#" data-dom-id="tabbar-mine">
+      <span class="icon icon-user" aria-hidden="true"></span>
+      <span class="bottom-tab-label">我的</span>
+    </a>
+  </nav>
+
+  <script>
+    (function () {
+      'use strict';
+
+      // ---- Bottom tab switching (publish button excluded from active state) ----
+      var bottomTabs = document.querySelectorAll('.bottom-tabbar .bottom-tab:not(.bottom-tab--publish)');
+      bottomTabs.forEach(function (tab) {
+        tab.addEventListener('click', function (e) {
+          e.preventDefault();
+          bottomTabs.forEach(function (t) { t.classList.remove('is-active'); });
+          tab.classList.add('is-active');
+        });
+      });
+      // Publish tab: keep its own affordance, just prevent the default jump
+      var publishTab = document.querySelector('.bottom-tabbar .bottom-tab--publish');
+      if (publishTab) {
+        publishTab.addEventListener('click', function (e) { e.preventDefault(); });
+      }
+
+      // ---- Mark all as read: clear unread badges on action click ----
+      var markBtn = document.querySelector('[data-dom-id="msg-mark-read"]');
+      if (markBtn) {
+        markBtn.addEventListener('click', function () {
+          document.querySelectorAll('.notice-badge, .pm-badge').forEach(function (b) {
+            b.remove();
+          });
+        });
+      }
+
+      // ---- PM item tap feedback (no real navigation) ----
+      document.querySelectorAll('.pm-item').forEach(function (item) {
+        item.addEventListener('click', function (e) { e.preventDefault(); });
+      });
+      document.querySelectorAll('.notice-item').forEach(function (item) {
+        item.addEventListener('click', function (e) { e.preventDefault(); });
+      });
+    })();
+  </script>
+
+</body>
+</html>

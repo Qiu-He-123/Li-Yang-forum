@@ -1,0 +1,601 @@
+<script setup lang="ts">
+/**
+ * AI 审核配置（DeepSeek）
+ *
+ * 功能：
+ * - 启用/禁用 DeepSeek AI 审核
+ * - 配置 API Key / Base URL / 模型名
+ * - 配置审核失败内容自动删除天数
+ * - 测试连接（一键验证配置是否正确）
+ * - 在线试审文本（验证 AI 审核效果）
+ * - 显示当前 AI 审核人设（system prompt）
+ * - 一键跳转 DeepSeek 官网申请密钥
+ */
+import { onMounted, reactive, ref } from 'vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
+
+import {
+  adminCleanupAudit,
+  adminDeepSeekAuditText,
+  adminDeepSeekTest,
+  adminGetDeepSeekConfig,
+  adminUpdateDeepSeekConfig,
+  type DeepSeekAuditResult,
+  type DeepSeekConfig,
+  type DeepSeekTestResult,
+} from '../../api/admin'
+
+const loading = ref(false)
+const saving = ref(false)
+const testing = ref(false)
+const auditing = ref(false)
+const cleaning = ref(false)
+
+const config = reactive<DeepSeekConfig>({
+  enabled: false,
+  api_key: '',
+  base_url: 'https://api.deepseek.com/v1',
+  model: 'deepseek-chat',
+  auto_delete_days: 0,
+})
+
+// 显示用脱敏 key（首次加载后展示，编辑时显示明文）
+const apiKeyMasked = ref('')
+const apiKeyEditing = ref(false)
+
+const testResult = ref<DeepSeekTestResult | null>(null)
+const auditInput = ref('')
+const auditResult = ref<DeepSeekAuditResult | null>(null)
+const cleanupResult = ref<{ enabled: boolean; days: number; deleted_posts: number; deleted_comments: number } | null>(null)
+
+// AI 审核人设（仅供展示，不可编辑）
+const systemPrompt = `# 角色定义
+你是「立洋校园社区 AI 内容审核官」，代号 LY-Moderator。
+你的职责是审核校园社区用户发布的帖子和评论内容，判断是否违规，
+并给出结构化审核结果，辅助管理员进行内容治理决策。
+
+# 审核场景
+- 立洋校园社区是一个面向中小学校园的社交平台
+- 用户主要是中小学生、教师和家长
+- 内容以校园生活、学习交流、兴趣分享为主
+- 对未成年人保护要求极高，任何不适内容必须拦截
+
+# 审核维度（10 类违规）
+1. 辱骂人身攻击：脏话、侮辱性词汇、网络暴力、对他人的人格攻击
+2. 色情低俗：色情暗示、低俗段子、不当性描述、性骚扰言论
+3. 诈骗广告：虚假广告、引流推广、兼职刷单、虚假中奖、外链诱导
+4. 暴力血腥：打架斗殴描述、暴力威胁、血腥画面描述、自残自杀诱导
+5. 政治敏感：政治不当言论、敏感事件讨论、意识形态攻击
+6. 隐私泄露：泄露他人手机号、地址、身份证、照片等个人隐私
+7. 违法犯罪：毒品、赌博、违禁品交易、教唆犯罪、违法活动描述
+8. 校园暴力/欺凌：排挤同学、集体嘲讽、恶意传播他人隐私、网络霸凌
+9. 自残自杀：自残倾向描述、自杀方法讨论、诱导他人自伤
+10. 不实信息：谣言传播、虚假信息、捏造事实诽谤他人
+
+# 判定原则
+- 未成年人保护优先：涉及未成年人的违规一律从重判定
+- 语境理解：结合上下文判断，避免误判正常交流中的口语化表达
+- 宽容边界：正常的吐槽、玩笑、情绪宣泄不属违规，但攻击他人则违规
+- 教育导向：对青少年不当言论以"提醒"为主，严重违规才"拦截"
+- 零容忍：色情、暴力、诈骗、自残自杀、校园欺凌零容忍
+
+# 输出格式（严格 JSON）
+{"pass": true, "reason": "", "category": "none", "severity": "none"}
+
+字段说明：
+- pass: boolean，true=通过，false=拦截
+- reason: string，违规原因说明（pass=true 时为空字符串）
+- category: string，违规类别（pass=true 时为"none"）
+  可选值: 骂人攻击/色情低俗/诈骗广告/暴力血腥/政治敏感/隐私泄露/违法犯罪/校园欺凌/自残自杀/不实信息/none
+- severity: string，严重程度（pass=true 时为"none"）
+  可选值: high(严重违规)/medium(中等违规)/low(轻微违规)/none
+
+# 审核示例
+输入: "今天天气真好，心情不错"
+输出: {"pass": true, "reason": "", "category": "none", "severity": "none"}
+
+输入: "你这个傻逼，怎么不去死"
+输出: {"pass": false, "reason": "包含辱骂性词汇'傻逼'，并带有'去死'的生命威胁", "category": "骂人攻击", "severity": "high"}
+
+输入: "加我微信 xxxxx 领红包，兼职刷单日入百元"
+输出: {"pass": false, "reason": "包含刷单广告和外部引流，疑似诈骗", "category": "诈骗广告", "severity": "high"}
+
+输入: "我讨厌数学老师，作业太多了"
+输出: {"pass": true, "reason": "", "category": "none", "severity": "none"}
+
+输入: "三班那个胖子真恶心，大家别理他"
+输出: {"pass": false, "reason": "针对特定同学的侮辱性言论，构成校园欺凌", "category": "校园欺凌", "severity": "medium"}
+`
+
+async function load() {
+  loading.value = true
+  try {
+    const { data } = await adminGetDeepSeekConfig()
+    const cfg = data.data
+    config.enabled = !!cfg.enabled
+    config.base_url = cfg.base_url || 'https://api.deepseek.com/v1'
+    config.model = cfg.model || 'deepseek-chat'
+    config.auto_delete_days = Number(cfg.auto_delete_days || 0)
+    // API Key 不回显明文，仅显示脱敏
+    apiKeyMasked.value = maskKey(cfg.api_key || '')
+    config.api_key = cfg.api_key || ''
+    apiKeyEditing.value = false
+  } catch (error) {
+    ElMessage.error((error as Error).message)
+  } finally {
+    loading.value = false
+  }
+}
+
+function maskKey(key: string): string {
+  if (!key) return ''
+  if (key.length <= 8) return '*'.repeat(key.length)
+  return key.slice(0, 4) + '*'.repeat(key.length - 8) + key.slice(-4)
+}
+
+async function onSave() {
+  saving.value = true
+  try {
+    const payload: Partial<DeepSeekConfig> = {
+      enabled: config.enabled,
+      base_url: config.base_url,
+      model: config.model,
+      auto_delete_days: Number(config.auto_delete_days) || 0,
+    }
+    // 仅在编辑模式且输入了新 key 时才提交
+    if (apiKeyEditing.value && config.api_key) {
+      payload.api_key = config.api_key
+    }
+    await adminUpdateDeepSeekConfig(payload)
+    ElMessage.success('已保存配置')
+    await load()
+  } catch (error) {
+    ElMessage.error((error as Error).message)
+  } finally {
+    saving.value = false
+  }
+}
+
+async function onTest() {
+  testing.value = true
+  testResult.value = null
+  try {
+    // 测试前先保存当前表单（避免测试旧配置）
+    await onSave()
+    const { data } = await adminDeepSeekTest()
+    testResult.value = data.data
+    if (data.data.ok) {
+      ElMessage.success(data.data.msg)
+    } else {
+      ElMessage.warning(data.data.msg)
+    }
+  } catch (error) {
+    ElMessage.error((error as Error).message)
+  } finally {
+    testing.value = false
+  }
+}
+
+async function onAudit() {
+  if (!auditInput.value.trim()) {
+    ElMessage.warning('请输入待审核文本')
+    return
+  }
+  auditing.value = true
+  auditResult.value = null
+  try {
+    const { data } = await adminDeepSeekAuditText(auditInput.value)
+    auditResult.value = data.data
+  } catch (error) {
+    ElMessage.error((error as Error).message)
+  } finally {
+    auditing.value = false
+  }
+}
+
+async function onCleanup() {
+  try {
+    await ElMessageBox.confirm(
+      `确认立即清理审核失败超过 ${config.auto_delete_days} 天的内容？此操作不可恢复。`,
+      '自动清理',
+      { type: 'warning' },
+    )
+  } catch {
+    return
+  }
+  cleaning.value = true
+  cleanupResult.value = null
+  try {
+    const { data } = await adminCleanupAudit()
+    cleanupResult.value = data.data
+    if (data.data.enabled) {
+      ElMessage.success(`已清理 ${data.data.deleted_posts + data.data.deleted_comments} 条`)
+    } else {
+      ElMessage.info('未启用自动删除（天数为 0）')
+    }
+  } catch (error) {
+    ElMessage.error((error as Error).message)
+  } finally {
+    cleaning.value = false
+  }
+}
+
+function onEditKey() {
+  apiKeyEditing.value = true
+  config.api_key = ''
+}
+
+function onCancelEditKey() {
+  apiKeyEditing.value = false
+  config.api_key = ''
+}
+
+function openDeepSeekOfficial() {
+  window.open('https://platform.deepseek.com/api_keys', '_blank')
+}
+
+const severityMeta: Record<string, { type: 'success' | 'warning' | 'danger' | 'info'; text: string }> = {
+  high: { type: 'danger', text: '严重' },
+  medium: { type: 'warning', text: '中等' },
+  low: { type: 'info', text: '轻微' },
+  none: { type: 'info', text: '无' },
+}
+
+onMounted(() => load())
+</script>
+
+<template>
+  <div v-loading="loading" class="admin-page">
+    <!-- 页头 -->
+    <div class="page-header">
+      <div>
+        <h2 class="page-title">AI 审核配置</h2>
+        <p class="page-subtitle">基于 DeepSeek 的智能内容审核，自动判定帖子和评论是否违规</p>
+      </div>
+      <div class="header-actions">
+        <el-button type="primary" plain @click="openDeepSeekOfficial">前往 DeepSeek 申请密钥</el-button>
+        <el-button :icon="'Refresh'" @click="load">刷新</el-button>
+      </div>
+    </div>
+
+    <!-- 配置表单 -->
+    <div class="form-card">
+      <div class="card-title">
+        <span class="title-text">基础配置</span>
+        <el-tag v-if="config.enabled" type="success" size="small">已启用</el-tag>
+        <el-tag v-else type="info" size="small">未启用</el-tag>
+      </div>
+
+      <el-form label-width="140px" label-position="right" class="config-form">
+        <el-form-item label="启用 DeepSeek">
+          <el-switch v-model="config.enabled" />
+          <span class="form-hint">开启后，新发布的帖子和评论将优先通过 DeepSeek 审核</span>
+        </el-form-item>
+
+        <el-form-item label="API Key">
+          <div class="key-row">
+            <template v-if="!apiKeyEditing">
+              <el-input
+                :model-value="apiKeyMasked || '未配置'"
+                readonly
+                placeholder="未配置"
+                style="flex: 1"
+              />
+              <el-button type="primary" plain @click="onEditKey">修改</el-button>
+            </template>
+            <template v-else>
+              <el-input
+                v-model="config.api_key"
+                type="password"
+                show-password
+                placeholder="请输入 DeepSeek API Key（sk-xxx）"
+                style="flex: 1"
+              />
+              <el-button @click="onCancelEditKey">取消</el-button>
+            </template>
+          </div>
+          <div class="form-hint">
+            从
+            <a href="https://platform.deepseek.com/api_keys" target="_blank" rel="noopener">DeepSeek 开放平台</a>
+            获取 API Key
+          </div>
+        </el-form-item>
+
+        <el-form-item label="Base URL">
+          <el-input
+            v-model="config.base_url"
+            placeholder="https://api.deepseek.com/v1"
+            clearable
+          />
+          <span class="form-hint">默认 https://api.deepseek.com/v1，兼容 OpenAI 协议</span>
+        </el-form-item>
+
+        <el-form-item label="模型名">
+          <el-input
+            v-model="config.model"
+            placeholder="deepseek-chat"
+            clearable
+          />
+          <span class="form-hint">推荐 deepseek-chat（通用对话模型，性价比高）</span>
+        </el-form-item>
+
+        <el-form-item label="自动删除天数">
+          <el-input-number
+            v-model="config.auto_delete_days"
+            :min="0"
+            :max="365"
+            :step="1"
+            controls-position="right"
+          />
+          <span class="form-hint">审核失败（rejected）的内容超过 N 天后自动删除；0 表示不自动删除</span>
+        </el-form-item>
+
+        <el-form-item>
+          <el-button type="primary" :loading="saving" @click="onSave">保存配置</el-button>
+          <el-button :loading="testing" @click="onTest">测试连接</el-button>
+          <el-button
+            type="warning"
+            plain
+            :loading="cleaning"
+            :disabled="!config.auto_delete_days"
+            @click="onCleanup"
+          >
+            立即清理过期内容
+          </el-button>
+        </el-form-item>
+      </el-form>
+    </div>
+
+    <!-- 测试结果 -->
+    <div v-if="testResult" class="result-card">
+      <div class="card-title">
+        <span class="title-text">连接测试结果</span>
+        <el-tag :type="testResult.ok ? 'success' : 'danger'" size="small">
+          {{ testResult.ok ? '成功' : '失败' }}
+        </el-tag>
+      </div>
+      <div class="result-body">
+        <div class="result-msg">{{ testResult.msg }}</div>
+        <div v-if="testResult.sample" class="sample-result">
+          <div class="sample-row">
+            <span class="sample-label">示例输入：</span>
+            <span class="sample-text">"你好"</span>
+          </div>
+          <div class="sample-row">
+            <span class="sample-label">审核结果：</span>
+            <el-tag :type="testResult.sample.pass ? 'success' : 'danger'" size="small">
+              {{ testResult.sample.pass ? '通过' : '拦截' }}
+            </el-tag>
+          </div>
+          <div v-if="testResult.sample.reason" class="sample-row">
+            <span class="sample-label">原因：</span>
+            <span class="sample-text">{{ testResult.sample.reason }}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 清理结果 -->
+    <div v-if="cleanupResult" class="result-card">
+      <div class="card-title">
+        <span class="title-text">自动清理结果</span>
+      </div>
+      <div class="result-body">
+        <div v-if="!cleanupResult.enabled" class="result-msg">未启用自动删除（天数为 0）</div>
+        <div v-else>
+          <div class="result-msg">
+            已清理超过 {{ cleanupResult.days }} 天的审核失败内容：
+            <strong>帖子 {{ cleanupResult.deleted_posts }} 条</strong>，
+            <strong>评论 {{ cleanupResult.deleted_comments }} 条</strong>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 在线试审 -->
+    <div class="form-card">
+      <div class="card-title">
+        <span class="title-text">在线试审</span>
+        <span class="form-hint">输入文本，立即调用 DeepSeek 进行审核</span>
+      </div>
+      <el-input
+        v-model="auditInput"
+        type="textarea"
+        :rows="3"
+        placeholder="请输入要审核的文本内容（最多 2000 字）"
+        maxlength="2000"
+        show-word-limit
+      />
+      <div class="audit-actions">
+        <el-button
+          type="primary"
+          :loading="auditing"
+          :disabled="!auditInput.trim()"
+          @click="onAudit"
+        >
+          开始审核
+        </el-button>
+        <el-button @click="auditInput = ''; auditResult = null">清空</el-button>
+      </div>
+
+      <div v-if="auditResult" class="audit-result">
+        <div class="audit-row">
+          <span class="audit-label">审核结果：</span>
+          <el-tag :type="auditResult.pass ? 'success' : 'danger'" size="default">
+            {{ auditResult.pass ? '✓ 通过' : '✗ 拦截' }}
+          </el-tag>
+          <el-tag
+            v-if="auditResult.severity && auditResult.severity !== 'none'"
+            :type="severityMeta[auditResult.severity]?.type || 'info'"
+            size="default"
+            style="margin-left: 8px"
+          >
+            {{ severityMeta[auditResult.severity]?.text || auditResult.severity }}
+          </el-tag>
+          <el-tag
+            v-if="auditResult.category && auditResult.category !== 'none'"
+            type="warning"
+            size="default"
+            style="margin-left: 8px"
+          >
+            {{ auditResult.category }}
+          </el-tag>
+        </div>
+        <div v-if="auditResult.reason" class="audit-row">
+          <span class="audit-label">违规原因：</span>
+          <span class="audit-text">{{ auditResult.reason }}</span>
+        </div>
+        <div v-if="auditResult.skipped" class="audit-row">
+          <span class="audit-label">提示：</span>
+          <span class="audit-text" style="color: #e6a23c">DeepSeek 未启用或调用失败，已跳过</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- AI 审核人设 -->
+    <div class="form-card">
+      <div class="card-title">
+        <span class="title-text">AI 审核人设（System Prompt）</span>
+        <span class="form-hint">只读，由系统内置，确保审核一致性</span>
+      </div>
+      <pre class="prompt-box">{{ systemPrompt }}</pre>
+    </div>
+  </div>
+</template>
+
+<style scoped>
+.admin-page {
+  min-height: 100%;
+}
+.page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20px;
+}
+.page-title {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 700;
+  color: #1f1f1f;
+}
+.page-subtitle {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: #8c8c8c;
+}
+.header-actions {
+  display: flex;
+  gap: 12px;
+}
+.form-card,
+.result-card {
+  background: #fff;
+  padding: 20px 24px;
+  border-radius: 8px;
+  border: 1px solid #f0f0f0;
+  margin-bottom: 16px;
+}
+.card-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #f0f0f0;
+}
+.title-text {
+  font-size: 16px;
+  font-weight: 600;
+  color: #1f1f1f;
+}
+.config-form {
+  max-width: 720px;
+}
+.form-hint {
+  margin-left: 12px;
+  font-size: 12px;
+  color: #8c8c8c;
+}
+.form-hint a {
+  color: #1890ff;
+  text-decoration: none;
+}
+.form-hint a:hover {
+  text-decoration: underline;
+}
+.key-row {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+}
+.result-body {
+  font-size: 14px;
+  color: #262626;
+  line-height: 1.6;
+}
+.result-msg {
+  margin-bottom: 8px;
+}
+.sample-result {
+  background: #fafafa;
+  padding: 12px 16px;
+  border-radius: 6px;
+  margin-top: 8px;
+}
+.sample-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+  font-size: 13px;
+}
+.sample-label {
+  color: #8c8c8c;
+  min-width: 80px;
+}
+.sample-text {
+  color: #262626;
+}
+.audit-actions {
+  margin-top: 12px;
+  display: flex;
+  gap: 8px;
+}
+.audit-result {
+  margin-top: 16px;
+  padding: 16px;
+  background: #fafafa;
+  border-radius: 6px;
+  border-left: 3px solid #1890ff;
+}
+.audit-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+  font-size: 14px;
+}
+.audit-label {
+  color: #8c8c8c;
+  min-width: 80px;
+}
+.audit-text {
+  color: #262626;
+  line-height: 1.5;
+}
+.prompt-box {
+  background: #fafafa;
+  padding: 16px;
+  border-radius: 6px;
+  font-size: 12px;
+  line-height: 1.6;
+  color: #595959;
+  font-family: 'Consolas', 'Monaco', monospace;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 480px;
+  overflow-y: auto;
+  border: 1px solid #f0f0f0;
+}
+</style>

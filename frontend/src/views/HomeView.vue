@@ -1,0 +1,1009 @@
+<script setup lang="ts">
+/**
+ * 首页（独立于圈子页）
+ * 严格对齐设计稿：发现页.html 的 Feed 部分（去掉热门圈子入口）
+ * - 顶部固定栏：标题「首页」居中 + 右侧搜索图标
+ * - 帖子动态：Tab 切换（推荐 / 最新）+ 双列瀑布流
+ * - 底部 TabBar：浮动药丸（首页 active）
+ */
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+
+import EmptyState from '../components/common/EmptyState.vue'
+import AiStatusBadge from '../components/common/AiStatusBadge.vue'
+import { Icon } from '../components/native'
+import { toast } from '../components/native/Toast'
+import { useSessionStore } from '../stores/session'
+import { useUserStore } from '../stores/user'
+import { usePostStore } from '../stores/post'
+import { useCircleStore } from '../stores/circle'
+import { useAnnouncementStore } from '../stores/announcement'
+import { useInteractionStore } from '../stores/interaction'
+import { viewPost } from '../api/post'
+import { fetchHomeStats } from '../api/announcement'
+import { formatRelative } from '../utils/time'
+import type { Circle, Post } from '../types/api'
+
+const route = useRoute()
+const router = useRouter()
+const session = useSessionStore()
+const userStore = useUserStore()
+const postStore = usePostStore()
+const circleStore = useCircleStore()
+const announcementStore = useAnnouncementStore()
+const interactionStore = useInteractionStore()
+
+// 首页透明统计：在线人数 / 今日发帖 / 注册人数
+const homeStats = ref({ online_count: 0, logged_in_count: 0, visitor_count: 0, today_post_count: 0, total_users: 0 })
+let homeStatsTimer: ReturnType<typeof setInterval> | null = null
+
+async function loadHomeStats() {
+  try {
+    const { data } = await fetchHomeStats({
+      showGlobalLoading: false,
+      showGlobalError: false,
+    })
+    homeStats.value = data.data
+  } catch {
+    // 静默失败：不影响首页浏览
+  }
+}
+
+function formatStatsNum(n: number): string {
+  if (n >= 10000) return (n / 10000).toFixed(1).replace(/\.0$/, '') + 'w'
+  if (n >= 1000) return (n / 1000).toFixed(1).replace(/\.0$/, '') + 'k'
+  return String(n)
+}
+
+// 首页 Tab：推荐 / 最新（后端 view=hot/latest，匿名也可访问）
+const feedView = computed<'hot' | 'latest'>(() => (route.query.view === 'latest' ? 'latest' : 'hot'))
+
+// 首页特色入口
+// - 随机交友：独占一行（大卡片），跳转独立漂流瓶页面（不再是帖子流）
+// - 表白墙 / 匿名树洞：并列小卡片
+// 图标线性化，避免渐变/毛玻璃等过时效果
+const featureMain = {
+  slug: 'bottle',
+  name: '随机交友',
+  icon: 'shuffle',
+  desc: '投瓶子 / 在线匹配',
+}
+
+const featureSub = [
+  {
+    slug: 'confess',
+    name: '表白墙',
+    icon: 'heart',
+    desc: '勇敢表达心意',
+  },
+  {
+    slug: 'treehole',
+    name: '匿名树洞',
+    icon: 'lock',
+    desc: '匿名倾诉心事',
+  },
+]
+
+// 圈子图标与色调映射（严格对齐设计稿：发现页.html）
+// 设计稿规则：
+// - 图片卡（card--image）：白色背景，无染色
+// - 文本卡（card--text）：按圈子染色，仅 4 种染色：study/lost/game/confess
+//   - study   -> #e8f2ff 浅蓝
+//   - lost    -> #ffecea 浅红
+//   - game    -> #f3f0ff 浅紫
+//   - confess -> #faf5ff 浅紫粉
+// 其他圈子的文本卡保持白底
+const circleMeta: Record<string, { icon: string; pillBg: string; pillColor: string; cardBg: string; iconColor: string }> = {
+  confess: { icon: 'heart', pillBg: '#f7eaff', pillColor: '#af52de', cardBg: '#faf5ff', iconColor: '#af52de' },
+  lost: { icon: 'circle-question', pillBg: '#e8f2ff', pillColor: '#0064d6', cardBg: '#ffecea', iconColor: '#ff3b30' },
+  market: { icon: 'tag', pillBg: '#fff3e6', pillColor: '#d26510', cardBg: '#ffffff', iconColor: '#d26510' },
+  study: { icon: 'file', pillBg: '#e8f2ff', pillColor: '#0064d6', cardBg: '#e8f2ff', iconColor: '#007aff' },
+  food: { icon: 'map-pin', pillBg: '#fff3e6', pillColor: '#d26510', cardBg: '#ffffff', iconColor: '#d26510' },
+  game: { icon: 'star', pillBg: '#eeeaff', pillColor: '#5856d6', cardBg: '#f3f0ff', iconColor: '#5856d6' },
+  photo: { icon: 'camera', pillBg: '#e9f9ee', pillColor: '#34c759', cardBg: '#ffffff', iconColor: '#34c759' },
+  club: { icon: 'star', pillBg: '#f7eaff', pillColor: '#af52de', cardBg: '#ffffff', iconColor: '#af52de' },
+  sport: { icon: 'flame', pillBg: '#e8f2ff', pillColor: '#007aff', cardBg: '#ffffff', iconColor: '#007aff' },
+  // 新增 4 个圈子
+  match: { icon: 'shuffle', pillBg: '#fff3e6', pillColor: '#d26510', cardBg: '#ffffff', iconColor: '#ff9500' },
+  treehole: { icon: 'lock', pillBg: '#f2f2f7', pillColor: '#48484a', cardBg: '#ffffff', iconColor: '#8e8e93' },
+  qa: { icon: 'circle-question', pillBg: '#e8f2ff', pillColor: '#0064d6', cardBg: '#e8f2ff', iconColor: '#007aff' },
+  flea: { icon: 'tag', pillBg: '#e9f9ee', pillColor: '#34c759', cardBg: '#ffffff', iconColor: '#34c759' },
+  default: { icon: 'sparkles', pillBg: '#e8f2ff', pillColor: '#0064d6', cardBg: '#ffffff', iconColor: '#007aff' },
+}
+
+function getCircleMeta(slug: string) {
+  return circleMeta[slug] || circleMeta.default
+}
+
+function formatCount(n: number): string {
+  if (n >= 10000) return (n / 10000).toFixed(1).replace(/\.0$/, '') + 'w'
+  if (n >= 1000) return (n / 1000).toFixed(1).replace(/\.0$/, '') + 'k'
+  return String(n)
+}
+
+function circleOf(post: Post): Circle | undefined {
+  const slug = post.category || ''
+  return circleStore.circles.find((c) => c.slug === slug || c.name === post.category)
+}
+
+function resolveCircleSlug(post: Post): string {
+  // 后端 post.category 存的是圈子的 name（如「校园美食」），需映射回 slug（如「food」）以匹配 circleMeta
+  const bySlug = circleStore.circles.find((c) => c.slug === post.category)
+  if (bySlug) return bySlug.slug
+  const byName = circleStore.circles.find((c) => c.name === post.category)
+  if (byName) return byName.slug
+  return post.category || 'default'
+}
+
+onMounted(async () => {
+  const [, valid] = await Promise.all([
+    announcementStore.loadAnnouncements(),
+    session.validateSession(),
+    circleStore.loadCircles(),
+    loadHomeStats(),
+  ])
+  // 在线人数定时刷新（30s），让首页统计实时反映在线状态
+  homeStatsTimer = setInterval(loadHomeStats, 30_000)
+  postStore.setView(feedView.value)
+  if (valid) {
+    await Promise.all([
+      userStore.loadProfile(),
+      interactionStore.loadAll(),
+      postStore.loadPosts(),
+    ])
+  } else {
+    // 匿名用户也能看首页 feed
+    await postStore.loadPosts()
+  }
+})
+
+async function onViewChange(view: 'hot' | 'latest') {
+  postStore.setView(view)
+  postStore.setPage(1)
+  await postStore.loadPosts()
+}
+
+// 监听路由 query.view 变化（从发帖页跳转过来时自动加载对应视图）
+watch(
+  () => route.query.view,
+  async (newView) => {
+    const v = newView === 'latest' ? 'latest' : 'hot'
+    if (v !== postStore.activeView) {
+      postStore.setView(v)
+      postStore.setPage(1)
+      await postStore.loadPosts()
+    }
+  },
+)
+
+async function onJoinCircle(e: Event, slug: string) {
+  e.stopPropagation()
+  e.preventDefault()
+  if (!session.userId) {
+    toast.info('请先登录')
+    return
+  }
+  const circle = circleStore.circles.find((c) => c.slug === slug)
+  if (!circle) return
+  try {
+    const joined = await circleStore.toggleJoin(circle)
+    toast.success(joined ? '已加入' : '已退出')
+  } catch (err) {
+    toast.error((err as Error).message)
+  }
+}
+
+async function openPost(post: Post) {
+  // 游客可查看帖子详情；仅登录用户记录浏览数
+  if (session.userId) {
+    try {
+      await viewPost(post.id)
+    } catch {
+      /* ignore */
+    }
+  }
+  router.push(`/post/${post.id}`)
+}
+
+function openSearch() {
+  if (!session.userId) {
+    toast.info('请先登录')
+    return
+  }
+  router.push('/search')
+}
+
+function openFeature(slug: string) {
+  // 随机交友入口跳转独立的漂流瓶页面（不再是圈子帖子流）
+  if (slug === 'bottle') {
+    if (!session.userId) {
+      toast.info('请先登录')
+      return
+    }
+    router.push('/bottle')
+    return
+  }
+  router.push(`/circle/${slug}`)
+}
+
+function isJoined(slug: string): boolean {
+  const c = circleStore.circles.find((x) => x.slug === slug)
+  return !!c?.is_joined
+}
+
+// AI 审核轮询（仅登录用户）
+let auditPollTimer: ReturnType<typeof setInterval> | null = null
+const AUDIT_POLL_INTERVAL = 6000
+
+function stopAuditPolling() {
+  if (auditPollTimer) {
+    clearInterval(auditPollTimer)
+    auditPollTimer = null
+  }
+}
+
+function startAuditPollingIfNeeded() {
+  if (!session.userId || !postStore.hasPendingAudit) {
+    stopAuditPolling()
+    return
+  }
+  if (auditPollTimer) return
+  auditPollTimer = setInterval(async () => {
+    if (postStore.hasPendingAudit) await postStore.silentRefresh()
+    else stopAuditPolling()
+  }, AUDIT_POLL_INTERVAL)
+}
+
+watch(
+  () => postStore.hasPendingAudit,
+  (has) => {
+    if (has) startAuditPollingIfNeeded()
+    else stopAuditPolling()
+  },
+)
+
+onUnmounted(() => {
+  stopAuditPolling()
+  if (homeStatsTimer) {
+    clearInterval(homeStatsTimer)
+    homeStatsTimer = null
+  }
+})
+</script>
+
+<template>
+  <main class="page-home">
+    <!-- ====== 顶部固定栏：标题「首页」居中 + 右侧搜索图标 ====== -->
+    <header class="site-header" role="banner">
+      <div class="header-inner">
+        <div class="header-side header-side--left" aria-hidden="true"></div>
+        <h1 class="header-title">立洋社区·首页</h1>
+        <div class="header-side header-side--right">
+          <button class="icon-btn" type="button" aria-label="搜索" @click="openSearch">
+            <Icon name="search" :size="20" />
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <!-- ====== 主内容 ====== -->
+    <div class="page-container">
+      <!-- ====== 特色入口：随机交友（独占一行）+ 表白墙/匿名树洞（并列）====== -->
+      <section class="feature-entry" aria-label="特色功能">
+        <!-- 随机交友：主卡片，独占一行 -->
+        <button
+          class="feature-card feature-card--main"
+          type="button"
+          @click="openFeature(featureMain.slug)"
+        >
+          <span class="feature-ic feature-ic--line" aria-hidden="true">
+            <Icon :name="featureMain.icon" :size="26" />
+          </span>
+          <span class="feature-text">
+            <span class="feature-name">{{ featureMain.name }}</span>
+            <span class="feature-desc">{{ featureMain.desc }}</span>
+          </span>
+          <span class="feature-arrow" aria-hidden="true">
+            <Icon name="arrow-right" :size="18" />
+          </span>
+        </button>
+
+        <!-- 表白墙 / 匿名树洞：并列小卡片 -->
+        <div class="feature-row">
+          <button
+            v-for="item in featureSub"
+            :key="item.slug"
+            class="feature-card feature-card--sub"
+            type="button"
+            @click="openFeature(item.slug)"
+          >
+            <span class="feature-ic feature-ic--line" aria-hidden="true">
+              <Icon :name="item.icon" :size="20" />
+            </span>
+            <span class="feature-text">
+              <span class="feature-name">{{ item.name }}</span>
+              <span class="feature-desc">{{ item.desc }}</span>
+            </span>
+          </button>
+        </div>
+      </section>
+
+      <!-- ====== 透明统计：在线人数 / 今日发帖 / 注册人数 ====== -->
+      <section class="home-stats" aria-label="站点统计">
+        <div class="stats-item">
+          <span class="stats-dot stats-dot--green" aria-hidden="true"></span>
+          <span class="stats-num">{{ formatStatsNum(homeStats.online_count) }}</span>
+          <span class="stats-label">在线中</span>
+        </div>
+        <span class="stats-divider" aria-hidden="true"></span>
+        <div class="stats-item" title="未登录的游客人数">
+          <Icon name="user" :size="14" />
+          <span class="stats-num">{{ formatStatsNum(homeStats.visitor_count) }}</span>
+          <span class="stats-label">游客在线</span>
+        </div>
+        <span class="stats-divider" aria-hidden="true"></span>
+        <div class="stats-item">
+          <Icon name="file" :size="14" />
+          <span class="stats-num">{{ formatStatsNum(homeStats.today_post_count) }}</span>
+          <span class="stats-label">今日发布</span>
+        </div>
+        <span class="stats-divider" aria-hidden="true"></span>
+        <div class="stats-item">
+          <Icon name="users" :size="14" />
+          <span class="stats-num">{{ formatStatsNum(homeStats.total_users) }}</span>
+          <span class="stats-label">注册人数</span>
+        </div>
+      </section>
+
+      <!-- ====== 帖子动态 Feed（Tab 切换 + 瀑布流）====== -->
+      <section class="feed-section" aria-label="帖子动态">
+        <div class="feed-tabs" role="tablist" aria-label="帖子来源">
+          <button
+            class="feed-tab"
+            type="button"
+            :class="{ 'is-active': feedView === 'hot' }"
+            role="tab"
+            :aria-selected="feedView === 'hot'"
+            @click="router.replace({ query: { view: 'hot' } }); onViewChange('hot')"
+          >
+            推荐
+          </button>
+          <button
+            class="feed-tab"
+            type="button"
+            :class="{ 'is-active': feedView === 'latest' }"
+            role="tab"
+            :aria-selected="feedView === 'latest'"
+            @click="router.replace({ query: { view: 'latest' } }); onViewChange('latest')"
+          >
+            最新
+          </button>
+        </div>
+
+        <div v-if="postStore.loading" class="feed-loading">
+          <Icon name="refresh" :size="20" />
+          <span>加载中…</span>
+        </div>
+
+        <div v-else-if="postStore.posts.length" class="feed">
+          <article
+            v-for="post in postStore.posts"
+            :key="post.id"
+            class="card"
+            :class="post.image_urls?.length ? 'card--image' : 'card--text'"
+            :style="
+              !post.image_urls?.length && post.category
+                ? { background: getCircleMeta(resolveCircleSlug(post)).cardBg }
+                : {}
+            "
+            @click="openPost(post)"
+          >
+            <img
+              v-if="post.image_urls?.length"
+              class="card-img"
+              :src="post.image_urls[0]"
+              :alt="post.title || post.content.slice(0, 30)"
+              loading="lazy"
+            />
+            <div class="card-body">
+              <div class="card-top">
+                <span
+                  class="circle-pill"
+                  :style="{
+                    color: getCircleMeta(resolveCircleSlug(post)).pillColor,
+                    background: getCircleMeta(resolveCircleSlug(post)).pillBg,
+                  }"
+                  >#{{ circleOf(post)?.name || post.category || '校园' }}</span
+                >
+                <AiStatusBadge
+                  :status="post.ai_status"
+                  :reject-reason="post.reject_reason"
+                />
+              </div>
+              <h3 class="card-title" :class="{ 'card-title--text': !post.image_urls?.length }">
+                <template v-if="!post.image_urls?.length">
+                  <Icon
+                    :name="getCircleMeta(resolveCircleSlug(post)).icon"
+                    :size="14"
+                    :color="getCircleMeta(resolveCircleSlug(post)).iconColor"
+                    class="title-icon"
+                  />
+                </template>
+                <span v-if="post.is_public === false" class="private-badge">
+                  <Icon name="lock" :size="12" />
+                  已私密
+                </span>
+                <span class="title-text">{{ post.title || post.content }}</span>
+              </h3>
+              <div class="card-meta">
+                <div class="card-author">
+                  <img
+                    v-if="post.author_avatar_url && !post.is_anonymous"
+                    :src="post.author_avatar_url"
+                    :alt="post.author"
+                    class="avatar avatar-sm avatar-img"
+                  />
+                  <span
+                    v-else
+                    class="avatar avatar-sm"
+                    :class="`av-${(post.author_id || 0) % 5 + 1}`"
+                    aria-hidden="true"
+                  >{{ post.is_anonymous ? '匿' : (post.author || 'U').charAt(0).toUpperCase() }}</span>
+                  <span class="author-name">{{ post.is_anonymous ? '匿名同学' : post.author }}</span>
+                </div>
+                <div class="card-stats">
+                  <span class="post-time">{{ formatRelative(post.created_at) }}</span>
+                  <div class="card-likes">
+                    <Icon name="heart" :size="14" />
+                    <span class="like-count">{{ formatCount(post.like_count) }}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </article>
+        </div>
+
+        <EmptyState v-else text="暂无帖子，发布第一条校园动态。" />
+      </section>
+    </div>
+  </main>
+</template>
+
+<style scoped>
+*, *::before, *::after { box-sizing: border-box; }
+
+.page-home {
+  min-height: 100vh;
+  background: var(--bg-100);
+  padding-top: 56px;
+  padding-bottom: calc(56px + 28px + env(safe-area-inset-bottom));
+  color: var(--text-800);
+  font-family: var(--font-sans, inherit);
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* SITE HEADER */
+.site-header {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  height: 56px;
+  background: var(--bg-50);
+  border-bottom: 0.5px solid var(--bg-300);
+}
+.header-inner {
+  max-width: 1200px;
+  margin: 0 auto;
+  height: 100%;
+  padding: 0 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.header-side {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+}
+.header-side--left { justify-content: flex-start; }
+.header-side--right { justify-content: flex-end; gap: 6px; }
+.header-title {
+  flex: 0 0 auto;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-800);
+  letter-spacing: -0.01em;
+  text-align: center;
+  white-space: nowrap;
+  margin: 0;
+}
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  color: var(--text-600);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: background 150ms cubic-bezier(0.32, 0.72, 0, 1),
+              color 150ms cubic-bezier(0.32, 0.72, 0, 1);
+  flex-shrink: 0;
+}
+.icon-btn:hover {
+  background: var(--bg-100);
+  color: var(--text-800);
+}
+
+/* PAGE CONTAINER */
+.page-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 20px 20px calc(56px + env(safe-area-inset-bottom));
+}
+
+/* FEATURE ENTRY (随机交友主卡 + 表白墙/匿名树洞并列) */
+.feature-entry {
+  margin-bottom: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.feature-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 18px;
+  background: var(--bg-50);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-xs);
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  transition: transform 150ms cubic-bezier(0.32, 0.72, 0, 1),
+              box-shadow 150ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+.feature-card:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-sm);
+}
+/* 随机交友主卡：图标/标题/小文字垂直居中 */
+.feature-card--main {
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  padding: 20px 18px;
+  gap: 8px;
+}
+.feature-card--main .feature-text {
+  align-items: center;
+}
+.feature-card--main .feature-arrow {
+  display: none;
+}
+
+/* 线性图标：无渐变、无毛玻璃，纯描边圆框 */
+.feature-ic--line {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-50);
+  border: 1.5px solid var(--brand-500);
+  color: var(--brand-500);
+  flex-shrink: 0;
+}
+.feature-card--main .feature-ic--line {
+  width: 48px;
+  height: 48px;
+  border-color: var(--brand-500);
+}
+.feature-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.feature-name {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-800);
+  line-height: 1.2;
+}
+.feature-card--sub .feature-name {
+  font-size: 14px;
+}
+.feature-desc {
+  font-size: 12px;
+  color: var(--text-400);
+  line-height: 1.2;
+}
+.feature-arrow {
+  color: var(--text-400);
+  flex-shrink: 0;
+}
+.feature-row {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+}
+.feature-card--sub {
+  padding: 14px 14px;
+}
+
+/* 透明统计条 */
+.home-stats {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 14px;
+  margin-bottom: 18px;
+  background: var(--bg-50);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-xs);
+  font-size: 12px;
+}
+.stats-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--text-500);
+}
+.stats-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  display: inline-block;
+}
+.stats-dot--green {
+  background: #34c759;
+  box-shadow: 0 0 0 3px rgba(52, 199, 89, 0.18);
+  animation: pulse-online 1.6s ease-in-out infinite;
+}
+@keyframes pulse-online {
+  0%, 100% { box-shadow: 0 0 0 3px rgba(52, 199, 89, 0.18); }
+  50% { box-shadow: 0 0 0 5px rgba(52, 199, 89, 0.08); }
+}
+.stats-num {
+  font-weight: 700;
+  color: var(--text-800);
+  font-size: 13px;
+}
+.stats-label {
+  color: var(--text-400);
+  font-size: 12px;
+}
+.stats-divider {
+  width: 1px;
+  height: 14px;
+  background: var(--bg-300);
+}
+
+/* FEED TABS */
+.feed-tabs {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 14px;
+  padding: 0 2px;
+}
+.feed-tab {
+  padding: 6px 16px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-500);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: color 150ms cubic-bezier(0.32, 0.72, 0, 1),
+              background 150ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+.feed-tab:hover { color: var(--text-800); }
+.feed-tab.is-active {
+  color: var(--brand-600);
+  background: var(--brand-50);
+  font-weight: 600;
+}
+
+.feed-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 32px 0;
+  color: var(--text-500);
+  font-size: 13px;
+}
+.feed-loading :deep(svg) {
+  animation: spin 1s linear infinite;
+}
+@keyframes spin {
+  from { transform: rotate(0); }
+  to { transform: rotate(360deg); }
+}
+
+/* FEED masonry */
+.feed {
+  column-count: 2;
+  column-gap: 14px;
+  /* 列宽严格固定，防止内容撑开 */
+  column-fill: balance;
+}
+
+/* 桌面端：增加列数限制卡片大小，防止方块过大 */
+@media (min-width: 769px) {
+  .feed {
+    column-count: 3;
+    column-gap: 16px;
+  }
+  .card-img {
+    max-height: 280px;
+  }
+}
+@media (min-width: 1100px) {
+  .feed {
+    column-count: 4;
+  }
+  .card-img {
+    max-height: 260px;
+  }
+}
+
+/* POST CARDS */
+.card {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  break-inside: avoid;
+  margin-bottom: 16px;
+  background: var(--bg-50);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  box-shadow: var(--shadow-xs);
+  cursor: pointer;
+  border: none;
+  text-align: left;
+  /* 防止内容撑开卡片宽度 */
+  min-width: 0;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  transition: box-shadow 150ms cubic-bezier(0.32, 0.72, 0, 1),
+              transform 150ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+.card:hover {
+  box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
+}
+.card-img {
+  width: 100%;
+  /* 图片卡：增加最小高度，让卡片整体更舒展 */
+  min-height: 180px;
+  height: auto;
+  display: block;
+  object-fit: cover;
+}
+.card-body {
+  padding: 14px 16px 16px;
+}
+.card-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.circle-pill {
+  display: inline-flex;
+  align-items: center;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 999px;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.join-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  flex-shrink: 0;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--bg-50);
+  background: var(--brand-500);
+  border: none;
+  cursor: pointer;
+  transition: background 150ms cubic-bezier(0.32, 0.72, 0, 1),
+              color 150ms cubic-bezier(0.32, 0.72, 0, 1),
+              transform 150ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+.join-btn:hover { background: var(--brand-600); }
+.join-btn:active { transform: scale(0.94); }
+.join-btn.is-joined {
+  background: var(--bg-200);
+  color: var(--text-400);
+}
+.join-btn.is-joined:hover {
+  background: var(--bg-300);
+  color: var(--text-500);
+}
+/* 私密徽标 */
+.private-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-right: 6px;
+  padding: 1px 6px;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.4;
+  color: #b45309;
+  background: rgba(245, 158, 11, 0.12);
+  border-radius: 4px;
+  vertical-align: middle;
+}
+.card-title {
+  margin: 0 0 12px;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.45;
+  color: var(--text-800);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  word-break: break-word;
+}
+.card--text .card-body { padding: 18px; }
+.card-title--text {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  -webkit-line-clamp: 3;
+  font-size: 15px;
+  line-height: 1.5;
+}
+.title-icon {
+  flex-shrink: 0;
+  margin-top: 3px;
+}
+.title-text {
+  flex: 1;
+  min-width: 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  word-break: break-word;
+}
+.card-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.card-author {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  flex: 1;
+}
+.avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  flex-shrink: 0;
+  overflow: hidden;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 600;
+  background: var(--bg-200);
+}
+.avatar-sm { width: 28px; height: 28px; }
+.avatar-img {
+  object-fit: cover;
+  display: block;
+}
+.av-1 { background: linear-gradient(135deg, #66abff, #007aff); }
+.av-2 { background: linear-gradient(135deg, #34c759, #2e8dff); }
+.av-3 { background: linear-gradient(135deg, #ff9500, #007aff); }
+.av-4 { background: linear-gradient(135deg, #5856d6, #0064d6); }
+.av-5 { background: linear-gradient(135deg, #d1d1d6, #8e8e93); }
+.author-name {
+  font-size: 13px;
+  color: var(--text-500);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+.card-likes {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--text-400);
+  flex-shrink: 0;
+}
+.like-count {
+  font-size: 13px;
+  color: var(--text-400);
+}
+.card-stats {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+.post-time {
+  font-size: 12px;
+  color: var(--text-400);
+  white-space: nowrap;
+}
+
+/* RESPONSIVE Mobile */
+@media (max-width: 768px) {
+  .page-home {
+    padding-top: 48px;
+    padding-bottom: calc(52px + env(safe-area-inset-bottom));
+  }
+  .site-header { height: 48px; }
+  .header-inner { padding: 0 12px; gap: 8px; }
+  .header-title { font-size: 17px; }
+  .icon-btn { width: 34px; height: 34px; }
+  .icon-btn :deep(svg) { width: 19px; height: 19px; }
+  .page-container { padding: 14px 12px 24px; }
+  .feature-entry { margin-bottom: 18px; gap: 8px; }
+  .feature-card { padding: 14px 14px; }
+  .feature-card--main { padding: 18px 14px; }
+  .feature-card--sub { padding: 12px 12px; }
+  .feature-ic--line { width: 40px; height: 40px; }
+  .feature-card--main .feature-ic--line { width: 44px; height: 44px; }
+  .feature-name { font-size: 14px; }
+  .feature-card--sub .feature-name { font-size: 13px; }
+  .feature-desc { font-size: 11px; }
+  .feature-row { gap: 8px; }
+  .feed-tab { padding: 5px 13px; font-size: 12.5px; }
+  .feed { column-gap: 10px; }
+  .card {
+    margin-bottom: 12px;
+    border-radius: calc(var(--radius-lg) * 0.8);
+  }
+  .card-img { border-radius: calc(var(--radius-lg) * 0.8) calc(var(--radius-lg) * 0.8) 0 0; min-height: 140px; }
+  .card-body { padding: 12px 14px 14px; }
+  .card-top { margin-bottom: 10px; gap: 6px; }
+  .circle-pill { font-size: 11px; padding: 3px 8px; }
+  .join-btn { font-size: 10px; padding: 2px 8px; }
+  .card-title { font-size: 14px; margin-bottom: 10px; line-height: 1.4; }
+  .card--text .card-body { padding: 14px; }
+  .avatar-sm { width: 24px; height: 24px; }
+  .author-name { font-size: 12px; }
+  .like-count { font-size: 12px; }
+  .card-likes :deep(svg) { width: 14px; height: 14px; }
+  .title-icon { margin-top: 2px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
+}
+</style>

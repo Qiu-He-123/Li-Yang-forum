@@ -1,0 +1,1414 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>圈子 | 立洋社区</title>
+    <style id="theme-vars">
+/*
+ * Pinguo design tokens
+ * Brand: Pinguo
+ * Domain: Consumer imaging product
+ * Style: Restrained, elegant, Apple-inspired
+ * Theme mode: light-dark
+ * Source language: zh
+ * Output language: en
+ *
+ * Color architecture (two layers):
+ *   1. Primitive palette - six categories. brand / background / text / icon
+ *      are each a 10-step scale (50 lightest to 900 darkest). state-success and
+ *      state-error are functional colors anchored on Apple system colors.
+ *      Anchors follow Apple Human Interface Guidelines system colors
+ *      (System Blue #007AFF, System Green #34C759, System Red #FF3B30,
+ *      system grays / label / background colors).
+ *   2. Semantic tokens - :root (light) and .dark map roles onto primitives.
+ *      Components and UI kits must only consume the semantic tokens below.
+ */
+
+/* @group-priority: brand, background, text, icon, state-success, state-error */
+
+:root {
+  /* ===== PRIMITIVE PALETTE ===== */
+
+  /* brand */
+  --brand-50: #e8f2ff;
+  --brand-100: #cfe5ff;
+  --brand-200: #9fcbff;
+  --brand-300: #66abff;
+  --brand-400: #2e8dff;
+  --brand-500: #007aff; /* @primary */
+  --brand-600: #0064d6;
+  --brand-700: #004fad;
+  --brand-800: #003b82;
+  --brand-900: #00275a;
+
+  /* background */
+  --background-50: #ffffff;
+  --background-100: #f7f7fa;
+  --background-200: #f2f2f7;
+  --background-300: #e5e5ea;
+  --background-400: #d1d1d6;
+  --background-500: #aeaeb2;
+  --background-600: #8e8e93;
+  --background-700: #3a3a3c;
+  --background-800: #1c1c1e;
+  --background-900: #000000;
+
+  /* text */
+  --text-50: #f5f5f7;
+  --text-100: #e3e3e8;
+  --text-200: #c7c7cc;
+  --text-300: #aeaeb2;
+  --text-400: #8e8e93;
+  --text-500: #6e6e73;
+  --text-600: #48484a;
+  --text-700: #3c3c43;
+  --text-800: #1d1d1f;
+  --text-900: #000000;
+
+  /* icon */
+  --icon-50: #f5f5f7;
+  --icon-100: #e5e5ea;
+  --icon-200: #d1d1d6;
+  --icon-300: #c7c7cc;
+  --icon-400: #aeaeb2;
+  --icon-500: #8e8e93;
+  --icon-600: #6e6e73;
+  --icon-700: #48484a;
+  --icon-800: #2c2c2e;
+  --icon-900: #1d1d1f;
+
+  /* state-success */
+  --state-success: #34c759; /* @primary */
+  --state-success-dark: #30d158;
+  --state-success-surface: #e9f9ee;
+  --state-success-foreground: #ffffff;
+
+  /* state-error */
+  --state-error: #ff3b30; /* @primary */
+  --state-error-dark: #ff453a;
+  --state-error-surface: #ffecea;
+  --state-error-foreground: #ffffff;
+
+  /* ===== SEMANTIC ROLES ===== */
+
+  /* semantic */
+  --background: var(--background-50);
+  --foreground: var(--text-800);
+  --card: var(--background-50);
+  --card-foreground: var(--text-800);
+  --popover: var(--background-50);
+  --popover-foreground: var(--text-900);
+
+  --primary: var(--brand-500);
+  --primary-foreground: var(--background-50);
+  --secondary: var(--background-200);
+  --secondary-foreground: var(--text-800);
+  --muted: var(--background-200);
+  --muted-foreground: var(--text-400);
+  --accent: var(--background-100);
+  --accent-foreground: var(--text-800);
+  --destructive: var(--state-error);
+  --destructive-foreground: var(--state-error-foreground);
+  --success: var(--state-success);
+  --success-foreground: var(--state-success-foreground);
+  --border: var(--background-300);
+  --input: var(--background-400);
+  --ring: var(--brand-500);
+
+  --icon: var(--icon-900);
+  --icon-muted: var(--icon-500);
+
+  /* chart */
+  --chart-1: var(--state-success);
+  --chart-2: var(--brand-500);
+  --chart-3: #ff9500;
+  --chart-4: #5856d6;
+  --chart-5: #af52de;
+
+  /* sidebar */
+  --sidebar: var(--background-200);
+  --sidebar-foreground: var(--text-800);
+  --sidebar-primary: var(--brand-500);
+  --sidebar-primary-foreground: var(--background-50);
+  --sidebar-accent: var(--background-300);
+  --sidebar-accent-foreground: var(--text-800);
+  --sidebar-border: var(--background-300);
+  --sidebar-ring: var(--brand-500);
+
+  /* TYPOGRAPHY */
+  --font-sans: DM Sans, ui-sans-serif, sans-serif, system-ui;
+  --font-serif: DM Sans, ui-sans-serif, sans-serif, system-ui;
+  --font-mono: JetBrains Mono, monospace;
+  --tracking-normal: 0em;
+
+  /* RADIUS */
+  --radius: 1.2rem;
+  --radius-sm: 0.6rem;
+  --radius-md: 0.8rem;
+  --radius-lg: 1.2rem;
+
+  /* SHADOWS */
+  --shadow-2xs: 0 1px 2px -1px rgba(0, 0, 0, 0.04); /* Hairline */
+  --shadow-xs: 0 1px 2px 0 rgba(0, 0, 0, 0.04); /* Subtle */
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05), 0 1px 3px -1px rgba(0, 0, 0, 0.05); /* Card */
+  --shadow: 0 2px 4px -1px rgba(0, 0, 0, 0.06), 0 1px 2px -1px rgba(0, 0, 0, 0.05); /* Raised */
+  --shadow-md: 0 4px 8px -2px rgba(0, 0, 0, 0.06), 0 2px 4px -2px rgba(0, 0, 0, 0.05); /* Card Hover */
+  --shadow-lg: 0 8px 24px -8px rgba(0, 0, 0, 0.08), 0 4px 8px -4px rgba(0, 0, 0, 0.05); /* Float */
+  --shadow-xl: 0 16px 40px -10px rgba(0, 0, 0, 0.10), 0 8px 16px -8px rgba(0, 0, 0, 0.06); /* Overlay */
+  --shadow-2xl: 0 24px 64px -12px rgba(0, 0, 0, 0.12); /* Modal */
+
+  /* SPACING */
+  --spacing: 0.24rem;
+}
+
+/* ===== SEMANTIC ROLES - dark (primitive palette inherited) ===== */
+.dark {
+  --background: var(--background-900);
+  --foreground: var(--text-50);
+  --card: var(--background-800);
+  --card-foreground: var(--text-50);
+  --popover: var(--background-700);
+  --popover-foreground: var(--text-50);
+
+  --primary: var(--brand-400);
+  --primary-foreground: var(--background-900);
+  --secondary: var(--background-800);
+  --secondary-foreground: var(--text-50);
+  --muted: var(--background-800);
+  --muted-foreground: var(--text-400);
+  --accent: var(--background-700);
+  --accent-foreground: var(--text-50);
+  --destructive: var(--state-error-dark);
+  --destructive-foreground: var(--state-error-foreground);
+  --success: var(--state-success-dark);
+  --success-foreground: var(--state-success-foreground);
+  --border: var(--background-700);
+  --input: var(--background-700);
+  --ring: var(--brand-400);
+
+  --icon: var(--icon-50);
+  --icon-muted: var(--icon-500);
+
+  --chart-1: var(--state-success-dark);
+  --chart-2: var(--brand-400);
+  --chart-3: #ff9f0a;
+  --chart-4: #5e5ce6;
+  --chart-5: #bf5af2;
+
+  --sidebar: var(--background-800);
+  --sidebar-foreground: var(--text-50);
+  --sidebar-primary: var(--brand-400);
+  --sidebar-primary-foreground: var(--background-900);
+  --sidebar-accent: var(--background-700);
+  --sidebar-accent-foreground: var(--text-50);
+  --sidebar-border: var(--background-700);
+  --sidebar-ring: var(--brand-400);
+
+  --shadow-2xs: 0 1px 2px -1px rgba(0, 0, 0, 0.30);
+  --shadow-xs: 0 1px 2px 0 rgba(0, 0, 0, 0.30);
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.36), 0 1px 3px -1px rgba(0, 0, 0, 0.36);
+  --shadow: 0 2px 4px -1px rgba(0, 0, 0, 0.40), 0 1px 2px -1px rgba(0, 0, 0, 0.36);
+  --shadow-md: 0 4px 8px -2px rgba(0, 0, 0, 0.44), 0 2px 4px -2px rgba(0, 0, 0, 0.36);
+  --shadow-lg: 0 8px 24px -8px rgba(0, 0, 0, 0.50), 0 4px 8px -4px rgba(0, 0, 0, 0.40);
+  --shadow-xl: 0 16px 40px -10px rgba(0, 0, 0, 0.55), 0 8px 16px -8px rgba(0, 0, 0, 0.44);
+  --shadow-2xl: 0 24px 64px -12px rgba(0, 0, 0, 0.60);
+}
+
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4.3.1/dist/index.global.js"></script>
+    <script src="https://unpkg.com/lucide@1.8.0/dist/umd/lucide.min.js"></script>
+    <style type="text/tailwindcss">
+  @theme inline {
+    --color-background: var(--background);
+    --color-foreground: var(--foreground);
+    --color-card: var(--card);
+    --color-card-foreground: var(--card-foreground);
+    --color-popover: var(--popover);
+    --color-popover-foreground: var(--popover-foreground);
+    --color-primary: var(--primary);
+    --color-primary-foreground: var(--primary-foreground);
+    --color-secondary: var(--secondary);
+    --color-secondary-foreground: var(--secondary-foreground);
+    --color-muted: var(--muted);
+    --color-muted-foreground: var(--muted-foreground);
+    --color-accent: var(--accent);
+    --color-accent-foreground: var(--accent-foreground);
+    --color-destructive: var(--destructive);
+    --color-destructive-foreground: var(--destructive-foreground);
+    --color-border: var(--border);
+    --color-input: var(--input);
+    --color-ring: var(--ring);
+    --color-chart-1: var(--chart-1);
+    --color-chart-2: var(--chart-2);
+    --color-chart-3: var(--chart-3);
+    --color-chart-4: var(--chart-4);
+    --color-chart-5: var(--chart-5);
+    --color-sidebar: var(--sidebar);
+    --color-sidebar-foreground: var(--sidebar-foreground);
+    --color-sidebar-primary: var(--sidebar-primary);
+    --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+    --color-sidebar-accent: var(--sidebar-accent);
+    --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+    --radius-sm: var(--radius-sm);
+    --radius-md: var(--radius-md);
+    --radius-lg: var(--radius-lg);
+  }
+  @layer base {
+    body { background: var(--background); color: var(--foreground); }
+    td, th { @apply break-words; word-break: break-all; word-break: auto-phrase; }
+    th { @apply whitespace-nowrap; }
+  }
+    </style>
+    <style id="semantic-token-fallback">
+      .bg-background { background-color: var(--background); }
+      .text-background { color: var(--background); }
+      .border-background { border-color: var(--background); }
+      .ring-background { --tw-ring-color: var(--background); }
+      .bg-foreground { background-color: var(--foreground); }
+      .text-foreground { color: var(--foreground); }
+      .border-foreground { border-color: var(--foreground); }
+      .ring-foreground { --tw-ring-color: var(--foreground); }
+      .bg-card { background-color: var(--card); }
+      .text-card { color: var(--card); }
+      .border-card { border-color: var(--card); }
+      .ring-card { --tw-ring-color: var(--card); }
+      .bg-card-foreground { background-color: var(--card-foreground); }
+      .text-card-foreground { color: var(--card-foreground); }
+      .border-card-foreground { border-color: var(--card-foreground); }
+      .ring-card-foreground { --tw-ring-color: var(--card-foreground); }
+      .bg-popover { background-color: var(--popover); }
+      .text-popover { color: var(--popover); }
+      .border-popover { border-color: var(--popover); }
+      .ring-popover { --tw-ring-color: var(--popover); }
+      .bg-popover-foreground { background-color: var(--popover-foreground); }
+      .text-popover-foreground { color: var(--popover-foreground); }
+      .border-popover-foreground { border-color: var(--popover-foreground); }
+      .ring-popover-foreground { --tw-ring-color: var(--popover-foreground); }
+      .bg-primary { background-color: var(--primary); }
+      .text-primary { color: var(--primary); }
+      .border-primary { border-color: var(--primary); }
+      .ring-primary { --tw-ring-color: var(--primary); }
+      .bg-primary-foreground { background-color: var(--primary-foreground); }
+      .text-primary-foreground { color: var(--primary-foreground); }
+      .border-primary-foreground { border-color: var(--primary-foreground); }
+      .ring-primary-foreground { --tw-ring-color: var(--primary-foreground); }
+      .bg-secondary { background-color: var(--secondary); }
+      .text-secondary { color: var(--secondary); }
+      .border-secondary { border-color: var(--secondary); }
+      .ring-secondary { --tw-ring-color: var(--secondary); }
+      .bg-secondary-foreground { background-color: var(--secondary-foreground); }
+      .text-secondary-foreground { color: var(--secondary-foreground); }
+      .border-secondary-foreground { border-color: var(--secondary-foreground); }
+      .ring-secondary-foreground { --tw-ring-color: var(--secondary-foreground); }
+      .bg-muted { background-color: var(--muted); }
+      .text-muted { color: var(--muted); }
+      .border-muted { border-color: var(--muted); }
+      .ring-muted { --tw-ring-color: var(--muted); }
+      .bg-muted-foreground { background-color: var(--muted-foreground); }
+      .text-muted-foreground { color: var(--muted-foreground); }
+      .border-muted-foreground { border-color: var(--muted-foreground); }
+      .ring-muted-foreground { --tw-ring-color: var(--muted-foreground); }
+      .bg-accent { background-color: var(--accent); }
+      .text-accent { color: var(--accent); }
+      .border-accent { border-color: var(--accent); }
+      .ring-accent { --tw-ring-color: var(--accent); }
+      .bg-accent-foreground { background-color: var(--accent-foreground); }
+      .text-accent-foreground { color: var(--accent-foreground); }
+      .border-accent-foreground { border-color: var(--accent-foreground); }
+      .ring-accent-foreground { --tw-ring-color: var(--accent-foreground); }
+      .bg-destructive { background-color: var(--destructive); }
+      .text-destructive { color: var(--destructive); }
+      .border-destructive { border-color: var(--destructive); }
+      .ring-destructive { --tw-ring-color: var(--destructive); }
+      .bg-destructive-foreground { background-color: var(--destructive-foreground); }
+      .text-destructive-foreground { color: var(--destructive-foreground); }
+      .border-destructive-foreground { border-color: var(--destructive-foreground); }
+      .ring-destructive-foreground { --tw-ring-color: var(--destructive-foreground); }
+      .bg-border { background-color: var(--border); }
+      .text-border { color: var(--border); }
+      .border-border { border-color: var(--border); }
+      .ring-border { --tw-ring-color: var(--border); }
+      .bg-input { background-color: var(--input); }
+      .text-input { color: var(--input); }
+      .border-input { border-color: var(--input); }
+      .ring-input { --tw-ring-color: var(--input); }
+      .bg-ring { background-color: var(--ring); }
+      .text-ring { color: var(--ring); }
+      .border-ring { border-color: var(--ring); }
+      .ring-ring { --tw-ring-color: var(--ring); }
+      .bg-chart-1 { background-color: var(--chart-1); }
+      .text-chart-1 { color: var(--chart-1); }
+      .border-chart-1 { border-color: var(--chart-1); }
+      .ring-chart-1 { --tw-ring-color: var(--chart-1); }
+      .bg-chart-2 { background-color: var(--chart-2); }
+      .text-chart-2 { color: var(--chart-2); }
+      .border-chart-2 { border-color: var(--chart-2); }
+      .ring-chart-2 { --tw-ring-color: var(--chart-2); }
+      .bg-chart-3 { background-color: var(--chart-3); }
+      .text-chart-3 { color: var(--chart-3); }
+      .border-chart-3 { border-color: var(--chart-3); }
+      .ring-chart-3 { --tw-ring-color: var(--chart-3); }
+      .bg-chart-4 { background-color: var(--chart-4); }
+      .text-chart-4 { color: var(--chart-4); }
+      .border-chart-4 { border-color: var(--chart-4); }
+      .ring-chart-4 { --tw-ring-color: var(--chart-4); }
+      .bg-chart-5 { background-color: var(--chart-5); }
+      .text-chart-5 { color: var(--chart-5); }
+      .border-chart-5 { border-color: var(--chart-5); }
+      .ring-chart-5 { --tw-ring-color: var(--chart-5); }
+      .bg-sidebar { background-color: var(--sidebar); }
+      .text-sidebar { color: var(--sidebar); }
+      .border-sidebar { border-color: var(--sidebar); }
+      .ring-sidebar { --tw-ring-color: var(--sidebar); }
+      .bg-sidebar-foreground { background-color: var(--sidebar-foreground); }
+      .text-sidebar-foreground { color: var(--sidebar-foreground); }
+      .border-sidebar-foreground { border-color: var(--sidebar-foreground); }
+      .ring-sidebar-foreground { --tw-ring-color: var(--sidebar-foreground); }
+      .bg-sidebar-primary { background-color: var(--sidebar-primary); }
+      .text-sidebar-primary { color: var(--sidebar-primary); }
+      .border-sidebar-primary { border-color: var(--sidebar-primary); }
+      .ring-sidebar-primary { --tw-ring-color: var(--sidebar-primary); }
+      .bg-sidebar-primary-foreground { background-color: var(--sidebar-primary-foreground); }
+      .text-sidebar-primary-foreground { color: var(--sidebar-primary-foreground); }
+      .border-sidebar-primary-foreground { border-color: var(--sidebar-primary-foreground); }
+      .ring-sidebar-primary-foreground { --tw-ring-color: var(--sidebar-primary-foreground); }
+      .bg-sidebar-accent { background-color: var(--sidebar-accent); }
+      .text-sidebar-accent { color: var(--sidebar-accent); }
+      .border-sidebar-accent { border-color: var(--sidebar-accent); }
+      .ring-sidebar-accent { --tw-ring-color: var(--sidebar-accent); }
+      .bg-sidebar-accent-foreground { background-color: var(--sidebar-accent-foreground); }
+      .text-sidebar-accent-foreground { color: var(--sidebar-accent-foreground); }
+      .border-sidebar-accent-foreground { border-color: var(--sidebar-accent-foreground); }
+      .ring-sidebar-accent-foreground { --tw-ring-color: var(--sidebar-accent-foreground); }
+    </style>
+    <style>
+      .no-scrollbar::-webkit-scrollbar { display: none; }
+      .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+      [data-icon] {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        -webkit-mask-size: contain;
+        mask-size: contain;
+        -webkit-mask-repeat: no-repeat;
+        mask-repeat: no-repeat;
+        -webkit-mask-position: center;
+        mask-position: center;
+        background-color: currentColor;
+      }
+    </style>
+</head>
+<body>
+
+  <!-- ====== FIXED TOP HEADER (centered title 圈子, right search icon) ====== -->
+  <header class="site-header" role="banner">
+    <div class="header-inner">
+      <div class="header-side header-side--left" aria-hidden="true"></div>
+      <h1 class="header-title">圈子</h1>
+      <div class="header-side header-side--right">
+        <button class="icon-btn" type="button" aria-label="搜索圈子">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="11" cy="11" r="7"></circle>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+          </svg>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- ====== MAIN CONTENT ====== -->
+  <main class="page-container">
+
+    <!-- ====== HOT CIRCLES ENTRY (3 x 2 grid) ====== -->
+    <section class="circles-entry" aria-label="热门圈子">
+      <div class="section-head">
+        <h2 class="section-title">
+          <span class="section-title-dot" aria-hidden="true"></span>
+          热门圈子
+        </h2>
+        <a class="section-more" href="#">
+          全部圈子
+          <span class="icon icon-chevron-right" aria-hidden="true"></span>
+        </a>
+      </div>
+
+      <div class="circles-grid">
+        <a class="circle-entry" href="#" data-dom-id="circle-enter">
+          <span class="circle-ic circle-ic--confess" aria-hidden="true">
+            <span class="icon icon-heart"></span>
+          </span>
+          <span class="circle-name">表白墙</span>
+          <span class="circle-members">2.3k 成员</span>
+        </a>
+        <a class="circle-entry" href="#" data-dom-id="circle-enter">
+          <span class="circle-ic circle-ic--lost" aria-hidden="true">
+            <span class="icon icon-question"></span>
+          </span>
+          <span class="circle-name">失物招领</span>
+          <span class="circle-members">1.1k 成员</span>
+        </a>
+        <a class="circle-entry" href="#" data-dom-id="circle-enter">
+          <span class="circle-ic circle-ic--market" aria-hidden="true">
+            <span class="icon icon-tag"></span>
+          </span>
+          <span class="circle-name">二手市场</span>
+          <span class="circle-members">3.4k 成员</span>
+        </a>
+        <a class="circle-entry" href="#" data-dom-id="circle-enter">
+          <span class="circle-ic circle-ic--study" aria-hidden="true">
+            <span class="icon icon-file"></span>
+          </span>
+          <span class="circle-name">学习互助</span>
+          <span class="circle-members">5.2k 成员</span>
+        </a>
+        <a class="circle-entry" href="#" data-dom-id="circle-enter">
+          <span class="circle-ic circle-ic--food" aria-hidden="true">
+            <span class="icon icon-map-pin"></span>
+          </span>
+          <span class="circle-name">校园美食</span>
+          <span class="circle-members">2.8k 成员</span>
+        </a>
+        <a class="circle-entry" href="#" data-dom-id="circle-enter">
+          <span class="circle-ic circle-ic--game" aria-hidden="true">
+            <span class="icon icon-star"></span>
+          </span>
+          <span class="circle-name">游戏开黑</span>
+          <span class="circle-members">1.9k 成员</span>
+        </a>
+      </div>
+    </section>
+
+    <!-- ====== CIRCLE FEED (tab switch + masonry) ====== -->
+    <section class="feed-section" aria-label="圈子动态">
+      <div class="feed-tabs" role="tablist" aria-label="圈子动态来源">
+        <button class="feed-tab" type="button" data-feed-tab="joined" role="tab" aria-selected="false">我加入的</button>
+        <button class="feed-tab is-active" type="button" data-feed-tab="all" role="tab" aria-selected="true">全部圈子</button>
+      </div>
+
+      <div class="feed">
+
+        <!-- Card 1 — #表白墙, image: campus cat (confession hook) -->
+        <article class="card card--image" data-dom-id="card-open-detail">
+          <img class="card-img" src="../assets/campus-cat.jpg" alt="图书馆门口的橘猫" loading="lazy">
+          <div class="card-body">
+            <div class="card-top">
+              <span class="circle-pill circle-pill--confess">#表白墙</span>
+              <button class="join-btn" type="button" data-dom-id="join-circle">
+                <span class="icon icon-circle-plus" aria-hidden="true"></span>加入
+              </button>
+            </div>
+            <h3 class="card-title">图书馆门口的橘猫，想认识每天投喂它的白毛衣女生</h3>
+            <div class="card-meta">
+              <div class="card-author">
+                <span class="avatar avatar-sm av-3" aria-hidden="true"></span>
+                <span class="author-name">猫咪观察员</span>
+              </div>
+              <div class="card-likes">
+                <span class="icon icon-heart" aria-hidden="true"></span>
+                <span class="like-count">2.1k</span>
+              </div>
+            </div>
+          </div>
+        </article>
+
+        <!-- Card 2 — #二手市场, image: secondhand books (joined) -->
+        <article class="card card--image" data-dom-id="card-open-detail">
+          <img class="card-img" src="../assets/secondhand-books.jpg" alt="二手高数教材与真题合集" loading="lazy">
+          <div class="card-body">
+            <div class="card-top">
+              <span class="circle-pill circle-pill--market">#二手市场</span>
+              <button class="join-btn is-joined" type="button" data-dom-id="join-circle">
+                <span class="icon icon-check" aria-hidden="true"></span>已加入
+              </button>
+            </div>
+            <h3 class="card-title">出二手高数教材+真题合集，九成新打包 30 出，学长毕业清仓</h3>
+            <div class="card-meta">
+              <div class="card-author">
+                <span class="avatar avatar-sm av-4" aria-hidden="true"></span>
+                <span class="author-name">毕业学姐</span>
+              </div>
+              <div class="card-likes">
+                <span class="icon icon-heart" aria-hidden="true"></span>
+                <span class="like-count">67</span>
+              </div>
+            </div>
+          </div>
+        </article>
+
+        <!-- Card 3 — #失物招领, text (join) -->
+        <article class="card card--text card--lost" data-dom-id="card-open-detail">
+          <div class="card-body">
+            <div class="card-top">
+              <span class="circle-pill circle-pill--lost">#失物招领</span>
+              <button class="join-btn" type="button" data-dom-id="join-circle">
+                <span class="icon icon-circle-plus" aria-hidden="true"></span>加入
+              </button>
+            </div>
+            <h3 class="card-title card-title--text">
+              <span class="title-icon icon icon-question" aria-hidden="true"></span>
+              <span class="title-text">在图书馆三楼自习区捡到一张校园卡，卡号尾号 8821，请失主私信联系</span>
+            </h3>
+            <div class="card-meta">
+              <div class="card-author">
+                <span class="avatar avatar-sm av-5" aria-hidden="true"></span>
+                <span class="author-name">好心同学</span>
+              </div>
+              <div class="card-likes">
+                <span class="icon icon-heart" aria-hidden="true"></span>
+                <span class="like-count">63</span>
+              </div>
+            </div>
+          </div>
+        </article>
+
+        <!-- Card 4 — #学习互助, text (joined) -->
+        <article class="card card--text card--study" data-dom-id="card-open-detail">
+          <div class="card-body">
+            <div class="card-top">
+              <span class="circle-pill circle-pill--study">#学习互助</span>
+              <button class="join-btn is-joined" type="button" data-dom-id="join-circle">
+                <span class="icon icon-check" aria-hidden="true"></span>已加入
+              </button>
+            </div>
+            <h3 class="card-title card-title--text">
+              <span class="title-icon icon icon-file" aria-hidden="true"></span>
+              <span class="title-text">高数极限题求带，今晚图书馆三楼一起刷题，期末冲进年级前五十</span>
+            </h3>
+            <div class="card-meta">
+              <div class="card-author">
+                <span class="avatar avatar-sm av-1" aria-hidden="true"></span>
+                <span class="author-name">卷王本人</span>
+              </div>
+              <div class="card-likes">
+                <span class="icon icon-heart" aria-hidden="true"></span>
+                <span class="like-count">428</span>
+              </div>
+            </div>
+          </div>
+        </article>
+
+        <!-- Card 5 — #校园美食, image: cafeteria food (joined) -->
+        <article class="card card--image" data-dom-id="card-open-detail">
+          <img class="card-img" src="../assets/cafeteria-food.jpg" alt="食堂二楼麻辣香锅" loading="lazy">
+          <div class="card-body">
+            <div class="card-top">
+              <span class="circle-pill circle-pill--food">#校园美食</span>
+              <button class="join-btn is-joined" type="button" data-dom-id="join-circle">
+                <span class="icon icon-check" aria-hidden="true"></span>已加入
+              </button>
+            </div>
+            <h3 class="card-title">食堂二楼新开的麻辣香锅，排了半小时队终于吃上了</h3>
+            <div class="card-meta">
+              <div class="card-author">
+                <span class="avatar avatar-sm av-2" aria-hidden="true"></span>
+                <span class="author-name">吃货小王</span>
+              </div>
+              <div class="card-likes">
+                <span class="icon icon-heart" aria-hidden="true"></span>
+                <span class="like-count">286</span>
+              </div>
+            </div>
+          </div>
+        </article>
+
+        <!-- Card 6 — #游戏开黑, text (join) -->
+        <article class="card card--text card--game" data-dom-id="card-open-detail">
+          <div class="card-body">
+            <div class="card-top">
+              <span class="circle-pill circle-pill--game">#游戏开黑</span>
+              <button class="join-btn" type="button" data-dom-id="join-circle">
+                <span class="icon icon-circle-plus" aria-hidden="true"></span>加入
+              </button>
+            </div>
+            <h3 class="card-title card-title--text">
+              <span class="title-icon icon icon-star" aria-hidden="true"></span>
+              <span class="title-text">王者荣耀五排缺一，星耀局，今晚九点开黑，速来滴滴</span>
+            </h3>
+            <div class="card-meta">
+              <div class="card-author">
+                <span class="avatar avatar-sm av-4" aria-hidden="true"></span>
+                <span class="author-name">野王阿杰</span>
+              </div>
+              <div class="card-likes">
+                <span class="icon icon-heart" aria-hidden="true"></span>
+                <span class="like-count">152</span>
+              </div>
+            </div>
+          </div>
+        </article>
+
+        <!-- Card 7 — #摄影, image: campus path / ginkgo (join) -->
+        <article class="card card--image" data-dom-id="card-open-detail">
+          <img class="card-img" src="../assets/campus-path.jpg" alt="秋日银杏大道" loading="lazy">
+          <div class="card-body">
+            <div class="card-top">
+              <span class="circle-pill circle-pill--photo">#摄影</span>
+              <button class="join-btn" type="button" data-dom-id="join-circle">
+                <span class="icon icon-circle-plus" aria-hidden="true"></span>加入
+              </button>
+            </div>
+            <h3 class="card-title">银杏大道最美的一周，摄影社出片合集，错过等一年</h3>
+            <div class="card-meta">
+              <div class="card-author">
+                <span class="avatar avatar-sm av-3" aria-hidden="true"></span>
+                <span class="author-name">摄影社·阿林</span>
+              </div>
+              <div class="card-likes">
+                <span class="icon icon-heart" aria-hidden="true"></span>
+                <span class="like-count">1.2k</span>
+              </div>
+            </div>
+          </div>
+        </article>
+
+        <!-- Card 8 — #社团招新, image: stage performance (join) -->
+        <article class="card card--image" data-dom-id="card-open-detail">
+          <img class="card-img" src="../assets/stage-performance.jpg" alt="迎新晚会街舞社表演" loading="lazy">
+          <div class="card-body">
+            <div class="card-top">
+              <span class="circle-pill circle-pill--club">#社团招新</span>
+              <button class="join-btn" type="button" data-dom-id="join-circle">
+                <span class="icon icon-circle-plus" aria-hidden="true"></span>加入
+              </button>
+            </div>
+            <h3 class="card-title">街舞社迎新晚会炸场了！完整视频已上传，速看</h3>
+            <div class="card-meta">
+              <div class="card-author">
+                <span class="avatar avatar-sm av-4" aria-hidden="true"></span>
+                <span class="author-name">街舞社J-Crew</span>
+              </div>
+              <div class="card-likes">
+                <span class="icon icon-heart" aria-hidden="true"></span>
+                <span class="like-count">892</span>
+              </div>
+            </div>
+          </div>
+        </article>
+
+        <!-- Card 9 — #表白墙, text (joined) -->
+        <article class="card card--text card--confess" data-dom-id="card-open-detail">
+          <div class="card-body">
+            <div class="card-top">
+              <span class="circle-pill circle-pill--confess">#表白墙</span>
+              <button class="join-btn is-joined" type="button" data-dom-id="join-circle">
+                <span class="icon icon-check" aria-hidden="true"></span>已加入
+              </button>
+            </div>
+            <h3 class="card-title card-title--text">
+              <span class="title-icon icon icon-heart" aria-hidden="true"></span>
+              <span class="title-text">谢谢你昨天帮我捡到 AirPods，想请你喝杯奶茶，后台私信我</span>
+            </h3>
+            <div class="card-meta">
+              <div class="card-author">
+                <span class="avatar avatar-sm av-3" aria-hidden="true"></span>
+                <span class="author-name">感激的同学</span>
+              </div>
+              <div class="card-likes">
+                <span class="icon icon-heart" aria-hidden="true"></span>
+                <span class="like-count">97</span>
+              </div>
+            </div>
+          </div>
+        </article>
+
+        <!-- Card 10 — #运动, image: track dusk (join) -->
+        <article class="card card--image" data-dom-id="card-open-detail">
+          <img class="card-img" src="../assets/track-dusk.jpg" alt="田径场黄昏夜跑" loading="lazy">
+          <div class="card-body">
+            <div class="card-top">
+              <span class="circle-pill circle-pill--sport">#运动</span>
+              <button class="join-btn" type="button" data-dom-id="join-circle">
+                <span class="icon icon-circle-plus" aria-hidden="true"></span>加入
+              </button>
+            </div>
+            <h3 class="card-title">黄昏田径场夜跑打卡，跑完三公里看到的天空绝了</h3>
+            <div class="card-meta">
+              <div class="card-author">
+                <span class="avatar avatar-sm av-2" aria-hidden="true"></span>
+                <span class="author-name">夜跑达人</span>
+              </div>
+              <div class="card-likes">
+                <span class="icon icon-heart" aria-hidden="true"></span>
+                <span class="like-count">348</span>
+              </div>
+            </div>
+          </div>
+        </article>
+
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ====== MOBILE BOTTOM TAB BAR (圈子 active) ====== -->
+  <nav class="bottom-tabbar" aria-label="底部导航">
+    <a class="bottom-tab" href="#" data-dom-id="tabbar-home">
+      <span class="icon icon-house" aria-hidden="true"></span>
+      <span class="bottom-tab-label">首页</span>
+    </a>
+    <a class="bottom-tab is-active" href="#" data-dom-id="tabbar-discover">
+      <span class="icon icon-map-pin" aria-hidden="true"></span>
+      <span class="bottom-tab-label">圈子</span>
+    </a>
+    <a class="bottom-tab bottom-tab--publish" href="#" data-dom-id="tabbar-publish">
+      <span class="publish-btn">
+        <span class="icon icon-pen-line" aria-hidden="true"></span>
+      </span>
+    </a>
+    <a class="bottom-tab" href="#" data-dom-id="tabbar-message">
+      <span class="icon icon-message" aria-hidden="true"></span>
+      <span class="bottom-tab-label">消息</span>
+    </a>
+    <a class="bottom-tab" href="#" data-dom-id="tabbar-mine">
+      <span class="icon icon-user" aria-hidden="true"></span>
+      <span class="bottom-tab-label">我的</span>
+    </a>
+  </nav>
+
+  <style>
+    /* ================================================
+       RESET & BASE
+       ================================================ */
+    *, *::before, *::after { box-sizing: border-box; }
+    html { -webkit-text-size-adjust: 100%; }
+
+    body {
+      margin: 0;
+      background: var(--background-100);
+      color: var(--text-800);
+      font-family: var(--font-sans);
+      font-size: 14px;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      /* Desktop: header 56; mobile: header 48 */
+      padding-top: 56px;
+      padding-bottom: calc(56px + 28px + env(safe-area-inset-bottom));
+    }
+
+    a { color: inherit; text-decoration: none; }
+    button { font-family: inherit; cursor: pointer; border: none; background: none; padding: 0; color: inherit; }
+    input { font-family: inherit; }
+    img { display: block; max-width: 100%; }
+    ol, ul { margin: 0; padding: 0; list-style: none; }
+    h1, h2, h3 { margin: 0; }
+
+    :focus-visible {
+      outline: 2px solid var(--brand-500);
+      outline-offset: 2px;
+      border-radius: 4px;
+    }
+
+    /* ================================================
+       ICONS (CSS mask using apple SVG icons)
+       ================================================ */
+    .icon {
+      display: inline-block;
+      width: 18px;
+      height: 18px;
+      flex-shrink: 0;
+      background-color: currentColor;
+      -webkit-mask-position: center;
+      mask-position: center;
+      -webkit-mask-repeat: no-repeat;
+      mask-repeat: no-repeat;
+      -webkit-mask-size: contain;
+      mask-size: contain;
+    }
+    .icon-heart         { -webkit-mask-image: url('../assets/icons/apple/heart.svg'); mask-image: url('../assets/icons/apple/heart.svg'); }
+    .icon-pen-line      { -webkit-mask-image: url('../assets/icons/apple/pen-line.svg'); mask-image: url('../assets/icons/apple/pen-line.svg'); }
+    .icon-chevron-right { -webkit-mask-image: url('../assets/icons/apple/chevron-right.svg'); mask-image: url('../assets/icons/apple/chevron-right.svg'); }
+    .icon-tag           { -webkit-mask-image: url('../assets/icons/apple/tag.svg'); mask-image: url('../assets/icons/apple/tag.svg'); }
+    .icon-file          { -webkit-mask-image: url('../assets/icons/apple/file.svg'); mask-image: url('../assets/icons/apple/file.svg'); }
+    .icon-user          { -webkit-mask-image: url('../assets/icons/apple/user.svg'); mask-image: url('../assets/icons/apple/user.svg'); }
+    .icon-message       { -webkit-mask-image: url('../assets/icons/apple/message-circle-more.svg'); mask-image: url('../assets/icons/apple/message-circle-more.svg'); }
+    .icon-question      { -webkit-mask-image: url('../assets/icons/apple/circle-question-mark.svg'); mask-image: url('../assets/icons/apple/circle-question-mark.svg'); }
+    .icon-check         { -webkit-mask-image: url('../assets/icons/apple/check.svg'); mask-image: url('../assets/icons/apple/check.svg'); }
+    .icon-house         { -webkit-mask-image: url('../assets/icons/apple/house.svg'); mask-image: url('../assets/icons/apple/house.svg'); }
+    .icon-map-pin       { -webkit-mask-image: url('../assets/icons/apple/map-pin.svg'); mask-image: url('../assets/icons/apple/map-pin.svg'); }
+    .icon-star          { -webkit-mask-image: url('../assets/icons/apple/star.svg'); mask-image: url('../assets/icons/apple/star.svg'); }
+    .icon-circle-plus   { -webkit-mask-image: url('../assets/icons/apple/circle-plus.svg'); mask-image: url('../assets/icons/apple/circle-plus.svg'); }
+
+    /* Scrollbar hide utility */
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+    /* ================================================
+       AVATARS (gradient placeholders)
+       ================================================ */
+    .avatar {
+      display: inline-block;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .avatar-sm { width: 22px; height: 22px; }
+
+    .av-1 { background: linear-gradient(135deg, var(--brand-300), var(--brand-500)); }
+    .av-2 { background: linear-gradient(135deg, var(--state-success), var(--brand-400)); }
+    .av-3 { background: linear-gradient(135deg, var(--chart-3), var(--brand-500)); }
+    .av-4 { background: linear-gradient(135deg, var(--chart-4), var(--brand-600)); }
+    .av-5 { background: linear-gradient(135deg, var(--background-400), var(--background-600)); }
+
+    /* ================================================
+       SITE HEADER (centered title, right icon button)
+       ================================================ */
+    .site-header {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 100;
+      height: 56px;
+      background: var(--background-50);
+      border-bottom: 0.5px solid var(--border);
+    }
+    .header-inner {
+      max-width: 1200px;
+      margin: 0 auto;
+      height: 100%;
+      padding: 0 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    .header-side {
+      flex: 1;
+      min-width: 0;
+      display: flex;
+      align-items: center;
+    }
+    .header-side--left { justify-content: flex-start; }
+    .header-side--right { justify-content: flex-end; gap: 6px; }
+    .header-title {
+      flex: 0 0 auto;
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--text-800);
+      letter-spacing: -0.01em;
+      text-align: center;
+      white-space: nowrap;
+    }
+
+    .icon-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      color: var(--text-600);
+      transition: background 150ms cubic-bezier(0.32, 0.72, 0, 1),
+                  color 150ms cubic-bezier(0.32, 0.72, 0, 1);
+      flex-shrink: 0;
+    }
+    .icon-btn:hover {
+      background: var(--background-100);
+      color: var(--text-800);
+    }
+    .icon-btn .icon { width: 20px; height: 20px; }
+    .icon-btn svg { display: block; }
+
+    /* ================================================
+       PAGE CONTAINER
+       ================================================ */
+    .page-container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 20px 20px calc(56px + env(safe-area-inset-bottom));
+    }
+
+    /* ================================================
+       SECTION HEAD (title + more)
+       ================================================ */
+    .section-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 14px;
+      padding: 0 2px;
+    }
+    .section-title {
+      font-size: 17px;
+      font-weight: 700;
+      color: var(--text-800);
+      letter-spacing: -0.01em;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .section-title-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--brand-500);
+    }
+    .section-more {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-400);
+      display: inline-flex;
+      align-items: center;
+      gap: 2px;
+      transition: color 150ms cubic-bezier(0.32, 0.72, 0, 1);
+    }
+    .section-more:hover { color: var(--brand-500); }
+    .section-more .icon { width: 13px; height: 13px; }
+
+    /* ================================================
+       HOT CIRCLES ENTRY GRID (3 x 2)
+       ================================================ */
+    .circles-entry {
+      margin-bottom: 28px;
+    }
+    .circles-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+    }
+
+    .circle-entry {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      gap: 8px;
+      padding: 18px 10px 16px;
+      background: var(--background-50);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow-xs);
+      transition: transform 150ms cubic-bezier(0.32, 0.72, 0, 1),
+                  box-shadow 150ms cubic-bezier(0.32, 0.72, 0, 1);
+      cursor: pointer;
+    }
+    .circle-entry:hover {
+      transform: translateY(-2px);
+      box-shadow: var(--shadow-md);
+    }
+
+    .circle-ic {
+      width: 52px;
+      height: 52px;
+      border-radius: 50%;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--background-50);
+      box-shadow: var(--shadow-sm);
+    }
+    .circle-ic .icon { width: 24px; height: 24px; background-color: currentColor; }
+
+    .circle-ic--confess { background: linear-gradient(135deg, #ff6b9d, var(--chart-5)); }
+    .circle-ic--lost    { background: linear-gradient(135deg, var(--brand-300), var(--brand-600)); }
+    .circle-ic--market  { background: linear-gradient(135deg, var(--chart-3), #ff6b35); }
+    .circle-ic--study   { background: linear-gradient(135deg, var(--state-success), var(--brand-500)); }
+    .circle-ic--food    { background: linear-gradient(135deg, #ffb347, var(--chart-3)); }
+    .circle-ic--game    { background: linear-gradient(135deg, var(--chart-4), var(--chart-5)); }
+
+    .circle-name {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text-800);
+      line-height: 1.2;
+    }
+    .circle-members {
+      font-size: 11.5px;
+      color: var(--text-400);
+      line-height: 1.2;
+    }
+
+    /* ================================================
+       FEED TABS (segmented pill switch)
+       ================================================ */
+    .feed-section { }
+    .feed-tabs {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 14px;
+      padding: 0 2px;
+    }
+    .feed-tab {
+      padding: 6px 16px;
+      border-radius: 999px;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-500);
+      background: transparent;
+      transition: color 150ms cubic-bezier(0.32, 0.72, 0, 1),
+                  background 150ms cubic-bezier(0.32, 0.72, 0, 1);
+    }
+    .feed-tab:hover { color: var(--text-800); }
+    .feed-tab.is-active {
+      color: var(--brand-600);
+      background: var(--brand-50);
+      font-weight: 600;
+    }
+
+    /* ================================================
+       FEED (masonry via CSS columns, dual column)
+       ================================================ */
+    .feed {
+      column-count: 2;
+      column-gap: 12px;
+    }
+
+    /* ================================================
+       POST CARDS (lightweight, no thick border)
+       ================================================ */
+    .card {
+      display: block;
+      width: 100%;
+      break-inside: avoid;
+      margin-bottom: 12px;
+      background: var(--background-50);
+      border-radius: var(--radius);
+      overflow: hidden;
+      box-shadow: var(--shadow-xs);
+      transition: box-shadow 150ms cubic-bezier(0.32, 0.72, 0, 1),
+                  transform 150ms cubic-bezier(0.32, 0.72, 0, 1);
+      cursor: pointer;
+    }
+    .card:hover {
+      box-shadow: var(--shadow-md);
+      transform: translateY(-1px);
+    }
+
+    .card-img {
+      width: 100%;
+      height: auto;
+      display: block;
+      object-fit: cover;
+    }
+
+    .card-body {
+      padding: 10px 12px 12px;
+    }
+
+    /* ---- Card top row: circle pill + join button ---- */
+    .card-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+
+    .circle-pill {
+      display: inline-flex;
+      align-items: center;
+      font-size: 11px;
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: 999px;
+      letter-spacing: 0.01em;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .circle-pill--confess { color: var(--chart-5); background: #f7eaff; }
+    .circle-pill--lost    { color: var(--brand-600); background: var(--brand-50); }
+    .circle-pill--market  { color: #d26510; background: #fff3e6; }
+    .circle-pill--study   { color: var(--brand-600); background: var(--brand-50); }
+    .circle-pill--food    { color: #d26510; background: #fff3e6; }
+    .circle-pill--game    { color: var(--chart-4); background: #eeeaff; }
+    .circle-pill--photo   { color: var(--state-success); background: var(--state-success-surface); }
+    .circle-pill--club    { color: var(--chart-5); background: #f7eaff; }
+    .circle-pill--sport   { color: var(--brand-500); background: var(--brand-50); }
+
+    /* ---- Join button (CTA, brand filled; joined = muted gray) ---- */
+    .join-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      flex-shrink: 0;
+      padding: 3px 10px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--background-50);
+      background: var(--brand-500);
+      transition: background 150ms cubic-bezier(0.32, 0.72, 0, 1),
+                  color 150ms cubic-bezier(0.32, 0.72, 0, 1),
+                  transform 150ms cubic-bezier(0.32, 0.72, 0, 1);
+    }
+    .join-btn .icon { width: 12px; height: 12px; background-color: currentColor; }
+    .join-btn:hover { background: var(--brand-600); }
+    .join-btn:active { transform: scale(0.94); }
+
+    .join-btn.is-joined {
+      background: var(--background-200);
+      color: var(--text-400);
+    }
+    .join-btn.is-joined:hover {
+      background: var(--background-300);
+      color: var(--text-500);
+    }
+
+    .card-title {
+      margin: 0 0 8px;
+      font-size: 14px;
+      font-weight: 600;
+      line-height: 1.4;
+      color: var(--text-800);
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+      word-break: break-word;
+    }
+
+    .card-meta {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    .card-author {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      min-width: 0;
+      flex: 1;
+    }
+    .author-name {
+      font-size: 12px;
+      color: var(--text-500);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      min-width: 0;
+    }
+    .card-likes {
+      display: flex;
+      align-items: center;
+      gap: 3px;
+      color: var(--text-400);
+      flex-shrink: 0;
+    }
+    .card-likes .icon { width: 14px; height: 14px; }
+    .like-count { font-size: 12px; color: var(--text-400); }
+
+    /* ---- Text-only cards (soft tinted surfaces, no border) ---- */
+    .card--text .card-body { padding: 14px; }
+    .card--study   { background: var(--brand-50); }
+    .card--lost    { background: var(--state-error-surface); }
+    .card--game    { background: #f3f0ff; }
+    .card--confess { background: #faf5ff; }
+
+    .card-title--text {
+      display: flex;
+      gap: 7px;
+      align-items: flex-start;
+      -webkit-line-clamp: 3;
+    }
+    .title-icon {
+      width: 14px;
+      height: 14px;
+      flex-shrink: 0;
+      margin-top: 3px;
+    }
+    .card--study   .title-icon { background-color: var(--brand-500); }
+    .card--lost    .title-icon { background-color: var(--state-error); }
+    .card--game    .title-icon { background-color: var(--chart-4); }
+    .card--confess .title-icon { background-color: var(--chart-5); }
+    .title-text {
+      flex: 1;
+      min-width: 0;
+      display: -webkit-box;
+      -webkit-line-clamp: 3;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+      word-break: break-word;
+    }
+
+    /* ================================================
+       BOTTOM TAB BAR (mobile)
+       ================================================ */
+    .bottom-tabbar {
+      display: flex;
+      position: fixed;
+      bottom: 14px;
+      left: 0;
+      right: 0;
+      z-index: 100;
+      max-width: 460px;
+      margin: 0 auto;
+      height: 56px;
+      padding: 0 10px;
+      background: color-mix(in srgb, var(--background-50) 88%, transparent);
+      -webkit-backdrop-filter: blur(20px);
+      backdrop-filter: blur(20px);
+      border: 0.5px solid var(--border);
+      border-radius: 26px;
+      box-shadow: var(--shadow-lg);
+      align-items: stretch;
+      justify-content: space-around;
+    }
+    .bottom-tab {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 2px;
+      flex: 1;
+      color: var(--text-400);
+      text-decoration: none;
+      transition: color 150ms cubic-bezier(0.32, 0.72, 0, 1);
+      min-width: 0;
+    }
+    .bottom-tab .icon { width: 22px; height: 22px; background-color: currentColor; }
+    .bottom-tab-label {
+      font-size: 10px;
+      line-height: 1;
+      white-space: nowrap;
+    }
+    .bottom-tab.is-active { color: var(--brand-500); }
+
+    .bottom-tab--publish { position: relative; }
+    .publish-btn {
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      background: var(--brand-500);
+      color: var(--background-50);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-top: -16px;
+      box-shadow: var(--shadow-md);
+      transition: transform 150ms cubic-bezier(0.32, 0.72, 0, 1);
+    }
+    .publish-btn .icon { width: 20px; height: 20px; background-color: currentColor; }
+    .bottom-tab--publish:active .publish-btn { transform: scale(0.94); }
+
+    /* ================================================
+       RESPONSIVE — Mobile (<768px)
+       ================================================ */
+    @media (max-width: 768px) {
+      body {
+        padding-top: 48px; /* header 48 */
+        padding-bottom: calc(52px + env(safe-area-inset-bottom));
+      }
+
+      /* Header: 48px, centered title + right icons */
+      .site-header { height: 48px; }
+      .header-inner { padding: 0 12px; gap: 8px; }
+      .header-title { font-size: 17px; }
+      .icon-btn { width: 34px; height: 34px; }
+      .icon-btn .icon, .icon-btn svg { width: 19px; height: 19px; }
+
+      /* Page container */
+      .page-container { padding: 14px 12px 24px; }
+
+      /* Section heads */
+      .section-title { font-size: 16px; }
+      .section-more { font-size: 12px; }
+
+      /* Circles grid: 2 columns on mobile */
+      .circles-entry { margin-bottom: 22px; }
+      .circles-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+      .circle-entry { padding: 14px 8px 12px; border-radius: calc(var(--radius) * 0.85); }
+      .circle-ic { width: 46px; height: 46px; }
+      .circle-ic .icon { width: 21px; height: 21px; }
+      .circle-name { font-size: 13px; }
+      .circle-members { font-size: 11px; }
+
+      /* Feed tabs */
+      .feed-tab { padding: 5px 13px; font-size: 12.5px; }
+
+      /* Feed: tight dual column */
+      .feed { column-gap: 8px; }
+      .card {
+        margin-bottom: 8px;
+        border-radius: calc(var(--radius) * 0.8);
+      }
+      .card-img { border-radius: calc(var(--radius) * 0.8) calc(var(--radius) * 0.8) 0 0; }
+      .card-body { padding: 8px 10px 10px; }
+      .card-top { margin-bottom: 6px; gap: 6px; }
+      .circle-pill { font-size: 10px; padding: 2px 7px; }
+      .join-btn { font-size: 10px; padding: 2px 8px; }
+      .join-btn .icon { width: 11px; height: 11px; }
+      .card-title { font-size: 13px; margin-bottom: 6px; line-height: 1.38; }
+      .card--text .card-body { padding: 12px; }
+      .avatar-sm { width: 20px; height: 20px; }
+      .author-name { font-size: 12px; }
+      .like-count { font-size: 12px; }
+      .card-likes .icon { width: 13px; height: 13px; }
+      .title-icon { width: 13px; height: 13px; margin-top: 2px; }
+
+      /* Bottom tabbar: full-width docked on mobile */
+      .bottom-tabbar {
+        max-width: 100%;
+        bottom: 0;
+        border-radius: 0;
+        border-left: none;
+        border-right: none;
+        border-bottom: none;
+        box-shadow: var(--shadow-lg);
+        height: calc(52px + env(safe-area-inset-bottom));
+        padding-bottom: env(safe-area-inset-bottom);
+      }
+    }
+
+    /* ================================================
+       REDUCED MOTION
+       ================================================ */
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        transition-duration: 0.01ms !important;
+        animation-duration: 0.01ms !important;
+      }
+    }
+  </style>
+
+  <script>
+    (function () {
+      'use strict';
+
+      // ---- Feed tab switching (我加入的 / 全部圈子) ----
+      var feedTabs = document.querySelectorAll('.feed-tab');
+      feedTabs.forEach(function (tab) {
+        tab.addEventListener('click', function () {
+          feedTabs.forEach(function (t) {
+            t.classList.remove('is-active');
+            t.setAttribute('aria-selected', 'false');
+          });
+          tab.classList.add('is-active');
+          tab.setAttribute('aria-selected', 'true');
+        });
+      });
+
+      // ---- Join button toggle (加入 <-> 已加入) ----
+      var joinBtns = document.querySelectorAll('.join-btn[data-dom-id="join-circle"]');
+      joinBtns.forEach(function (btn) {
+        btn.addEventListener('click', function (e) {
+          e.preventDefault();
+          e.stopPropagation();
+          var joined = btn.classList.toggle('is-joined');
+          if (joined) {
+            btn.innerHTML = '<span class="icon icon-check" aria-hidden="true"></span>已加入';
+          } else {
+            btn.innerHTML = '<span class="icon icon-circle-plus" aria-hidden="true"></span>加入';
+          }
+        });
+      });
+
+      // ---- Bottom tab: keep 圈子 active on this page (prevent default nav) ----
+      var bottomTabs = document.querySelectorAll('.bottom-tabbar .bottom-tab');
+      bottomTabs.forEach(function (tab) {
+        tab.addEventListener('click', function (e) {
+          if (tab.classList.contains('bottom-tab--publish')) {
+            e.preventDefault();
+            return;
+          }
+          e.preventDefault();
+          // 圈子 is the current page; do not visually switch active away.
+        });
+      });
+    })();
+  </script>
+
+</body>
+</html>

@@ -1,0 +1,1082 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="light" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>搜索 | 立洋社区</title>
+    <style id="theme-vars">
+/*
+ * Pinguo design tokens
+ * Brand: Pinguo
+ * Domain: Consumer imaging product
+ * Style: Restrained, elegant, Apple-inspired
+ * Theme mode: light-dark
+ * Source language: zh
+ * Output language: en
+ *
+ * Color architecture (two layers):
+ *   1. Primitive palette - six categories. brand / background / text / icon
+ *      are each a 10-step scale (50 lightest to 900 darkest). state-success and
+ *      state-error are functional colors anchored on Apple system colors.
+ *      Anchors follow Apple Human Interface Guidelines system colors
+ *      (System Blue #007AFF, System Green #34C759, System Red #FF3B30,
+ *      system grays / label / background colors).
+ *   2. Semantic tokens - :root (light) and .dark map roles onto primitives.
+ *      Components and UI kits must only consume the semantic tokens below.
+ */
+
+/* @group-priority: brand, background, text, icon, state-success, state-error */
+
+:root {
+  /* ===== PRIMITIVE PALETTE ===== */
+
+  /* brand */
+  --brand-50: #e8f2ff;
+  --brand-100: #cfe5ff;
+  --brand-200: #9fcbff;
+  --brand-300: #66abff;
+  --brand-400: #2e8dff;
+  --brand-500: #007aff; /* @primary */
+  --brand-600: #0064d6;
+  --brand-700: #004fad;
+  --brand-800: #003b82;
+  --brand-900: #00275a;
+
+  /* background */
+  --background-50: #ffffff;
+  --background-100: #f7f7fa;
+  --background-200: #f2f2f7;
+  --background-300: #e5e5ea;
+  --background-400: #d1d1d6;
+  --background-500: #aeaeb2;
+  --background-600: #8e8e93;
+  --background-700: #3a3a3c;
+  --background-800: #1c1c1e;
+  --background-900: #000000;
+
+  /* text */
+  --text-50: #f5f5f7;
+  --text-100: #e3e3e8;
+  --text-200: #c7c7cc;
+  --text-300: #aeaeb2;
+  --text-400: #8e8e93;
+  --text-500: #6e6e73;
+  --text-600: #48484a;
+  --text-700: #3c3c43;
+  --text-800: #1d1d1f;
+  --text-900: #000000;
+
+  /* icon */
+  --icon-50: #f5f5f7;
+  --icon-100: #e5e5ea;
+  --icon-200: #d1d1d6;
+  --icon-300: #c7c7cc;
+  --icon-400: #aeaeb2;
+  --icon-500: #8e8e93;
+  --icon-600: #6e6e73;
+  --icon-700: #48484a;
+  --icon-800: #2c2c2e;
+  --icon-900: #1d1d1f;
+
+  /* state-success */
+  --state-success: #34c759; /* @primary */
+  --state-success-dark: #30d158;
+  --state-success-surface: #e9f9ee;
+  --state-success-foreground: #ffffff;
+
+  /* state-error */
+  --state-error: #ff3b30; /* @primary */
+  --state-error-dark: #ff453a;
+  --state-error-surface: #ffecea;
+  --state-error-foreground: #ffffff;
+
+  /* ===== SEMANTIC ROLES ===== */
+
+  /* semantic */
+  --background: var(--background-50);
+  --foreground: var(--text-800);
+  --card: var(--background-50);
+  --card-foreground: var(--text-800);
+  --popover: var(--background-50);
+  --popover-foreground: var(--text-900);
+
+  --primary: var(--brand-500);
+  --primary-foreground: var(--background-50);
+  --secondary: var(--background-200);
+  --secondary-foreground: var(--text-800);
+  --muted: var(--background-200);
+  --muted-foreground: var(--text-400);
+  --accent: var(--background-100);
+  --accent-foreground: var(--text-800);
+  --destructive: var(--state-error);
+  --destructive-foreground: var(--state-error-foreground);
+  --success: var(--state-success);
+  --success-foreground: var(--state-success-foreground);
+  --border: var(--background-300);
+  --input: var(--background-400);
+  --ring: var(--brand-500);
+
+  --icon: var(--icon-900);
+  --icon-muted: var(--icon-500);
+
+  /* chart */
+  --chart-1: var(--state-success);
+  --chart-2: var(--brand-500);
+  --chart-3: #ff9500;
+  --chart-4: #5856d6;
+  --chart-5: #af52de;
+
+  /* sidebar */
+  --sidebar: var(--background-200);
+  --sidebar-foreground: var(--text-800);
+  --sidebar-primary: var(--brand-500);
+  --sidebar-primary-foreground: var(--background-50);
+  --sidebar-accent: var(--background-300);
+  --sidebar-accent-foreground: var(--text-800);
+  --sidebar-border: var(--background-300);
+  --sidebar-ring: var(--brand-500);
+
+  /* TYPOGRAPHY */
+  --font-sans: DM Sans, ui-sans-serif, sans-serif, system-ui;
+  --font-serif: DM Sans, ui-sans-serif, sans-serif, system-ui;
+  --font-mono: JetBrains Mono, monospace;
+  --tracking-normal: 0em;
+
+  /* RADIUS */
+  --radius: 1.2rem;
+  --radius-sm: 0.6rem;
+  --radius-md: 0.8rem;
+  --radius-lg: 1.2rem;
+
+  /* SHADOWS */
+  --shadow-2xs: 0 1px 2px -1px rgba(0, 0, 0, 0.04); /* Hairline */
+  --shadow-xs: 0 1px 2px 0 rgba(0, 0, 0, 0.04); /* Subtle */
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05), 0 1px 3px -1px rgba(0, 0, 0, 0.05); /* Card */
+  --shadow: 0 2px 4px -1px rgba(0, 0, 0, 0.06), 0 1px 2px -1px rgba(0, 0, 0, 0.05); /* Raised */
+  --shadow-md: 0 4px 8px -2px rgba(0, 0, 0, 0.06), 0 2px 4px -2px rgba(0, 0, 0, 0.05); /* Card Hover */
+  --shadow-lg: 0 8px 24px -8px rgba(0, 0, 0, 0.08), 0 4px 8px -4px rgba(0, 0, 0, 0.05); /* Float */
+  --shadow-xl: 0 16px 40px -10px rgba(0, 0, 0, 0.10), 0 8px 16px -8px rgba(0, 0, 0, 0.06); /* Overlay */
+  --shadow-2xl: 0 24px 64px -12px rgba(0, 0, 0, 0.12); /* Modal */
+
+  /* SPACING */
+  --spacing: 0.24rem;
+}
+
+/* ===== SEMANTIC ROLES - dark (primitive palette inherited) ===== */
+.dark {
+  --background: var(--background-900);
+  --foreground: var(--text-50);
+  --card: var(--background-800);
+  --card-foreground: var(--text-50);
+  --popover: var(--background-700);
+  --popover-foreground: var(--text-50);
+
+  --primary: var(--brand-400);
+  --primary-foreground: var(--background-900);
+  --secondary: var(--background-800);
+  --secondary-foreground: var(--text-50);
+  --muted: var(--background-800);
+  --muted-foreground: var(--text-400);
+  --accent: var(--background-700);
+  --accent-foreground: var(--text-50);
+  --destructive: var(--state-error-dark);
+  --destructive-foreground: var(--state-error-foreground);
+  --success: var(--state-success-dark);
+  --success-foreground: var(--state-success-foreground);
+  --border: var(--background-700);
+  --input: var(--background-700);
+  --ring: var(--brand-400);
+
+  --icon: var(--icon-50);
+  --icon-muted: var(--icon-500);
+
+  --chart-1: var(--state-success-dark);
+  --chart-2: var(--brand-400);
+  --chart-3: #ff9f0a;
+  --chart-4: #5e5ce6;
+  --chart-5: #bf5af2;
+
+  --sidebar: var(--background-800);
+  --sidebar-foreground: var(--text-50);
+  --sidebar-primary: var(--brand-400);
+  --sidebar-primary-foreground: var(--background-900);
+  --sidebar-accent: var(--background-700);
+  --sidebar-accent-foreground: var(--text-50);
+  --sidebar-border: var(--background-700);
+  --sidebar-ring: var(--brand-400);
+
+  --shadow-2xs: 0 1px 2px -1px rgba(0, 0, 0, 0.30);
+  --shadow-xs: 0 1px 2px 0 rgba(0, 0, 0, 0.30);
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.36), 0 1px 3px -1px rgba(0, 0, 0, 0.36);
+  --shadow: 0 2px 4px -1px rgba(0, 0, 0, 0.40), 0 1px 2px -1px rgba(0, 0, 0, 0.36);
+  --shadow-md: 0 4px 8px -2px rgba(0, 0, 0, 0.44), 0 2px 4px -2px rgba(0, 0, 0, 0.36);
+  --shadow-lg: 0 8px 24px -8px rgba(0, 0, 0, 0.50), 0 4px 8px -4px rgba(0, 0, 0, 0.40);
+  --shadow-xl: 0 16px 40px -10px rgba(0, 0, 0, 0.55), 0 8px 16px -8px rgba(0, 0, 0, 0.44);
+  --shadow-2xl: 0 24px 64px -12px rgba(0, 0, 0, 0.60);
+}
+
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4.3.1/dist/index.global.js"></script>
+    <script src="https://unpkg.com/lucide@1.8.0/dist/umd/lucide.min.js"></script>
+    <style type="text/tailwindcss">
+  @theme inline {
+    --color-background: var(--background);
+    --color-foreground: var(--foreground);
+    --color-card: var(--card);
+    --color-card-foreground: var(--card-foreground);
+    --color-popover: var(--popover);
+    --color-popover-foreground: var(--popover-foreground);
+    --color-primary: var(--primary);
+    --color-primary-foreground: var(--primary-foreground);
+    --color-secondary: var(--secondary);
+    --color-secondary-foreground: var(--secondary-foreground);
+    --color-muted: var(--muted);
+    --color-muted-foreground: var(--muted-foreground);
+    --color-accent: var(--accent);
+    --color-accent-foreground: var(--accent-foreground);
+    --color-destructive: var(--destructive);
+    --color-destructive-foreground: var(--destructive-foreground);
+    --color-border: var(--border);
+    --color-input: var(--input);
+    --color-ring: var(--ring);
+    --color-chart-1: var(--chart-1);
+    --color-chart-2: var(--chart-2);
+    --color-chart-3: var(--chart-3);
+    --color-chart-4: var(--chart-4);
+    --color-chart-5: var(--chart-5);
+    --color-sidebar: var(--sidebar);
+    --color-sidebar-foreground: var(--sidebar-foreground);
+    --color-sidebar-primary: var(--sidebar-primary);
+    --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+    --color-sidebar-accent: var(--sidebar-accent);
+    --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+    --radius-sm: var(--radius-sm);
+    --radius-md: var(--radius-md);
+    --radius-lg: var(--radius-lg);
+  }
+  @layer base {
+    body { background: var(--background); color: var(--foreground); }
+    td, th { @apply break-words; word-break: break-all; word-break: auto-phrase; }
+    th { @apply whitespace-nowrap; }
+  }
+    </style>
+    <style id="semantic-token-fallback">
+      .bg-background { background-color: var(--background); }
+      .text-background { color: var(--background); }
+      .border-background { border-color: var(--background); }
+      .ring-background { --tw-ring-color: var(--background); }
+      .bg-foreground { background-color: var(--foreground); }
+      .text-foreground { color: var(--foreground); }
+      .border-foreground { border-color: var(--foreground); }
+      .ring-foreground { --tw-ring-color: var(--foreground); }
+      .bg-card { background-color: var(--card); }
+      .text-card { color: var(--card); }
+      .border-card { border-color: var(--card); }
+      .ring-card { --tw-ring-color: var(--card); }
+      .bg-card-foreground { background-color: var(--card-foreground); }
+      .text-card-foreground { color: var(--card-foreground); }
+      .border-card-foreground { border-color: var(--card-foreground); }
+      .ring-card-foreground { --tw-ring-color: var(--card-foreground); }
+      .bg-popover { background-color: var(--popover); }
+      .text-popover { color: var(--popover); }
+      .border-popover { border-color: var(--popover); }
+      .ring-popover { --tw-ring-color: var(--popover); }
+      .bg-popover-foreground { background-color: var(--popover-foreground); }
+      .text-popover-foreground { color: var(--popover-foreground); }
+      .border-popover-foreground { border-color: var(--popover-foreground); }
+      .ring-popover-foreground { --tw-ring-color: var(--popover-foreground); }
+      .bg-primary { background-color: var(--primary); }
+      .text-primary { color: var(--primary); }
+      .border-primary { border-color: var(--primary); }
+      .ring-primary { --tw-ring-color: var(--primary); }
+      .bg-primary-foreground { background-color: var(--primary-foreground); }
+      .text-primary-foreground { color: var(--primary-foreground); }
+      .border-primary-foreground { border-color: var(--primary-foreground); }
+      .ring-primary-foreground { --tw-ring-color: var(--primary-foreground); }
+      .bg-secondary { background-color: var(--secondary); }
+      .text-secondary { color: var(--secondary); }
+      .border-secondary { border-color: var(--secondary); }
+      .ring-secondary { --tw-ring-color: var(--secondary); }
+      .bg-secondary-foreground { background-color: var(--secondary-foreground); }
+      .text-secondary-foreground { color: var(--secondary-foreground); }
+      .border-secondary-foreground { border-color: var(--secondary-foreground); }
+      .ring-secondary-foreground { --tw-ring-color: var(--secondary-foreground); }
+      .bg-muted { background-color: var(--muted); }
+      .text-muted { color: var(--muted); }
+      .border-muted { border-color: var(--muted); }
+      .ring-muted { --tw-ring-color: var(--muted); }
+      .bg-muted-foreground { background-color: var(--muted-foreground); }
+      .text-muted-foreground { color: var(--muted-foreground); }
+      .border-muted-foreground { border-color: var(--muted-foreground); }
+      .ring-muted-foreground { --tw-ring-color: var(--muted-foreground); }
+      .bg-accent { background-color: var(--accent); }
+      .text-accent { color: var(--accent); }
+      .border-accent { border-color: var(--accent); }
+      .ring-accent { --tw-ring-color: var(--accent); }
+      .bg-accent-foreground { background-color: var(--accent-foreground); }
+      .text-accent-foreground { color: var(--accent-foreground); }
+      .border-accent-foreground { border-color: var(--accent-foreground); }
+      .ring-accent-foreground { --tw-ring-color: var(--accent-foreground); }
+      .bg-destructive { background-color: var(--destructive); }
+      .text-destructive { color: var(--destructive); }
+      .border-destructive { border-color: var(--destructive); }
+      .ring-destructive { --tw-ring-color: var(--destructive); }
+      .bg-destructive-foreground { background-color: var(--destructive-foreground); }
+      .text-destructive-foreground { color: var(--destructive-foreground); }
+      .border-destructive-foreground { border-color: var(--destructive-foreground); }
+      .ring-destructive-foreground { --tw-ring-color: var(--destructive-foreground); }
+      .bg-border { background-color: var(--border); }
+      .text-border { color: var(--border); }
+      .border-border { border-color: var(--border); }
+      .ring-border { --tw-ring-color: var(--border); }
+      .bg-input { background-color: var(--input); }
+      .text-input { color: var(--input); }
+      .border-input { border-color: var(--input); }
+      .ring-input { --tw-ring-color: var(--input); }
+      .bg-ring { background-color: var(--ring); }
+      .text-ring { color: var(--ring); }
+      .border-ring { border-color: var(--ring); }
+      .ring-ring { --tw-ring-color: var(--ring); }
+      .bg-chart-1 { background-color: var(--chart-1); }
+      .text-chart-1 { color: var(--chart-1); }
+      .border-chart-1 { border-color: var(--chart-1); }
+      .ring-chart-1 { --tw-ring-color: var(--chart-1); }
+      .bg-chart-2 { background-color: var(--chart-2); }
+      .text-chart-2 { color: var(--chart-2); }
+      .border-chart-2 { border-color: var(--chart-2); }
+      .ring-chart-2 { --tw-ring-color: var(--chart-2); }
+      .bg-chart-3 { background-color: var(--chart-3); }
+      .text-chart-3 { color: var(--chart-3); }
+      .border-chart-3 { border-color: var(--chart-3); }
+      .ring-chart-3 { --tw-ring-color: var(--chart-3); }
+      .bg-chart-4 { background-color: var(--chart-4); }
+      .text-chart-4 { color: var(--chart-4); }
+      .border-chart-4 { border-color: var(--chart-4); }
+      .ring-chart-4 { --tw-ring-color: var(--chart-4); }
+      .bg-chart-5 { background-color: var(--chart-5); }
+      .text-chart-5 { color: var(--chart-5); }
+      .border-chart-5 { border-color: var(--chart-5); }
+      .ring-chart-5 { --tw-ring-color: var(--chart-5); }
+      .bg-sidebar { background-color: var(--sidebar); }
+      .text-sidebar { color: var(--sidebar); }
+      .border-sidebar { border-color: var(--sidebar); }
+      .ring-sidebar { --tw-ring-color: var(--sidebar); }
+      .bg-sidebar-foreground { background-color: var(--sidebar-foreground); }
+      .text-sidebar-foreground { color: var(--sidebar-foreground); }
+      .border-sidebar-foreground { border-color: var(--sidebar-foreground); }
+      .ring-sidebar-foreground { --tw-ring-color: var(--sidebar-foreground); }
+      .bg-sidebar-primary { background-color: var(--sidebar-primary); }
+      .text-sidebar-primary { color: var(--sidebar-primary); }
+      .border-sidebar-primary { border-color: var(--sidebar-primary); }
+      .ring-sidebar-primary { --tw-ring-color: var(--sidebar-primary); }
+      .bg-sidebar-primary-foreground { background-color: var(--sidebar-primary-foreground); }
+      .text-sidebar-primary-foreground { color: var(--sidebar-primary-foreground); }
+      .border-sidebar-primary-foreground { border-color: var(--sidebar-primary-foreground); }
+      .ring-sidebar-primary-foreground { --tw-ring-color: var(--sidebar-primary-foreground); }
+      .bg-sidebar-accent { background-color: var(--sidebar-accent); }
+      .text-sidebar-accent { color: var(--sidebar-accent); }
+      .border-sidebar-accent { border-color: var(--sidebar-accent); }
+      .ring-sidebar-accent { --tw-ring-color: var(--sidebar-accent); }
+      .bg-sidebar-accent-foreground { background-color: var(--sidebar-accent-foreground); }
+      .text-sidebar-accent-foreground { color: var(--sidebar-accent-foreground); }
+      .border-sidebar-accent-foreground { border-color: var(--sidebar-accent-foreground); }
+      .ring-sidebar-accent-foreground { --tw-ring-color: var(--sidebar-accent-foreground); }
+    </style>
+    <style>
+      .no-scrollbar::-webkit-scrollbar { display: none; }
+      .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+      [data-icon] {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        -webkit-mask-size: contain;
+        mask-size: contain;
+        -webkit-mask-repeat: no-repeat;
+        mask-repeat: no-repeat;
+        -webkit-mask-position: center;
+        mask-position: center;
+        background-color: currentColor;
+      }
+    </style>
+
+    <!-- ====== PAGE-SPECIFIC STYLE ====== -->
+    <style>
+      /* ================================================
+         RESET & BASE
+         ================================================ */
+      *, *::before, *::after { box-sizing: border-box; }
+      html { -webkit-text-size-adjust: 100%; }
+
+      body {
+        margin: 0;
+        background: var(--background-100);
+        color: var(--text-800);
+        font-family: var(--font-sans);
+        font-size: 14px;
+        line-height: 1.5;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+        /* Fixed search header: 56px desktop / 48px mobile */
+        padding-top: 56px;
+      }
+
+      a { color: inherit; text-decoration: none; }
+      button { font-family: inherit; cursor: pointer; border: none; background: none; padding: 0; color: inherit; }
+      input { font-family: inherit; }
+      ol, ul { margin: 0; padding: 0; list-style: none; }
+
+      :focus-visible {
+        outline: 2px solid var(--brand-500);
+        outline-offset: 2px;
+        border-radius: 4px;
+      }
+
+      /* ================================================
+         ICONS (CSS mask using apple SVG icons)
+         ================================================ */
+      .icon {
+        display: inline-block;
+        width: 18px;
+        height: 18px;
+        flex-shrink: 0;
+        background-color: currentColor;
+        -webkit-mask-position: center;
+        mask-position: center;
+        -webkit-mask-repeat: no-repeat;
+        mask-repeat: no-repeat;
+        -webkit-mask-size: contain;
+        mask-size: contain;
+      }
+      .icon-arrow-left    { -webkit-mask-image: url("../assets/image_0_tgt36j.svg"); mask-image: url("../assets/image_0_tgt36j.svg"); }
+      .icon-trash         { -webkit-mask-image: url("../assets/image_1_tgt36j.svg"); mask-image: url("../assets/image_1_tgt36j.svg"); }
+      .icon-triangle-alert { -webkit-mask-image: url("../assets/image_2_tgt36j.svg"); mask-image: url("../assets/image_2_tgt36j.svg"); }
+
+      /* ================================================
+         AVATARS (gradient placeholders, copied from v4)
+         ================================================ */
+      .avatar { display: inline-block; border-radius: 50%; flex-shrink: 0; }
+      .av-1 { background: linear-gradient(135deg, var(--brand-300), var(--brand-500)); }
+      .av-2 { background: linear-gradient(135deg, var(--state-success), var(--brand-400)); }
+      .av-3 { background: linear-gradient(135deg, var(--chart-3), var(--brand-500)); }
+      .av-4 { background: linear-gradient(135deg, var(--chart-4), var(--brand-600)); }
+      .av-5 { background: linear-gradient(135deg, var(--background-400), var(--background-600)); }
+
+      /* ================================================
+         FIXED TOP SEARCH HEADER
+         (full-width white layer, 0.5px bottom hairline)
+         ================================================ */
+      .search-header {
+        position: fixed;
+        top: 0; left: 0; right: 0;
+        z-index: 100;
+        height: 56px;
+        background: var(--background-50);
+        border-bottom: 0.5px solid var(--border);
+      }
+      .search-header-inner {
+        max-width: 640px;
+        margin: 0 auto;
+        height: 100%;
+        padding: 0 16px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+
+      .back-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        color: var(--text-800);
+        flex-shrink: 0;
+        transition: background 150ms cubic-bezier(0.32, 0.72, 0, 1),
+                    color 150ms cubic-bezier(0.32, 0.72, 0, 1);
+      }
+      .back-btn:hover { background: var(--background-100); }
+      .back-btn:active { background: var(--background-200); }
+      .back-btn .icon { width: 22px; height: 22px; }
+
+      .search-box {
+        flex: 1;
+        min-width: 0;
+        position: relative;
+        display: flex;
+        align-items: center;
+        height: 38px;
+        background: var(--background-100);
+        border-radius: 999px;
+        padding: 0 36px 0 38px;
+        border: 1px solid transparent;
+        box-shadow: var(--shadow-xs);
+        transition: background 150ms cubic-bezier(0.32, 0.72, 0, 1),
+                    box-shadow 150ms cubic-bezier(0.32, 0.72, 0, 1),
+                    border-color 150ms cubic-bezier(0.32, 0.72, 0, 1);
+      }
+      .search-box .magnifier {
+        position: absolute;
+        left: 12px;
+        top: 50%;
+        transform: translateY(-50%);
+        color: var(--text-400);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        pointer-events: none;
+        transition: color 150ms cubic-bezier(0.32, 0.72, 0, 1);
+      }
+      .search-box input {
+        width: 100%;
+        height: 100%;
+        background: transparent;
+        border: none;
+        outline: none;
+        color: var(--text-800);
+        font-size: 14px;
+      }
+      .search-box input::placeholder { color: var(--text-400); }
+      .search-box input::-webkit-search-cancel-button,
+      .search-box input::-webkit-search-decoration { -webkit-appearance: none; appearance: none; }
+
+      .search-box:focus-within {
+        background: var(--brand-50);
+        border-color: var(--brand-500);
+        box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand-500) 15%, transparent);
+      }
+      .search-box:focus-within .magnifier { color: var(--brand-500); }
+
+      .search-clear {
+        position: absolute;
+        right: 8px;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        background: var(--background-300);
+        color: var(--background-50);
+        display: none;
+        align-items: center;
+        justify-content: center;
+        transition: background 150ms cubic-bezier(0.32, 0.72, 0, 1);
+      }
+      .search-clear.is-visible { display: inline-flex; }
+      .search-clear:hover { background: var(--background-400); }
+
+      .search-action {
+        flex-shrink: 0;
+        font-size: 15px;
+        font-weight: 600;
+        color: var(--brand-500);
+        padding: 6px 4px;
+        transition: color 150ms cubic-bezier(0.32, 0.72, 0, 1);
+      }
+      .search-action:hover { color: var(--brand-600); }
+      .search-action:active { color: var(--brand-700); }
+
+      /* ================================================
+         PAGE CONTAINER (narrow, focused column)
+         ================================================ */
+      .search-page {
+        max-width: 640px;
+        margin: 0 auto;
+        padding: 24px 16px 48px;
+      }
+
+      /* ================================================
+         BLOCK (section card: white surface + subtle shadow)
+         ================================================ */
+      .block {
+        background: var(--background-50);
+        border-radius: var(--radius);
+        box-shadow: var(--shadow-xs);
+        padding: 20px;
+        margin-bottom: 16px;
+      }
+      .block-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 14px;
+      }
+      .block-title {
+        margin: 0;
+        font-size: 15px;
+        font-weight: 700;
+        color: var(--text-800);
+        letter-spacing: -0.01em;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .block-title .flame {
+        color: #ff9500;
+        display: inline-flex;
+        align-items: center;
+      }
+      .block-meta {
+        font-size: 12px;
+        color: var(--text-400);
+        white-space: nowrap;
+      }
+      .clear-history {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 28px;
+        height: 28px;
+        border-radius: 50%;
+        color: var(--text-400);
+        transition: background 150ms cubic-bezier(0.32, 0.72, 0, 1),
+                    color 150ms cubic-bezier(0.32, 0.72, 0, 1);
+      }
+      .clear-history:hover { background: var(--background-100); color: var(--state-error); }
+      .clear-history .icon { width: 17px; height: 17px; }
+
+      /* ================================================
+         HISTORY CHIPS (flex-wrap pills)
+         ================================================ */
+      .chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+      .chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        height: 30px;
+        padding: 0 8px 0 12px;
+        background: var(--background-100);
+        border-radius: 999px;
+        font-size: 13px;
+        color: var(--text-700);
+        cursor: pointer;
+        transition: background 150ms cubic-bezier(0.32, 0.72, 0, 1),
+                    opacity 150ms cubic-bezier(0.32, 0.72, 0, 1),
+                    transform 150ms cubic-bezier(0.32, 0.72, 0, 1);
+      }
+      .chip:hover { background: var(--background-200); }
+      .chip.is-removing { opacity: 0; transform: scale(0.85); }
+      .chip-text { white-space: nowrap; }
+      .chip-del {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 16px;
+        height: 16px;
+        border-radius: 50%;
+        color: var(--text-400);
+        transition: background 150ms cubic-bezier(0.32, 0.72, 0, 1),
+                    color 150ms cubic-bezier(0.32, 0.72, 0, 1);
+      }
+      .chip-del:hover { background: var(--background-300); color: var(--text-800); }
+
+      .empty-state {
+        display: none;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        padding: 28px 0 10px;
+        color: var(--text-300);
+      }
+      .empty-state.is-visible { display: flex; }
+      .empty-state-text { font-size: 13px; color: var(--text-400); }
+
+      /* ================================================
+         HOT SEARCH LIST (no borders, spacing + hover only)
+         ================================================ */
+      .hot-list { display: flex; flex-direction: column; }
+      .hot-item {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 11px 8px;
+        border-radius: 12px;
+        cursor: pointer;
+        transition: background 150ms cubic-bezier(0.32, 0.72, 0, 1);
+      }
+      .hot-item:hover { background: var(--background-100); }
+
+      .hot-rank {
+        width: 22px;
+        flex-shrink: 0;
+        text-align: center;
+        font-size: 15px;
+        font-weight: 700;
+        color: var(--text-400);
+        font-variant-numeric: tabular-nums;
+        line-height: 1;
+      }
+      .hot-rank--1 {
+        font-size: 17px;
+        background: linear-gradient(135deg, #ff3b30 0%, #ff9500 100%);
+        -webkit-background-clip: text;
+        background-clip: text;
+        -webkit-text-fill-color: transparent;
+        color: #ff3b30; /* fallback */
+      }
+      .hot-rank--2 { color: #ff9500; font-size: 16px; }
+      .hot-rank--3 { color: var(--brand-500); font-size: 16px; }
+
+      .hot-title {
+        flex: 1;
+        min-width: 0;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 14px;
+        color: var(--text-800);
+        transition: color 150ms cubic-bezier(0.32, 0.72, 0, 1);
+      }
+      .hot-item:hover .hot-title { color: var(--brand-500); }
+      .hot-title-text {
+        flex: 1;
+        min-width: 0;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .hot-tag {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        height: 16px;
+        padding: 0 5px;
+        border-radius: 4px;
+        font-size: 10px;
+        font-weight: 700;
+        line-height: 1;
+        flex-shrink: 0;
+      }
+      .hot-tag--hot  { background: #ffecea; color: #ff3b30; }
+      .hot-tag--new  { background: var(--brand-50); color: var(--brand-500); }
+      .hot-tag--boil { background: linear-gradient(135deg, #ff3b30, #ff9500); color: #fff; }
+
+      .hot-heat {
+        flex-shrink: 0;
+        font-size: 11px;
+        color: var(--text-400);
+        font-variant-numeric: tabular-nums;
+        white-space: nowrap;
+      }
+
+      /* ================================================
+         RESPONSIVE — Mobile (≤768px)
+         ================================================ */
+      @media (max-width: 768px) {
+        body { padding-top: 48px; }
+
+        .search-header { height: 48px; }
+        .search-header-inner { padding: 0 12px; gap: 10px; }
+        .back-btn { width: 32px; height: 32px; }
+        .back-btn .icon { width: 20px; height: 20px; }
+        .search-box { height: 36px; padding: 0 32px 0 36px; }
+        .search-box .magnifier { left: 10px; }
+        .search-box input { font-size: 13px; }
+        .search-action { font-size: 14px; }
+
+        .search-page { padding: 16px 12px 32px; }
+        .block { padding: 16px; margin-bottom: 14px; }
+        .block-title { font-size: 14px; }
+        .block-meta { font-size: 11px; }
+
+        .chip { height: 28px; font-size: 12px; padding: 0 7px 0 11px; }
+
+        .hot-item { padding: 10px 6px; gap: 10px; }
+        .hot-rank { width: 20px; font-size: 14px; }
+        .hot-rank--1 { font-size: 16px; }
+        .hot-rank--2, .hot-rank--3 { font-size: 15px; }
+        .hot-title { font-size: 13px; gap: 5px; }
+        .hot-heat { font-size: 11px; }
+      }
+
+      /* ================================================
+         REDUCED MOTION
+         ================================================ */
+      @media (prefers-reduced-motion: reduce) {
+        *, *::before, *::after {
+          transition-duration: 0.01ms !important;
+          animation-duration: 0.01ms !important;
+        }
+      }
+    </style>
+</head>
+<body>
+
+  <!-- ====== FIXED TOP SEARCH BAR ====== -->
+  <header class="search-header" role="banner">
+    <div class="search-header-inner">
+      <button class="back-btn" type="button" data-dom-id="back-to-home" aria-label="返回首页">
+        <span class="icon icon-arrow-left" aria-hidden="true"></span>
+      </button>
+
+      <form class="search-box" id="searchForm" role="search" onsubmit="return false;">
+        <span class="magnifier" aria-hidden="true">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="11" cy="11" r="7"></circle>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+          </svg>
+        </span>
+        <input type="search" id="searchInput" placeholder="搜索帖子、用户、话题" aria-label="搜索" autocomplete="off">
+        <button class="search-clear" id="searchClear" type="button" aria-label="清除输入">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round">
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+          </svg>
+        </button>
+      </form>
+
+      <button class="search-action" type="button" id="searchAction">搜索</button>
+    </div>
+  </header>
+
+  <!-- ====== MAIN CONTENT ====== -->
+  <main class="search-page">
+
+    <!-- ====== 板块A：历史搜索 ====== -->
+    <section class="block" aria-label="历史搜索">
+      <div class="block-head">
+        <h2 class="block-title">历史搜索</h2>
+        <button class="clear-history" id="clearHistory" type="button" aria-label="清空历史搜索">
+          <span class="icon icon-trash" aria-hidden="true"></span>
+        </button>
+      </div>
+
+      <div class="chips" id="historyChips">
+        <span class="chip">
+          <span class="chip-text">麻辣香锅</span>
+          <button class="chip-del" type="button" aria-label="删除麻辣香锅">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><line x1="6" y1="6" x2="18" y2="18"></line><line x1="18" y1="6" x2="6" y2="18"></line></svg>
+          </button>
+        </span>
+        <span class="chip">
+          <span class="chip-text">期末复习</span>
+          <button class="chip-del" type="button" aria-label="删除期末复习">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><line x1="6" y1="6" x2="18" y2="18"></line><line x1="18" y1="6" x2="6" y2="18"></line></svg>
+          </button>
+        </span>
+        <span class="chip">
+          <span class="chip-text">橘猫</span>
+          <button class="chip-del" type="button" aria-label="删除橘猫">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><line x1="6" y1="6" x2="18" y2="18"></line><line x1="18" y1="6" x2="6" y2="18"></line></svg>
+          </button>
+        </span>
+        <span class="chip">
+          <span class="chip-text">校园卡补办</span>
+          <button class="chip-del" type="button" aria-label="删除校园卡补办">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><line x1="6" y1="6" x2="18" y2="18"></line><line x1="18" y1="6" x2="6" y2="18"></line></svg>
+          </button>
+        </span>
+        <span class="chip">
+          <span class="chip-text">街舞社</span>
+          <button class="chip-del" type="button" aria-label="删除街舞社">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><line x1="6" y1="6" x2="18" y2="18"></line><line x1="18" y1="6" x2="6" y2="18"></line></svg>
+          </button>
+        </span>
+        <span class="chip">
+          <span class="chip-text">银杏大道</span>
+          <button class="chip-del" type="button" aria-label="删除银杏大道">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><line x1="6" y1="6" x2="18" y2="18"></line><line x1="18" y1="6" x2="6" y2="18"></line></svg>
+          </button>
+        </span>
+        <span class="chip">
+          <span class="chip-text">宿舍限电</span>
+          <button class="chip-del" type="button" aria-label="删除宿舍限电">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><line x1="6" y1="6" x2="18" y2="18"></line><line x1="18" y1="6" x2="6" y2="18"></line></svg>
+          </button>
+        </span>
+      </div>
+
+      <div class="empty-state" id="historyEmpty">
+        <span class="empty-icon" aria-hidden="true">
+          <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="11" cy="11" r="7"></circle>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+          </svg>
+        </span>
+        <span class="empty-state-text">暂无搜索历史</span>
+      </div>
+    </section>
+
+    <!-- ====== 板块B：校园热搜榜 ====== -->
+    <section class="block" aria-label="校园热搜">
+      <div class="block-head">
+        <h2 class="block-title">
+          <span>校园热搜</span>
+          <span class="flame" aria-hidden="true">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/>
+            </svg>
+          </span>
+        </h2>
+        <span class="block-meta">更新于刚刚</span>
+      </div>
+
+      <ol class="hot-list">
+        <li class="hot-item">
+          <span class="hot-rank hot-rank--1">1</span>
+          <span class="hot-title">
+            <span class="hot-title-text">#食堂麻辣香锅值不值#</span>
+            <span class="hot-tag hot-tag--boil">沸</span>
+          </span>
+          <span class="hot-heat">2.3w 讨论</span>
+        </li>
+        <li class="hot-item">
+          <span class="hot-rank hot-rank--2">2</span>
+          <span class="hot-title">
+            <span class="hot-title-text">#期末考试周生存指南#</span>
+            <span class="hot-tag hot-tag--hot">热</span>
+          </span>
+          <span class="hot-heat">1.8w 讨论</span>
+        </li>
+        <li class="hot-item">
+          <span class="hot-rank hot-rank--3">3</span>
+          <span class="hot-title">
+            <span class="hot-title-text">#校园橘猫征名活动#</span>
+            <span class="hot-tag hot-tag--hot">热</span>
+          </span>
+          <span class="hot-heat">9563 讨论</span>
+        </li>
+        <li class="hot-item">
+          <span class="hot-rank">4</span>
+          <span class="hot-title">
+            <span class="hot-title-text">#宿舍限电功率大调查#</span>
+            <span class="hot-tag hot-tag--new">新</span>
+          </span>
+          <span class="hot-heat">7241 讨论</span>
+        </li>
+        <li class="hot-item">
+          <span class="hot-rank">5</span>
+          <span class="hot-title">
+            <span class="hot-title-text">#社团招新季你选了哪个#</span>
+          </span>
+          <span class="hot-heat">6128 讨论</span>
+        </li>
+        <li class="hot-item">
+          <span class="hot-rank">6</span>
+          <span class="hot-title">
+            <span class="hot-title-text">#表白墙周三白毛衣女生#</span>
+            <span class="hot-tag hot-tag--hot">热</span>
+          </span>
+          <span class="hot-heat">5874 讨论</span>
+        </li>
+        <li class="hot-item">
+          <span class="hot-rank">7</span>
+          <span class="hot-title">
+            <span class="hot-title-text">#图书馆占座大战#</span>
+          </span>
+          <span class="hot-heat">4521 讨论</span>
+        </li>
+        <li class="hot-item">
+          <span class="hot-rank">8</span>
+          <span class="hot-title">
+            <span class="hot-title-text">#二手高数教材转让#</span>
+            <span class="hot-tag hot-tag--new">新</span>
+          </span>
+          <span class="hot-heat">3892 讨论</span>
+        </li>
+        <li class="hot-item">
+          <span class="hot-rank">9</span>
+          <span class="hot-title">
+            <span class="hot-title-text">#体育课选课系统崩溃#</span>
+          </span>
+          <span class="hot-heat">2745 讨论</span>
+        </li>
+        <li class="hot-item">
+          <span class="hot-rank">10</span>
+          <span class="hot-title">
+            <span class="hot-title-text">#迎新晚会街舞社炸场#</span>
+            <span class="hot-tag hot-tag--new">新</span>
+          </span>
+          <span class="hot-heat">2103 讨论</span>
+        </li>
+      </ol>
+    </section>
+
+  </main>
+
+  <script>
+    (function () {
+      'use strict';
+
+      // ---- Search box: input / clear interaction ----
+      var input = document.getElementById('searchInput');
+      var clearBtn = document.getElementById('searchClear');
+      var form = document.getElementById('searchForm');
+      var action = document.getElementById('searchAction');
+
+      function syncClear() {
+        if (input.value.length > 0) {
+          clearBtn.classList.add('is-visible');
+        } else {
+          clearBtn.classList.remove('is-visible');
+        }
+      }
+
+      input.addEventListener('input', syncClear);
+      input.addEventListener('focus', syncClear);
+
+      clearBtn.addEventListener('click', function () {
+        input.value = '';
+        syncClear();
+        input.focus();
+      });
+
+      function doSearch() {
+        var q = input.value.trim();
+        if (!q) { input.focus(); return; }
+        // Search hook: dispatch query here (e.g. navigate to results).
+        input.blur();
+      }
+
+      form.addEventListener('submit', function (e) { e.preventDefault(); doSearch(); });
+      action.addEventListener('click', doSearch);
+
+      // ---- History chips: delete single (via ×) ----
+      var chipsWrap = document.getElementById('historyChips');
+      var emptyState = document.getElementById('historyEmpty');
+
+      function syncEmpty() {
+        var remaining = chipsWrap.querySelectorAll('.chip').length;
+        if (remaining === 0) {
+          emptyState.classList.add('is-visible');
+        } else {
+          emptyState.classList.remove('is-visible');
+        }
+      }
+
+      chipsWrap.addEventListener('click', function (e) {
+        var del = e.target.closest('.chip-del');
+        if (!del) return;
+        var chip = del.closest('.chip');
+        if (!chip) return;
+        e.stopPropagation();
+        chip.classList.add('is-removing');
+        setTimeout(function () {
+          chip.remove();
+          syncEmpty();
+        }, 150);
+      });
+
+      // ---- Clear all history ----
+      document.getElementById('clearHistory').addEventListener('click', function () {
+        var all = chipsWrap.querySelectorAll('.chip');
+        if (all.length === 0) return;
+        all.forEach(function (c) { c.classList.add('is-removing'); });
+        setTimeout(function () {
+          chipsWrap.innerHTML = '';
+          syncEmpty();
+        }, 150);
+      });
+
+      syncEmpty();
+    })();
+  </script>
+
+</body>
+</html>

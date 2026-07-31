@@ -1,0 +1,91 @@
+{
+  "project": {
+    "name": "立洋校园社区·重设计",
+    "deviceType": "desktop",
+    "slug": "liyang-community-redesign",
+    "generationTree": {
+      "nodes": [
+        { "id": "page-index", "type": "page", "status": "planned", "output": "pages/index.html", "dependsOn": [] },
+        { "id": "page-post-detail", "type": "page", "status": "planned", "output": "pages/post-detail.html", "dependsOn": [] }
+      ]
+    },
+    "styleContinuityAnchors": {
+      "colorSystem": "Apple System Blue #007AFF as sole accent (concentrated in CTAs/active states); neutral frame of near-black #1d1d1f text, silver mist #f5f5f7/#f2f2f7 backgrounds, white cards. No multi-hue palettes, no loud gradients except one optional frosted hero.",
+      "shapeSystem": "Global radius 1.2rem on cards/media; buttons fully pill (rounded-full); inputs rounded; 1px borders structural not decorative; whisper-light shadows at rest, deeper only on hover/overlay.",
+      "typographySystem": "DM Sans for all UI/editorial; JetBrains Mono only for numeric/stats. Titles 600 weight with slight negative tracking; body 14-16px/400/1.55; no emoji; editorial calm voice.",
+      "spacingSystem": "0.24rem base; scale 4/8/12/16/24/32/48/64; whitespace carries hierarchy over divider lines; 12-col web grid.",
+      "componentLanguage": "Quiet border+spacing-led cards (not decoration); pill capsule buttons; Apple-store-like minimal top nav; photography-first masonry cards deferential to content.",
+      "surfaceAndDepth": "Border-first, shadow-second; cards rest on 0 1px 2px rgba(0,0,0,0.04); hover lifts to 0 8px 24px -8px rgba(0,0,0,0.08); overlays up to 0 24px 64px -12px rgba(0,0,0,0.12).",
+      "imageryAndIconography": "Natural-light campus photography, no text in images, no mixed warm/cool on one card; SF-style line icons via library assets/icons.",
+      "interactionTone": "Subtle 150-250ms transitions on cubic-bezier(0.32,0.72,0,1); hover lifts softly; no flashy motion."
+    }
+  },
+  "designSource": {
+    "operatingMode": "library-bound",
+    "libraryIdentity": {
+      "name": "苹果",
+      "id": "dl_builtin_apple",
+      "version": null,
+      "scope": "built-in-global",
+      "path": "c:\\Users\\Administrator\\.trae-cn\\design_libraries\\dl_builtin_apple",
+      "versionSource": "selected-context"
+    },
+    "brandPrefix": "apple",
+    "cssPath": "c:\\Users\\Administrator\\.trae-cn\\design_libraries\\dl_builtin_apple\\colors_and_type.css",
+    "actualTokenNameReference": [
+      "--primary", "--primary-foreground", "--background", "--foreground", "--card", "--card-foreground",
+      "--secondary", "--secondary-foreground", "--muted", "--muted-foreground", "--accent", "--accent-foreground",
+      "--destructive", "--border", "--input", "--ring", "--icon", "--icon-muted",
+      "--brand-500", "--brand-600", "--brand-50", "--brand-100",
+      "--background-50", "--background-100", "--background-200", "--background-300",
+      "--text-800", "--text-500", "--text-400",
+      "--state-success", "--state-error",
+      "--radius", "--shadow-sm", "--shadow-md", "--shadow-lg", "--shadow-xl",
+      "--font-sans", "--font-mono"
+    ],
+    "designDecisionSummary": "Apple HIG-inspired restraint: #007AFF accent used sparingly; DM Sans; 1.2rem radius; pill buttons; whisper shadows; whitespace over dividers; photography-first masonry cards; editorial calm voice; no emoji.",
+    "componentIndexSummary": [
+      { "slug": "button", "summary": "Capsule-shaped actions, restrained hierarchy" },
+      { "slug": "card", "summary": "Quiet containers defined by border+spacing" },
+      { "slug": "input", "summary": "Rounded inputs, readable placeholder, visible focus" },
+      { "slug": "navigation", "summary": "Apple-store-like top nav, restrained secondary rails" },
+      { "slug": "product-grid", "summary": "Editorial merchandising matrix rhythm" }
+    ],
+    "uiKitPath": "c:\\Users\\Administrator\\.trae-cn\\design_libraries\\dl_builtin_apple\\ui_kits\\website\\index.html",
+    "allowedComponents": ["button", "card", "input", "navigation", "product-grid", "comparison-table"],
+    "forbiddenInventedComponents": [],
+    "iconAssets": {
+      "source": "assets/icons",
+      "projectIconDir": "assets/icons/apple",
+      "libraryKey": "dl_builtin_apple",
+      "renderMethod": "css-mask",
+      "pathTemplate": "../assets/icons/apple/{name}.svg",
+      "availableNames": ["arrow-down", "arrow-left", "arrow-right", "arrow-up", "check", "chevron-down", "chevron-left", "chevron-right", "chevron-up", "circle-alert", "circle-check", "circle-plus", "external-link", "heart", "house", "mail", "map-pin", "message-circle-more", "pen-line", "send-horizontal", "star", "tag", "thumbs-up", "trash-2", "user"],
+      "coloringRule": "currentColor by default; override with Library token when needed"
+    }
+  },
+  "pages": [
+    {
+      "nodeId": "page-index",
+      "title": "首页",
+      "htmlSrc": "pages/index.html",
+      "componentPlan": [
+        { "slug": "navigation", "previewFile": "c:\\Users\\Administrator\\.trae-cn\\design_libraries\\dl_builtin_apple\\preview\\component-navigation.html", "contractFile": "c:\\Users\\Administrator\\.trae-cn\\design_libraries\\dl_builtin_apple\\components\\navigation.json" },
+        { "slug": "card", "previewFile": "c:\\Users\\Administrator\\.trae-cn\\design_libraries\\dl_builtin_apple\\preview\\component-card.html", "contractFile": "c:\\Users\\Administrator\\.trae-cn\\design_libraries\\dl_builtin_apple\\components\\card.json" },
+        { "slug": "input", "previewFile": "c:\\Users\\Administrator\\.trae-cn\\design_libraries\\dl_builtin_apple\\preview\\component-input.html", "contractFile": "c:\\Users\\Administrator\\.trae-cn\\design_libraries\\dl_builtin_apple\\components\\input.json" },
+        { "slug": "button", "previewFile": "c:\\Users\\Administrator\\.trae-cn\\design_libraries\\dl_builtin_apple\\preview\\component-button.html", "contractFile": "c:\\Users\\Administrator\\.trae-cn\\design_libraries\\dl_builtin_apple\\components\\button.json" }
+      ]
+    },
+    {
+      "nodeId": "page-post-detail",
+      "title": "帖子详情",
+      "htmlSrc": "pages/post-detail.html",
+      "componentPlan": [
+        { "slug": "navigation", "previewFile": "c:\\Users\\Administrator\\.trae-cn\\design_libraries\\dl_builtin_apple\\preview\\component-navigation.html", "contractFile": "c:\\Users\\Administrator\\.trae-cn\\design_libraries\\dl_builtin_apple\\components\\navigation.json" },
+        { "slug": "card", "previewFile": "c:\\Users\\Administrator\\.trae-cn\\design_libraries\\dl_builtin_apple\\preview\\component-card.html", "contractFile": "c:\\Users\\Administrator\\.trae-cn\\design_libraries\\dl_builtin_apple\\components\\card.json" },
+        { "slug": "button", "previewFile": "c:\\Users\\Administrator\\.trae-cn\\design_libraries\\dl_builtin_apple\\preview\\component-button.html", "contractFile": "c:\\Users\\Administrator\\.trae-cn\\design_libraries\\dl_builtin_apple\\components\\button.json" },
+        { "slug": "input", "previewFile": "c:\\Users\\Administrator\\.trae-cn\\design_libraries\\dl_builtin_apple\\preview\\component-input.html", "contractFile": "c:\\Users\\Administrator\\.trae-cn\\design_libraries\\dl_builtin_apple\\components\\input.json" }
+      ]
+    }
+  ]
+}

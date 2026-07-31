@@ -1,0 +1,328 @@
+"""AI 内容审核统一服务。
+
+集中处理：
+- 判断 AI 审核是否可用（DeepSeek 或 OpenAI 任一可用即可）
+- 执行审核并记录 AuditLog
+- 审核失败时发送通知给作者
+- 警告值累计与警告/封号触发（委托 warning_service）
+
+设计要点：
+- 发帖/发评论均先落库 ai_status=pending，立即返回
+- 后台异步审核：优先 DeepSeek，回退 OpenAI
+- 审核结果写入 audit_logs 表（管理端可查看 AI 审核日志）
+- 违规时：通过 warning_service.handle_violation 增加警告值，达到阈值自动警告/封号
+- 审核通过时：通过 warning_service.reduce_on_* 减少警告值（积极行为奖励）
+"""
+from __future__ import annotations
+
+import json
+from typing import Any
+
+from sqlalchemy.orm import Session
+
+from app.core.database import SessionLocal
+from app.models import AuditLog, Notification, Post, Comment, User
+from app.services import ai_service, deepseek_service, settings_service
+
+
+def is_ai_audit_available(db: Session) -> bool:
+    """检查是否有任一 AI 审核服务可用（DeepSeek 或 OpenAI）。
+
+    之前只检查 OpenAI，导致仅配置 DeepSeek 时审核被跳过。
+    """
+    # 1. 检查 DeepSeek
+    try:
+        ds_cfg = settings_service.get_deepseek_config(db)
+        if ds_cfg["enabled"] and ds_cfg["api_key"]:
+            return True
+    except Exception:
+        pass
+    # 2. 检查 OpenAI
+    try:
+        if ai_service.get_status()["available"]:
+            return True
+    except Exception:
+        pass
+    return False
+
+
+def _run_audit(db: Session, content: str) -> dict[str, Any]:
+    """执行 AI 审核（同步），返回统一结果。
+
+    返回:
+        {
+            "pass": bool,
+            "reason": str,
+            "category": str,      # none/politics/porn/abuse/ad/spam
+            "severity": str,      # none/low/medium/high
+            "provider": str,      # deepseek/openai/none
+        }
+    """
+    # 优先 DeepSeek
+    try:
+        ds_cfg = settings_service.get_deepseek_config(db)
+        if ds_cfg["enabled"] and ds_cfg["api_key"]:
+            ds_result = deepseek_service.audit_content(db, content)
+            if not ds_result.get("skipped"):
+                return {
+                    "pass": ds_result.get("pass", True),
+                    "reason": ds_result.get("reason", ""),
+                    "category": ds_result.get("category", "none"),
+                    "severity": ds_result.get("severity", "none"),
+                    "provider": "deepseek",
+                }
+    except Exception:
+        pass
+
+    # 回退 OpenAI（异步接口，但此处用 asyncio.run 无法在已有事件循环中调用）
+    # 在后台审核场景中，调用方已经处于 async 上下文，应直接 await ai_service.check_text
+    # 此同步函数仅用于 DeepSeek 不可用时的降级判断
+    return {
+        "pass": True,
+        "reason": "",
+        "category": "none",
+        "severity": "none",
+        "provider": "none",
+    }
+
+
+async def run_audit_async(content: str) -> dict[str, Any]:
+    """异步执行 AI 审核：优先 DeepSeek，回退 OpenAI。
+
+    重要：DeepSeek 的 audit_content 是同步阻塞调用（httpx.Client），
+    直接在事件循环中调用会阻塞所有请求。必须用 asyncio.to_thread
+    把它放到独立线程池中执行，避免阻塞主事件循环。
+    """
+    import asyncio
+
+    # 优先 DeepSeek（同步调用 → 放到线程池）
+    try:
+        def _run_deepseek():
+            with SessionLocal() as db:
+                ds_cfg = settings_service.get_deepseek_config(db)
+                if ds_cfg["enabled"] and ds_cfg["api_key"]:
+                    return deepseek_service.audit_content(db, content)
+            return None
+
+        ds_result = await asyncio.to_thread(_run_deepseek)
+        if ds_result and not ds_result.get("skipped"):
+            return {
+                "pass": ds_result.get("pass", True),
+                "reason": ds_result.get("reason", ""),
+                "category": ds_result.get("category", "none"),
+                "severity": ds_result.get("severity", "none"),
+                "provider": "deepseek",
+            }
+    except Exception:
+        pass
+
+    # 回退 OpenAI
+    try:
+        audit = await ai_service.check_text(content)
+        return {
+            "pass": audit.get("pass", True),
+            "reason": audit.get("reason", ""),
+            "category": "none",
+            "severity": "none",
+            "provider": "openai",
+        }
+    except Exception:
+        pass
+
+    # 两者都不可用 → 放行（降级）
+    return {
+        "pass": True,
+        "reason": "",
+        "category": "none",
+        "severity": "none",
+        "provider": "none",
+    }
+
+
+def _record_audit_log(
+    db: Session,
+    target_type: str,
+    target_id: int,
+    user_id: int | None,
+    audit: dict[str, Any],
+    content: str,
+) -> None:
+    """写入 AI 审核日志。"""
+    try:
+        log = AuditLog(
+            target_type=target_type,
+            target_id=target_id,
+            user_id=user_id,
+            ai_provider=audit.get("provider", "none"),
+            result="approved" if audit.get("pass", True) else "rejected",
+            reason=audit.get("reason", "")[:500],
+            category=audit.get("category", "none"),
+            severity=audit.get("severity", "none"),
+            content_snapshot=content[:500],
+        )
+        db.add(log)
+    except Exception:
+        pass
+
+
+def _handle_violation(db: Session, user_id: int, target_type: str, target_id: int, reason: str, content_preview: str = "", severity: str = "medium") -> None:
+    """处理违规：增加警告值 + 阈值判定 + 发通知/封号。
+
+    新机制（警告值系统）：
+    - 每次违规 warning_score += violation_base_score（可根据 severity 调整）
+    - 警告值 >= warn_threshold: 发警告通知
+    - 警告值 >= temp_ban_threshold: 封号 temp_ban_hours 小时
+    - 警告值 >= perm_ban_threshold: 永久封号
+
+    通知文案采用警告值表述（不再说"第 X 次违规"）：
+    1. 第一条：内容审核未通过通知（关联到具体帖子/评论）
+    2. 第二条：警告/封号通知（告知警告值变为 X，达到 Y 将封号 Z）
+    """
+    from app.services import warning_service
+
+    user = db.get(User, user_id)
+    if not user:
+        return
+
+    warning_service.handle_violation(
+        db, user, reason=reason, content_preview=content_preview,
+        target_type=target_type, target_id=target_id,
+        severity=severity,
+    )
+
+
+def _send_reject_notification(
+    db: Session,
+    user_id: int,
+    target_type: str,
+    target_id: int,
+    content_preview: str,
+    reason: str,
+) -> None:
+    """审核未通过但未触发封号/警告时（违规次数为 0 或本次未累计）发送通知。
+
+    注意：当前 _handle_violation 已合并发送审核未通过 + 警告/封号通知，
+    本函数仅作为保底使用。如果 _handle_violation 已被调用，本函数不应再次调用。
+    """
+    notif = Notification(
+        user_id=user_id,
+        title=f"{'帖子' if target_type == 'post' else '评论'}审核未通过",
+        content=f"您发布的{'帖子' if target_type == 'post' else '评论'}「{content_preview}」未通过 AI 审核。"
+                f"原因：{reason}。请修改后重新发布。",
+        type="system",
+        reference_type=target_type,
+        reference_id=target_id,
+    )
+    db.add(notif)
+
+
+async def audit_post_background(post_id: int, content: str) -> None:
+    """后台异步审核帖子：执行 AI 审核 → 更新状态 → 记录日志 → 发送通知 → 处理违规。
+
+    状态流转：
+    - AI 通过  → ai_status=approved + 生成标签
+    - AI 违规  → ai_status=rejected + reject_reason + 累计违规（合并通知，仅发一条）
+    - AI 异常  → ai_status=manual_review
+    """
+    try:
+        audit = await run_audit_async(content)
+        with SessionLocal() as db:
+            post = db.get(Post, post_id)
+            if not post:
+                return
+
+            # 写入审核日志
+            _record_audit_log(db, "post", post_id, post.author_id, audit, content)
+
+            if audit.get("pass", True):
+                post.ai_status = "approved"
+                post.reject_reason = None
+                # 生成标签（仅 OpenAI 路径有标签生成能力）
+                if audit.get("provider") == "openai":
+                    try:
+                        tags = await ai_service.generate_tags(content)
+                        if tags:
+                            post.tags = json.dumps(tags, ensure_ascii=False)
+                    except Exception:
+                        pass
+                # 帖子审核通过：减少作者警告值（积极行为奖励）
+                try:
+                    from app.services import warning_service
+                    author = db.get(User, post.author_id)
+                    if author:
+                        warning_service.reduce_on_post_approved(db, author, post.id)
+                except Exception:
+                    pass
+            else:
+                # AI 判定违规
+                reason = audit.get("reason", "内容违反社区规范")
+                post.ai_status = "rejected"
+                post.reject_reason = reason
+
+                # 处理违规（增加警告值 + 阈值判定 + 通知/封号）
+                content_preview = (post.title or post.content or "")[:30]
+                severity = audit.get("severity", "medium")
+                _handle_violation(db, post.author_id, "post", post.id, reason, content_preview, severity=severity)
+
+            db.commit()
+    except Exception as exc:
+        from loguru import logger
+        logger.warning("[AI_AUDIT] post {} audit failed: {}", post_id, exc)
+        try:
+            with SessionLocal() as db:
+                post = db.get(Post, post_id)
+                if post:
+                    post.ai_status = "manual_review"
+                    db.commit()
+        except Exception:
+            pass
+
+
+async def audit_comment_background(comment_id: int, content: str) -> None:
+    """后台异步审核评论：执行 AI 审核 → 更新状态 → 记录日志 → 发送通知 → 处理违规。
+
+    状态流转同 audit_post_background。
+    """
+    try:
+        audit = await run_audit_async(content)
+        with SessionLocal() as db:
+            comment = db.get(Comment, comment_id)
+            if not comment:
+                return
+
+            # 写入审核日志
+            _record_audit_log(db, "comment", comment_id, comment.user_id, audit, content)
+
+            if audit.get("pass", True):
+                comment.ai_status = "approved"
+                comment.reject_reason = None
+                # 评论审核通过：减少作者警告值（积极行为奖励）
+                try:
+                    from app.services import warning_service
+                    author = db.get(User, comment.user_id)
+                    if author:
+                        warning_service.reduce_on_comment_approved(db, author, comment.id)
+                except Exception:
+                    pass
+            else:
+                reason = audit.get("reason", "内容违反社区规范")
+                comment.ai_status = "rejected"
+                comment.reject_reason = reason
+
+                # 处理违规（增加警告值 + 阈值判定 + 通知/封号）
+                content_preview = (comment.content or "")[:30]
+                severity = audit.get("severity", "medium")
+                _handle_violation(db, comment.user_id, "comment", comment.id, reason, content_preview, severity=severity)
+
+            db.commit()
+    except Exception as exc:
+        from loguru import logger
+        logger.warning("[AI_AUDIT] comment {} audit failed: {}", comment_id, exc)
+        try:
+            with SessionLocal() as db:
+                comment = db.get(Comment, comment_id)
+                if comment:
+                    comment.ai_status = "manual_review"
+                    db.commit()
+        except Exception:
+            pass

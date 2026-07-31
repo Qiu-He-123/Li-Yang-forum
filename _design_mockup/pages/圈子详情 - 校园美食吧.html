@@ -1,0 +1,1304 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="light" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>校园美食吧 | 立洋社区</title>
+    <style id="theme-vars">
+/*
+ * Pinguo design tokens
+ * Brand: Pinguo
+ * Domain: Consumer imaging product
+ * Style: Restrained, elegant, Apple-inspired
+ * Theme mode: light-dark
+ * Source language: zh
+ * Output language: en
+ *
+ * Color architecture (two layers):
+ *   1. Primitive palette - six categories. brand / background / text / icon
+ *      are each a 10-step scale (50 lightest to 900 darkest). state-success and
+ *      state-error are functional colors anchored on Apple system colors.
+ *      Anchors follow Apple Human Interface Guidelines system colors
+ *      (System Blue #007AFF, System Green #34C759, System Red #FF3B30,
+ *      system grays / label / background colors).
+ *   2. Semantic tokens - :root (light) and .dark map roles onto primitives.
+ *      Components and UI kits must only consume the semantic tokens below.
+ */
+
+/* @group-priority: brand, background, text, icon, state-success, state-error */
+
+:root {
+  /* ===== PRIMITIVE PALETTE ===== */
+
+  /* brand */
+  --brand-50: #e8f2ff;
+  --brand-100: #cfe5ff;
+  --brand-200: #9fcbff;
+  --brand-300: #66abff;
+  --brand-400: #2e8dff;
+  --brand-500: #007aff; /* @primary */
+  --brand-600: #0064d6;
+  --brand-700: #004fad;
+  --brand-800: #003b82;
+  --brand-900: #00275a;
+
+  /* background */
+  --background-50: #ffffff;
+  --background-100: #f7f7fa;
+  --background-200: #f2f2f7;
+  --background-300: #e5e5ea;
+  --background-400: #d1d1d6;
+  --background-500: #aeaeb2;
+  --background-600: #8e8e93;
+  --background-700: #3a3a3c;
+  --background-800: #1c1c1e;
+  --background-900: #000000;
+
+  /* text */
+  --text-50: #f5f5f7;
+  --text-100: #e3e3e8;
+  --text-200: #c7c7cc;
+  --text-300: #aeaeb2;
+  --text-400: #8e8e93;
+  --text-500: #6e6e73;
+  --text-600: #48484a;
+  --text-700: #3c3c43;
+  --text-800: #1d1d1f;
+  --text-900: #000000;
+
+  /* icon */
+  --icon-50: #f5f5f7;
+  --icon-100: #e5e5ea;
+  --icon-200: #d1d1d6;
+  --icon-300: #c7c7cc;
+  --icon-400: #aeaeb2;
+  --icon-500: #8e8e93;
+  --icon-600: #6e6e73;
+  --icon-700: #48484a;
+  --icon-800: #2c2c2e;
+  --icon-900: #1d1d1f;
+
+  /* state-success */
+  --state-success: #34c759; /* @primary */
+  --state-success-dark: #30d158;
+  --state-success-surface: #e9f9ee;
+  --state-success-foreground: #ffffff;
+
+  /* state-error */
+  --state-error: #ff3b30; /* @primary */
+  --state-error-dark: #ff453a;
+  --state-error-surface: #ffecea;
+  --state-error-foreground: #ffffff;
+
+  /* ===== SEMANTIC ROLES ===== */
+
+  /* semantic */
+  --background: var(--background-50);
+  --foreground: var(--text-800);
+  --card: var(--background-50);
+  --card-foreground: var(--text-800);
+  --popover: var(--background-50);
+  --popover-foreground: var(--text-900);
+
+  --primary: var(--brand-500);
+  --primary-foreground: var(--background-50);
+  --secondary: var(--background-200);
+  --secondary-foreground: var(--text-800);
+  --muted: var(--background-200);
+  --muted-foreground: var(--text-400);
+  --accent: var(--background-100);
+  --accent-foreground: var(--text-800);
+  --destructive: var(--state-error);
+  --destructive-foreground: var(--state-error-foreground);
+  --success: var(--state-success);
+  --success-foreground: var(--state-success-foreground);
+  --border: var(--background-300);
+  --input: var(--background-400);
+  --ring: var(--brand-500);
+
+  --icon: var(--icon-900);
+  --icon-muted: var(--icon-500);
+
+  /* chart */
+  --chart-1: var(--state-success);
+  --chart-2: var(--brand-500);
+  --chart-3: #ff9500;
+  --chart-4: #5856d6;
+  --chart-5: #af52de;
+
+  /* sidebar */
+  --sidebar: var(--background-200);
+  --sidebar-foreground: var(--text-800);
+  --sidebar-primary: var(--brand-500);
+  --sidebar-primary-foreground: var(--background-50);
+  --sidebar-accent: var(--background-300);
+  --sidebar-accent-foreground: var(--text-800);
+  --sidebar-border: var(--background-300);
+  --sidebar-ring: var(--brand-500);
+
+  /* TYPOGRAPHY */
+  --font-sans: DM Sans, ui-sans-serif, sans-serif, system-ui;
+  --font-serif: DM Sans, ui-sans-serif, sans-serif, system-ui;
+  --font-mono: JetBrains Mono, monospace;
+  --tracking-normal: 0em;
+
+  /* RADIUS */
+  --radius: 1.2rem;
+  --radius-sm: 0.6rem;
+  --radius-md: 0.8rem;
+  --radius-lg: 1.2rem;
+
+  /* SHADOWS */
+  --shadow-2xs: 0 1px 2px -1px rgba(0, 0, 0, 0.04); /* Hairline */
+  --shadow-xs: 0 1px 2px 0 rgba(0, 0, 0, 0.04); /* Subtle */
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05), 0 1px 3px -1px rgba(0, 0, 0, 0.05); /* Card */
+  --shadow: 0 2px 4px -1px rgba(0, 0, 0, 0.06), 0 1px 2px -1px rgba(0, 0, 0, 0.05); /* Raised */
+  --shadow-md: 0 4px 8px -2px rgba(0, 0, 0, 0.06), 0 2px 4px -2px rgba(0, 0, 0, 0.05); /* Card Hover */
+  --shadow-lg: 0 8px 24px -8px rgba(0, 0, 0, 0.08), 0 4px 8px -4px rgba(0, 0, 0, 0.05); /* Float */
+  --shadow-xl: 0 16px 40px -10px rgba(0, 0, 0, 0.10), 0 8px 16px -8px rgba(0, 0, 0, 0.06); /* Overlay */
+  --shadow-2xl: 0 24px 64px -12px rgba(0, 0, 0, 0.12); /* Modal */
+
+  /* SPACING */
+  --spacing: 0.24rem;
+}
+
+/* ===== SEMANTIC ROLES - dark (primitive palette inherited) ===== */
+.dark {
+  --background: var(--background-900);
+  --foreground: var(--text-50);
+  --card: var(--background-800);
+  --card-foreground: var(--text-50);
+  --popover: var(--background-700);
+  --popover-foreground: var(--text-50);
+
+  --primary: var(--brand-400);
+  --primary-foreground: var(--background-900);
+  --secondary: var(--background-800);
+  --secondary-foreground: var(--text-50);
+  --muted: var(--background-800);
+  --muted-foreground: var(--text-400);
+  --accent: var(--background-700);
+  --accent-foreground: var(--text-50);
+  --destructive: var(--state-error-dark);
+  --destructive-foreground: var(--state-error-foreground);
+  --success: var(--state-success-dark);
+  --success-foreground: var(--state-success-foreground);
+  --border: var(--background-700);
+  --input: var(--background-700);
+  --ring: var(--brand-400);
+
+  --icon: var(--icon-50);
+  --icon-muted: var(--icon-500);
+
+  --chart-1: var(--state-success-dark);
+  --chart-2: var(--brand-400);
+  --chart-3: #ff9f0a;
+  --chart-4: #5e5ce6;
+  --chart-5: #bf5af2;
+
+  --sidebar: var(--background-800);
+  --sidebar-foreground: var(--text-50);
+  --sidebar-primary: var(--brand-400);
+  --sidebar-primary-foreground: var(--background-900);
+  --sidebar-accent: var(--background-700);
+  --sidebar-accent-foreground: var(--text-50);
+  --sidebar-border: var(--background-700);
+  --sidebar-ring: var(--brand-400);
+
+  --shadow-2xs: 0 1px 2px -1px rgba(0, 0, 0, 0.30);
+  --shadow-xs: 0 1px 2px 0 rgba(0, 0, 0, 0.30);
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.36), 0 1px 3px -1px rgba(0, 0, 0, 0.36);
+  --shadow: 0 2px 4px -1px rgba(0, 0, 0, 0.40), 0 1px 2px -1px rgba(0, 0, 0, 0.36);
+  --shadow-md: 0 4px 8px -2px rgba(0, 0, 0, 0.44), 0 2px 4px -2px rgba(0, 0, 0, 0.36);
+  --shadow-lg: 0 8px 24px -8px rgba(0, 0, 0, 0.50), 0 4px 8px -4px rgba(0, 0, 0, 0.40);
+  --shadow-xl: 0 16px 40px -10px rgba(0, 0, 0, 0.55), 0 8px 16px -8px rgba(0, 0, 0, 0.44);
+  --shadow-2xl: 0 24px 64px -12px rgba(0, 0, 0, 0.60);
+}
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4.3.1/dist/index.global.js"></script>
+    <script src="https://unpkg.com/lucide@1.8.0/dist/umd/lucide.min.js"></script>
+    <style type="text/tailwindcss">
+  @theme inline {
+    --color-background: var(--background);
+    --color-foreground: var(--foreground);
+    --color-card: var(--card);
+    --color-card-foreground: var(--card-foreground);
+    --color-popover: var(--popover);
+    --color-popover-foreground: var(--popover-foreground);
+    --color-primary: var(--primary);
+    --color-primary-foreground: var(--primary-foreground);
+    --color-secondary: var(--secondary);
+    --color-secondary-foreground: var(--secondary-foreground);
+    --color-muted: var(--muted);
+    --color-muted-foreground: var(--muted-foreground);
+    --color-accent: var(--accent);
+    --color-accent-foreground: var(--accent-foreground);
+    --color-destructive: var(--destructive);
+    --color-destructive-foreground: var(--destructive-foreground);
+    --color-border: var(--border);
+    --color-input: var(--input);
+    --color-ring: var(--ring);
+    --color-chart-1: var(--chart-1);
+    --color-chart-2: var(--chart-2);
+    --color-chart-3: var(--chart-3);
+    --color-chart-4: var(--chart-4);
+    --color-chart-5: var(--chart-5);
+    --color-sidebar: var(--sidebar);
+    --color-sidebar-foreground: var(--sidebar-foreground);
+    --color-sidebar-primary: var(--sidebar-primary);
+    --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+    --color-sidebar-accent: var(--sidebar-accent);
+    --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+    --radius-sm: var(--radius-sm);
+    --radius-md: var(--radius-md);
+    --radius-lg: var(--radius-lg);
+  }
+  @layer base {
+    body { background: var(--background); color: var(--foreground); }
+    td, th { @apply break-words; word-break: break-all; word-break: auto-phrase; }
+    th { @apply whitespace-nowrap; }
+  }
+    </style>
+    <style id="semantic-token-fallback">
+      .bg-background { background-color: var(--background); }
+      .text-background { color: var(--background); }
+      .border-background { border-color: var(--background); }
+      .ring-background { --tw-ring-color: var(--background); }
+      .bg-foreground { background-color: var(--foreground); }
+      .text-foreground { color: var(--foreground); }
+      .border-foreground { border-color: var(--foreground); }
+      .ring-foreground { --tw-ring-color: var(--foreground); }
+      .bg-card { background-color: var(--card); }
+      .text-card { color: var(--card); }
+      .border-card { border-color: var(--card); }
+      .ring-card { --tw-ring-color: var(--card); }
+      .bg-card-foreground { background-color: var(--card-foreground); }
+      .text-card-foreground { color: var(--card-foreground); }
+      .border-card-foreground { border-color: var(--card-foreground); }
+      .ring-card-foreground { --tw-ring-color: var(--card-foreground); }
+      .bg-popover { background-color: var(--popover); }
+      .text-popover { color: var(--popover); }
+      .border-popover { border-color: var(--popover); }
+      .ring-popover { --tw-ring-color: var(--popover); }
+      .bg-popover-foreground { background-color: var(--popover-foreground); }
+      .text-popover-foreground { color: var(--popover-foreground); }
+      .border-popover-foreground { border-color: var(--popover-foreground); }
+      .ring-popover-foreground { --tw-ring-color: var(--popover-foreground); }
+      .bg-primary { background-color: var(--primary); }
+      .text-primary { color: var(--primary); }
+      .border-primary { border-color: var(--primary); }
+      .ring-primary { --tw-ring-color: var(--primary); }
+      .bg-primary-foreground { background-color: var(--primary-foreground); }
+      .text-primary-foreground { color: var(--primary-foreground); }
+      .border-primary-foreground { border-color: var(--primary-foreground); }
+      .ring-primary-foreground { --tw-ring-color: var(--primary-foreground); }
+      .bg-secondary { background-color: var(--secondary); }
+      .text-secondary { color: var(--secondary); }
+      .border-secondary { border-color: var(--secondary); }
+      .ring-secondary { --tw-ring-color: var(--secondary); }
+      .bg-secondary-foreground { background-color: var(--secondary-foreground); }
+      .text-secondary-foreground { color: var(--secondary-foreground); }
+      .border-secondary-foreground { border-color: var(--secondary-foreground); }
+      .ring-secondary-foreground { --tw-ring-color: var(--secondary-foreground); }
+      .bg-muted { background-color: var(--muted); }
+      .text-muted { color: var(--muted); }
+      .border-muted { border-color: var(--muted); }
+      .ring-muted { --tw-ring-color: var(--muted); }
+      .bg-muted-foreground { background-color: var(--muted-foreground); }
+      .text-muted-foreground { color: var(--muted-foreground); }
+      .border-muted-foreground { border-color: var(--muted-foreground); }
+      .ring-muted-foreground { --tw-ring-color: var(--muted-foreground); }
+      .bg-accent { background-color: var(--accent); }
+      .text-accent { color: var(--accent); }
+      .border-accent { border-color: var(--accent); }
+      .ring-accent { --tw-ring-color: var(--accent); }
+      .bg-accent-foreground { background-color: var(--accent-foreground); }
+      .text-accent-foreground { color: var(--accent-foreground); }
+      .border-accent-foreground { border-color: var(--accent-foreground); }
+      .ring-accent-foreground { --tw-ring-color: var(--accent-foreground); }
+      .bg-destructive { background-color: var(--destructive); }
+      .text-destructive { color: var(--destructive); }
+      .border-destructive { border-color: var(--destructive); }
+      .ring-destructive { --tw-ring-color: var(--destructive); }
+      .bg-destructive-foreground { background-color: var(--destructive-foreground); }
+      .text-destructive-foreground { color: var(--destructive-foreground); }
+      .border-destructive-foreground { border-color: var(--destructive-foreground); }
+      .ring-destructive-foreground { --tw-ring-color: var(--destructive-foreground); }
+      .bg-border { background-color: var(--border); }
+      .text-border { color: var(--border); }
+      .border-border { border-color: var(--border); }
+      .ring-border { --tw-ring-color: var(--border); }
+      .bg-input { background-color: var(--input); }
+      .text-input { color: var(--input); }
+      .border-input { border-color: var(--input); }
+      .ring-input { --tw-ring-color: var(--input); }
+      .bg-ring { background-color: var(--ring); }
+      .text-ring { color: var(--ring); }
+      .border-ring { border-color: var(--ring); }
+      .ring-ring { --tw-ring-color: var(--ring); }
+      .bg-chart-1 { background-color: var(--chart-1); }
+      .text-chart-1 { color: var(--chart-1); }
+      .border-chart-1 { border-color: var(--chart-1); }
+      .ring-chart-1 { --tw-ring-color: var(--chart-1); }
+      .bg-chart-2 { background-color: var(--chart-2); }
+      .text-chart-2 { color: var(--chart-2); }
+      .border-chart-2 { border-color: var(--chart-2); }
+      .ring-chart-2 { --tw-ring-color: var(--chart-2); }
+      .bg-chart-3 { background-color: var(--chart-3); }
+      .text-chart-3 { color: var(--chart-3); }
+      .border-chart-3 { border-color: var(--chart-3); }
+      .ring-chart-3 { --tw-ring-color: var(--chart-3); }
+      .bg-chart-4 { background-color: var(--chart-4); }
+      .text-chart-4 { color: var(--chart-4); }
+      .border-chart-4 { border-color: var(--chart-4); }
+      .ring-chart-4 { --tw-ring-color: var(--chart-4); }
+      .bg-chart-5 { background-color: var(--chart-5); }
+      .text-chart-5 { color: var(--chart-5); }
+      .border-chart-5 { border-color: var(--chart-5); }
+      .ring-chart-5 { --tw-ring-color: var(--chart-5); }
+      .bg-sidebar { background-color: var(--sidebar); }
+      .text-sidebar { color: var(--sidebar); }
+      .border-sidebar { border-color: var(--sidebar); }
+      .ring-sidebar { --tw-ring-color: var(--sidebar); }
+      .bg-sidebar-foreground { background-color: var(--sidebar-foreground); }
+      .text-sidebar-foreground { color: var(--sidebar-foreground); }
+      .border-sidebar-foreground { border-color: var(--sidebar-foreground); }
+      .ring-sidebar-foreground { --tw-ring-color: var(--sidebar-foreground); }
+      .bg-sidebar-primary { background-color: var(--sidebar-primary); }
+      .text-sidebar-primary { color: var(--sidebar-primary); }
+      .border-sidebar-primary { border-color: var(--sidebar-primary); }
+      .ring-sidebar-primary { --tw-ring-color: var(--sidebar-primary); }
+      .bg-sidebar-primary-foreground { background-color: var(--sidebar-primary-foreground); }
+      .text-sidebar-primary-foreground { color: var(--sidebar-primary-foreground); }
+      .border-sidebar-primary-foreground { border-color: var(--sidebar-primary-foreground); }
+      .ring-sidebar-primary-foreground { --tw-ring-color: var(--sidebar-primary-foreground); }
+      .bg-sidebar-accent { background-color: var(--sidebar-accent); }
+      .text-sidebar-accent { color: var(--sidebar-accent); }
+      .border-sidebar-accent { border-color: var(--sidebar-accent); }
+      .ring-sidebar-accent { --tw-ring-color: var(--sidebar-accent); }
+      .bg-sidebar-accent-foreground { background-color: var(--sidebar-accent-foreground); }
+      .text-sidebar-accent-foreground { color: var(--sidebar-accent-foreground); }
+      .border-sidebar-accent-foreground { border-color: var(--sidebar-accent-foreground); }
+      .ring-sidebar-accent-foreground { --tw-ring-color: var(--sidebar-accent-foreground); }
+    </style>
+    <style>
+      .no-scrollbar::-webkit-scrollbar { display: none; }
+      .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+      [data-icon] {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        -webkit-mask-size: contain;
+        mask-size: contain;
+        -webkit-mask-repeat: no-repeat;
+        mask-repeat: no-repeat;
+        -webkit-mask-position: center;
+        mask-position: center;
+        background-color: currentColor;
+      }
+    </style>
+</head>
+<body>
+
+  <!-- ====== FIXED TOP HEADER (back + circle name + follow) ====== -->
+  <header class="site-header" role="banner">
+    <div class="header-inner">
+      <div class="header-side header-side--left">
+        <button class="icon-btn" type="button" data-dom-id="back-to-circle" aria-label="返回">
+          <i data-lucide="arrow-left"></i>
+        </button>
+      </div>
+      <h1 class="header-title">校园美食吧</h1>
+      <div class="header-side header-side--right">
+        <button class="follow-btn is-followed" type="button" data-dom-id="header-follow" aria-label="关注圈子">
+          <span class="state-followed"><i data-lucide="check"></i><span>已关注</span></span>
+          <span class="state-not"><i data-lucide="user-plus"></i><span>关注</span></span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- ====== MAIN CONTENT ====== -->
+  <main class="page-container">
+
+    <!-- ====== BAR INFO CARD ====== -->
+    <section class="bar-card" aria-label="圈子信息">
+      <div class="bar-card-head">
+        <img class="bar-avatar" src="../assets/image_5_yi19x4.jpg" alt="校园美食吧头像" loading="lazy">
+        <div class="bar-info">
+          <h2 class="bar-name">校园美食吧</h2>
+          <p class="bar-desc">分享校园美食、食堂测评、周边探店</p>
+        </div>
+        <button class="follow-btn is-followed" type="button" data-dom-id="bar-follow" aria-label="关注圈子">
+          <span class="state-followed"><i data-lucide="check"></i><span>已关注</span></span>
+          <span class="state-not"><i data-lucide="user-plus"></i><span>关注</span></span>
+        </button>
+      </div>
+      <div class="bar-stats">
+        <div class="bar-stat">
+          <span class="bar-stat-ic" aria-hidden="true"><i data-lucide="crown"></i></span>
+          <span class="bar-stat-text">
+            <span class="bar-stat-label">吧主</span>
+            <span class="bar-stat-value">美食部长</span>
+          </span>
+        </div>
+        <div class="bar-stat">
+          <span class="bar-stat-ic" aria-hidden="true"><i data-lucide="users"></i></span>
+          <span class="bar-stat-text">
+            <span class="bar-stat-label">成员</span>
+            <span class="bar-stat-value">3.2k</span>
+          </span>
+        </div>
+        <div class="bar-stat">
+          <span class="bar-stat-ic" aria-hidden="true"><i data-lucide="file-text"></i></span>
+          <span class="bar-stat-text">
+            <span class="bar-stat-label">帖子</span>
+            <span class="bar-stat-value">1.8k</span>
+          </span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ====== CATEGORY TABS (underline indicator) ====== -->
+    <div class="cat-tabs" role="tablist" aria-label="帖子分类">
+      <button class="cat-tab is-active" type="button" role="tab" aria-selected="true" data-cat-tab="all">全部</button>
+      <button class="cat-tab" type="button" role="tab" aria-selected="false" data-cat-tab="essence">精品</button>
+      <button class="cat-tab" type="button" role="tab" aria-selected="false" data-cat-tab="image">图片</button>
+      <button class="cat-tab" type="button" role="tab" aria-selected="false" data-cat-tab="video">视频</button>
+    </div>
+
+    <!-- ====== POST LIST (tieba-style single column) ====== -->
+    <section class="post-list" aria-label="帖子列表">
+
+      <!-- Post 1 — with thumbnail -->
+      <article class="post-item" data-dom-id="card-open-detail">
+        <div class="post-main">
+          <div class="post-author-row">
+            <span class="avatar avatar-xs av-2" aria-hidden="true"></span>
+            <span class="post-author">吃货小王</span>
+            <span class="post-dot" aria-hidden="true">·</span>
+            <span class="post-time">2小时前</span>
+          </div>
+          <h3 class="post-title">食堂二楼麻辣香锅测评，排了半小时队终于吃上了</h3>
+          <p class="post-summary">香锅分量足，人均 18 块吃到撑，微辣刚好下饭，就是高峰期排队太夸张，建议错峰去…</p>
+          <div class="post-meta-row">
+            <span class="post-bar-tag">校园美食吧</span>
+            <span class="post-meta-item"><i data-lucide="eye"></i><span>1.2k</span></span>
+            <span class="post-meta-item"><i data-lucide="message-circle"></i><span>86</span></span>
+            <span class="post-last-reply">最后回复 干饭人阿杰</span>
+          </div>
+        </div>
+        <img class="post-thumb" src="../assets/image_5_yi19x4.jpg" alt="食堂麻辣香锅" loading="lazy">
+      </article>
+
+      <!-- Post 2 — text only -->
+      <article class="post-item" data-dom-id="card-open-detail">
+        <div class="post-main">
+          <div class="post-author-row">
+            <span class="avatar avatar-xs av-1" aria-hidden="true"></span>
+            <span class="post-author">干饭人阿杰</span>
+            <span class="post-dot" aria-hidden="true">·</span>
+            <span class="post-time">5小时前</span>
+          </div>
+          <h3 class="post-title">校外那家炸鸡店绝了，老板说凭学生证打八折</h3>
+          <p class="post-summary">校门口往东走两百米那家，现炸的鸡腿外酥里嫩，一份才 9 块，老板人超好还多送一块…</p>
+          <div class="post-meta-row">
+            <span class="post-bar-tag">校园美食吧</span>
+            <span class="post-meta-item"><i data-lucide="eye"></i><span>892</span></span>
+            <span class="post-meta-item"><i data-lucide="message-circle"></i><span>54</span></span>
+            <span class="post-last-reply">最后回复 吃货小王</span>
+          </div>
+        </div>
+      </article>
+
+      <!-- Post 3 — text only -->
+      <article class="post-item" data-dom-id="card-open-detail">
+        <div class="post-main">
+          <div class="post-author-row">
+            <span class="avatar avatar-xs av-3" aria-hidden="true"></span>
+            <span class="post-author">早起困难户</span>
+            <span class="post-dot" aria-hidden="true">·</span>
+            <span class="post-time">昨天 21:30</span>
+          </div>
+          <h3 class="post-title">早餐档的豆浆油条才是 yyds，每天限量来晚就没了</h3>
+          <p class="post-summary">一食堂早餐档的豆浆是现磨的，油条炸得刚刚好，七点半之前去才有，睡过头的只能哭…</p>
+          <div class="post-meta-row">
+            <span class="post-bar-tag">校园美食吧</span>
+            <span class="post-meta-item"><i data-lucide="eye"></i><span>634</span></span>
+            <span class="post-meta-item"><i data-lucide="message-circle"></i><span>41</span></span>
+            <span class="post-last-reply">最后回复 食堂常客</span>
+          </div>
+        </div>
+      </article>
+
+      <!-- Post 4 — text only, essence -->
+      <article class="post-item is-essence" data-dom-id="card-open-detail">
+        <div class="post-main">
+          <div class="post-author-row">
+            <span class="avatar avatar-xs av-4" aria-hidden="true"></span>
+            <span class="post-author">食堂常客</span>
+            <span class="post-dot" aria-hidden="true">·</span>
+            <span class="post-time">3天前</span>
+            <span class="post-badge"><i data-lucide="award"></i>精品</span>
+          </div>
+          <h3 class="post-title">三食堂的黄焖鸡到底放了什么，为什么这么下饭</h3>
+          <p class="post-summary">连吃一周终于研究明白了，关键是汤汁收得干，米饭拌着吃绝了，附详细窗口和时间攻略…</p>
+          <div class="post-meta-row">
+            <span class="post-bar-tag">校园美食吧</span>
+            <span class="post-meta-item"><i data-lucide="eye"></i><span>1.5k</span></span>
+            <span class="post-meta-item"><i data-lucide="message-circle"></i><span>128</span></span>
+            <span class="post-last-reply">最后回复 美食部长</span>
+          </div>
+        </div>
+      </article>
+
+      <!-- Post 5 — text only -->
+      <article class="post-item" data-dom-id="card-open-detail">
+        <div class="post-main">
+          <div class="post-author-row">
+            <span class="avatar avatar-xs av-3" aria-hidden="true"></span>
+            <span class="post-author">探店达人</span>
+            <span class="post-dot" aria-hidden="true">·</span>
+            <span class="post-time">1天前</span>
+          </div>
+          <h3 class="post-title">周末探店：校门口新开的奶茶店，环境出片绝了</h3>
+          <p class="post-summary">二楼靠窗的位置光线超好，人均 15 块，点招牌芋泥波波不会踩雷，周末去要提前占座…</p>
+          <div class="post-meta-row">
+            <span class="post-bar-tag">校园美食吧</span>
+            <span class="post-meta-item"><i data-lucide="eye"></i><span>768</span></span>
+            <span class="post-meta-item"><i data-lucide="message-circle"></i><span>37</span></span>
+            <span class="post-last-reply">最后回复 干饭人阿杰</span>
+          </div>
+        </div>
+      </article>
+
+      <!-- Post 6 — with thumbnail -->
+      <article class="post-item" data-dom-id="card-open-detail">
+        <div class="post-main">
+          <div class="post-author-row">
+            <span class="avatar avatar-xs av-2" aria-hidden="true"></span>
+            <span class="post-author">夜宵选手</span>
+            <span class="post-dot" aria-hidden="true">·</span>
+            <span class="post-time">6小时前</span>
+          </div>
+          <h3 class="post-title">宵夜去哪吃？宿舍楼下烤冷面摊位测评</h3>
+          <p class="post-summary">加蛋加肠加辣条是标配，一份 8 块管饱，大叔每晚十点出摊，自习回来正好赶上热乎的…</p>
+          <div class="post-meta-row">
+            <span class="post-bar-tag">校园美食吧</span>
+            <span class="post-meta-item"><i data-lucide="eye"></i><span>1.0k</span></span>
+            <span class="post-meta-item"><i data-lucide="message-circle"></i><span>72</span></span>
+            <span class="post-last-reply">最后回复 宿舍楼长</span>
+          </div>
+        </div>
+        <img class="post-thumb" src="../assets/image_8_yi19x4.jpg" alt="宿舍楼下夜宵摊位" loading="lazy">
+      </article>
+
+      <!-- Post 7 — text only -->
+      <article class="post-item" data-dom-id="card-open-detail">
+        <div class="post-main">
+          <div class="post-author-row">
+            <span class="avatar avatar-xs av-5" aria-hidden="true"></span>
+            <span class="post-author">穷学生本人</span>
+            <span class="post-dot" aria-hidden="true">·</span>
+            <span class="post-time">4小时前</span>
+          </div>
+          <h3 class="post-title">月末穷到吃土，求推荐十块钱能吃饱的窗口</h3>
+          <p class="post-summary">生活费快见底了，求学长学姐指路，哪些窗口便宜量大还顶饱，最好能撑到下个月初打钱…</p>
+          <div class="post-meta-row">
+            <span class="post-bar-tag">校园美食吧</span>
+            <span class="post-meta-item"><i data-lucide="eye"></i><span>1.8k</span></span>
+            <span class="post-meta-item"><i data-lucide="message-circle"></i><span>156</span></span>
+            <span class="post-last-reply">最后回复 食堂常客</span>
+          </div>
+        </div>
+      </article>
+
+      <!-- Post 8 — with thumbnail -->
+      <article class="post-item" data-dom-id="card-open-detail">
+        <div class="post-main">
+          <div class="post-author-row">
+            <span class="avatar avatar-xs av-3" aria-hidden="true"></span>
+            <span class="post-author">猫咪观察员</span>
+            <span class="post-dot" aria-hidden="true">·</span>
+            <span class="post-time">1周前</span>
+          </div>
+          <h3 class="post-title">食堂门口的橘猫又来蹭饭了，谁投的鸡胸肉</h3>
+          <p class="post-summary">小橘今天又胖了一圈，蹲在二食堂门口等投喂，求别喂太咸的东西，它肠胃受不了人吃的菜…</p>
+          <div class="post-meta-row">
+            <span class="post-bar-tag">校园美食吧</span>
+            <span class="post-meta-item"><i data-lucide="eye"></i><span>2.3k</span></span>
+            <span class="post-meta-item"><i data-lucide="message-circle"></i><span>198</span></span>
+            <span class="post-last-reply">最后回复 吃货小王</span>
+          </div>
+        </div>
+        <img class="post-thumb" src="../assets/image_3_yi19x4.jpg" alt="食堂门口的橘猫" loading="lazy">
+      </article>
+
+      <div class="post-list-end">没有更多了，下拉刷新试试</div>
+    </section>
+
+  </main>
+
+  <!-- ====== BOTTOM TAB BAR (圈子 active, floating dock on desktop) ====== -->
+  <nav class="bottom-tabbar" aria-label="底部导航">
+    <a class="bottom-tab" href="#" data-dom-id="tabbar-home">
+      <i data-lucide="home"></i>
+      <span class="bottom-tab-label">首页</span>
+    </a>
+    <a class="bottom-tab is-active" href="#" data-dom-id="tabbar-discover">
+      <i data-lucide="map-pin"></i>
+      <span class="bottom-tab-label">圈子</span>
+    </a>
+    <a class="bottom-tab bottom-tab--publish" href="#" data-dom-id="tabbar-publish" aria-label="发帖">
+      <span class="publish-btn"><i data-lucide="pen-line"></i></span>
+    </a>
+    <a class="bottom-tab" href="#" data-dom-id="tabbar-message">
+      <i data-lucide="message-circle"></i>
+      <span class="bottom-tab-label">消息</span>
+    </a>
+    <a class="bottom-tab" href="#" data-dom-id="tabbar-mine">
+      <i data-lucide="user"></i>
+      <span class="bottom-tab-label">我的</span>
+    </a>
+  </nav>
+
+  <style>
+    /* ================================================
+       RESET & BASE
+       ================================================ */
+    *, *::before, *::after { box-sizing: border-box; }
+    html { -webkit-text-size-adjust: 100%; }
+
+    body {
+      margin: 0;
+      background: var(--background-100);
+      color: var(--text-800);
+      font-family: var(--font-sans);
+      font-size: 14px;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      /* Desktop: header 56 + floating dock clearance */
+      padding-top: 56px;
+      padding-bottom: calc(76px + env(safe-area-inset-bottom));
+    }
+
+    a { color: inherit; text-decoration: none; }
+    button { font-family: inherit; cursor: pointer; border: none; background: none; padding: 0; color: inherit; }
+    img { display: block; max-width: 100%; }
+    ol, ul { margin: 0; padding: 0; list-style: none; }
+    h1, h2, h3, p { margin: 0; }
+
+    :focus-visible {
+      outline: 2px solid var(--brand-500);
+      outline-offset: 2px;
+      border-radius: 4px;
+    }
+
+    /* ================================================
+       LUCIDE ICON BASE (works for <i> and replaced <svg>)
+       ================================================ */
+    [data-lucide] { display: inline-block; vertical-align: middle; flex-shrink: 0; }
+
+    /* ================================================
+       AVATARS (gradient placeholders, token-only)
+       ================================================ */
+    .avatar {
+      display: inline-block;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .avatar-xs { width: 22px; height: 22px; }
+
+    .av-1 { background: linear-gradient(135deg, var(--brand-300), var(--brand-500)); }
+    .av-2 { background: linear-gradient(135deg, var(--state-success), var(--brand-400)); }
+    .av-3 { background: linear-gradient(135deg, var(--chart-3), var(--brand-500)); }
+    .av-4 { background: linear-gradient(135deg, var(--chart-4), var(--brand-600)); }
+    .av-5 { background: linear-gradient(135deg, var(--background-400), var(--background-600)); }
+
+    /* ================================================
+       SITE HEADER (back + title + follow)
+       ================================================ */
+    .site-header {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 100;
+      height: 56px;
+      background: color-mix(in srgb, var(--background-50) 88%, transparent);
+      -webkit-backdrop-filter: blur(20px);
+      backdrop-filter: blur(20px);
+      border-bottom: 0.5px solid var(--border);
+    }
+    .header-inner {
+      max-width: 720px;
+      margin: 0 auto;
+      height: 100%;
+      padding: 0 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .header-side {
+      flex: 1;
+      min-width: 0;
+      display: flex;
+      align-items: center;
+    }
+    .header-side--left { justify-content: flex-start; }
+    .header-side--right { justify-content: flex-end; }
+    .header-title {
+      flex: 0 1 auto;
+      min-width: 0;
+      font-size: 17px;
+      font-weight: 700;
+      color: var(--text-800);
+      letter-spacing: -0.01em;
+      text-align: center;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .icon-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      color: var(--text-700);
+      transition: background 150ms cubic-bezier(0.32, 0.72, 0, 1),
+                  color 150ms cubic-bezier(0.32, 0.72, 0, 1);
+      flex-shrink: 0;
+    }
+    .icon-btn:hover { background: var(--background-100); color: var(--text-800); }
+    .icon-btn :is(i, svg) { width: 20px; height: 20px; }
+
+    /* ---- Follow button (toggle: is-followed <-> not) ---- */
+    .follow-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 6px 14px;
+      border-radius: 999px;
+      font-size: 13px;
+      font-weight: 600;
+      line-height: 1;
+      flex-shrink: 0;
+      transition: background 150ms cubic-bezier(0.32, 0.72, 0, 1),
+                  color 150ms cubic-bezier(0.32, 0.72, 0, 1),
+                  transform 150ms cubic-bezier(0.32, 0.72, 0, 1);
+    }
+    .follow-btn .state-followed,
+    .follow-btn .state-not {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .follow-btn .state-not { display: none; }
+    .follow-btn:not(.is-followed) .state-followed { display: none; }
+    .follow-btn:not(.is-followed) .state-not { display: inline-flex; }
+    .follow-btn :is(i, svg) { width: 14px; height: 14px; }
+
+    .follow-btn.is-followed {
+      background: var(--brand-50);
+      color: var(--brand-600);
+    }
+    .follow-btn:not(.is-followed) {
+      background: var(--brand-500);
+      color: var(--background-50);
+    }
+    .follow-btn:not(.is-followed):hover { background: var(--brand-600); }
+    .follow-btn:active { transform: scale(0.96); }
+
+    /* ================================================
+       PAGE CONTAINER
+       ================================================ */
+    .page-container {
+      max-width: 720px;
+      margin: 0 auto;
+      padding: 16px 16px 24px;
+    }
+
+    /* ================================================
+       BAR INFO CARD
+       ================================================ */
+    .bar-card {
+      background: var(--background-50);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow-sm);
+      padding: 18px 18px 16px;
+      margin-bottom: 14px;
+    }
+    .bar-card-head {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+    .bar-avatar {
+      width: 60px;
+      height: 60px;
+      border-radius: 50%;
+      object-fit: cover;
+      flex-shrink: 0;
+      box-shadow: var(--shadow-xs);
+    }
+    .bar-info {
+      flex: 1;
+      min-width: 0;
+    }
+    .bar-name {
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--text-800);
+      letter-spacing: -0.01em;
+      line-height: 1.2;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .bar-desc {
+      margin-top: 3px;
+      font-size: 12.5px;
+      color: var(--text-400);
+      line-height: 1.3;
+      display: -webkit-box;
+      -webkit-line-clamp: 1;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+    .bar-stats {
+      display: flex;
+      align-items: center;
+      gap: 22px;
+      margin-top: 14px;
+      padding-top: 14px;
+      border-top: 0.5px solid var(--border);
+    }
+    .bar-stat {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      min-width: 0;
+    }
+    .bar-stat-ic {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      background: var(--brand-50);
+      color: var(--brand-500);
+      flex-shrink: 0;
+    }
+    .bar-stat-ic :is(i, svg) { width: 14px; height: 14px; }
+    .bar-stat-text {
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+    }
+    .bar-stat-label {
+      font-size: 11px;
+      color: var(--text-400);
+      line-height: 1.1;
+      white-space: nowrap;
+    }
+    .bar-stat-value {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--text-800);
+      line-height: 1.2;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    /* ================================================
+       CATEGORY TABS (underline indicator)
+       ================================================ */
+    .cat-tabs {
+      display: flex;
+      align-items: center;
+      gap: 2px;
+      background: var(--background-50);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow-xs);
+      padding: 0 6px;
+      margin-bottom: 12px;
+    }
+    .cat-tab {
+      position: relative;
+      padding: 12px 14px;
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--text-500);
+      white-space: nowrap;
+      transition: color 150ms cubic-bezier(0.32, 0.72, 0, 1);
+    }
+    .cat-tab:hover { color: var(--text-800); }
+    .cat-tab.is-active {
+      color: var(--text-800);
+      font-weight: 600;
+    }
+    .cat-tab.is-active::after {
+      content: '';
+      position: absolute;
+      left: 14px;
+      right: 14px;
+      bottom: 0;
+      height: 2px;
+      background: var(--brand-500);
+      border-radius: 2px;
+    }
+
+    /* ================================================
+       POST LIST (tieba-style single column)
+       ================================================ */
+    .post-list {
+      background: var(--background-50);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow-xs);
+      overflow: hidden;
+    }
+
+    .post-item {
+      display: flex;
+      gap: 12px;
+      padding: 14px 16px;
+      border-bottom: 0.5px solid var(--border);
+      cursor: pointer;
+      transition: background 120ms cubic-bezier(0.32, 0.72, 0, 1);
+    }
+    .post-item:last-of-type { border-bottom: none; }
+    .post-item:hover { background: var(--background-100); }
+    .post-item:active { background: var(--background-200); }
+
+    .post-main {
+      flex: 1;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ---- author row: avatar + name + dot + time (+ badge) ---- */
+    .post-author-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 6px;
+      min-width: 0;
+    }
+    .post-author {
+      font-size: 12.5px;
+      font-weight: 500;
+      color: var(--text-700);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      min-width: 0;
+      flex: 0 1 auto;
+    }
+    .post-dot {
+      flex-shrink: 0;
+      color: var(--text-300);
+      font-size: 12px;
+    }
+    .post-time {
+      flex-shrink: 0;
+      font-size: 12px;
+      color: var(--text-400);
+      white-space: nowrap;
+    }
+    .post-badge {
+      flex-shrink: 0;
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      margin-left: 4px;
+      padding: 2px 7px;
+      border-radius: 999px;
+      font-size: 10.5px;
+      font-weight: 600;
+      color: var(--chart-3);
+      background: color-mix(in srgb, var(--chart-3) 14%, var(--background-50));
+      white-space: nowrap;
+    }
+    .post-badge :is(i, svg) { width: 11px; height: 11px; }
+
+    .post-title {
+      font-size: 15px;
+      font-weight: 600;
+      line-height: 1.4;
+      color: var(--text-800);
+      letter-spacing: -0.005em;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+      word-break: break-word;
+      margin-bottom: 4px;
+    }
+    .post-summary {
+      font-size: 13px;
+      line-height: 1.45;
+      color: var(--text-500);
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+      word-break: break-word;
+      margin-bottom: 8px;
+    }
+
+    .post-thumb {
+      width: 96px;
+      height: 72px;
+      border-radius: 8px;
+      object-fit: cover;
+      flex-shrink: 0;
+      background: var(--background-200);
+    }
+
+    /* ---- meta row: bar tag + views + replies + last reply ---- */
+    .post-meta-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-width: 0;
+      margin-top: auto;
+    }
+    .post-bar-tag {
+      flex-shrink: 0;
+      display: inline-flex;
+      align-items: center;
+      font-size: 11px;
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: 999px;
+      color: color-mix(in srgb, var(--chart-3) 72%, var(--text-800));
+      background: color-mix(in srgb, var(--chart-3) 12%, var(--background-50));
+      white-space: nowrap;
+    }
+    .post-meta-item {
+      flex-shrink: 0;
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      color: var(--text-400);
+      font-size: 12px;
+      white-space: nowrap;
+    }
+    .post-meta-item :is(i, svg) { width: 13px; height: 13px; }
+    .post-last-reply {
+      margin-left: auto;
+      min-width: 0;
+      font-size: 12px;
+      color: var(--text-400);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .post-list-end {
+      padding: 16px 12px 18px;
+      text-align: center;
+      font-size: 12px;
+      color: var(--text-300);
+    }
+
+    /* ================================================
+       BOTTOM TAB BAR — default = desktop/tablet floating dock
+       ================================================ */
+    .bottom-tabbar {
+      display: flex;
+      position: fixed;
+      left: 0;
+      right: 0;
+      bottom: 14px;
+      z-index: 100;
+      max-width: 460px;
+      margin: 0 auto;
+      height: 56px;
+      padding: 0 8px;
+      border-radius: 26px;
+      background: color-mix(in srgb, var(--background-50) 88%, transparent);
+      -webkit-backdrop-filter: blur(20px);
+      backdrop-filter: blur(20px);
+      box-shadow: var(--shadow-lg);
+      align-items: stretch;
+      justify-content: space-around;
+    }
+    .bottom-tab {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 2px;
+      flex: 1;
+      min-width: 0;
+      color: var(--text-400);
+      transition: color 150ms cubic-bezier(0.32, 0.72, 0, 1);
+    }
+    .bottom-tab :is(i, svg) { width: 21px; height: 21px; }
+    .bottom-tab-label {
+      font-size: 10px;
+      line-height: 1;
+      white-space: nowrap;
+    }
+    .bottom-tab.is-active { color: var(--brand-500); }
+
+    .bottom-tab--publish { flex: 0 0 auto; }
+    .publish-btn {
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      background: var(--brand-500);
+      color: var(--background-50);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-top: -18px;
+      box-shadow: var(--shadow-md);
+      transition: transform 150ms cubic-bezier(0.32, 0.72, 0, 1),
+                  background 150ms cubic-bezier(0.32, 0.72, 0, 1);
+    }
+    .publish-btn :is(i, svg) { width: 20px; height: 20px; }
+    .publish-btn:hover { background: var(--brand-600); }
+    .bottom-tab--publish:active .publish-btn { transform: scale(0.94); }
+
+    /* ================================================
+       RESPONSIVE — Tablet (<=1024px)
+       ================================================ */
+    @media (max-width: 1024px) {
+      .page-container { padding: 14px 14px 24px; }
+    }
+
+    /* ================================================
+       RESPONSIVE — Mobile (<=768px)
+       ================================================ */
+    @media (max-width: 768px) {
+      body {
+        padding-top: 48px;
+        padding-bottom: calc(52px + env(safe-area-inset-bottom));
+      }
+
+      .site-header { height: 48px; }
+      .header-inner { padding: 0 10px; gap: 6px; }
+      .header-title { font-size: 16px; }
+      .icon-btn { width: 34px; height: 34px; }
+      .icon-btn :is(i, svg) { width: 19px; height: 19px; }
+      .follow-btn { padding: 5px 12px; font-size: 12px; }
+
+      .page-container { padding: 12px 12px 20px; }
+
+      /* Bar card */
+      .bar-card { padding: 16px 14px 14px; border-radius: calc(var(--radius) * 0.9); }
+      .bar-avatar { width: 54px; height: 54px; }
+      .bar-name { font-size: 17px; }
+      .bar-desc { font-size: 12px; }
+      .bar-stats { gap: 14px; margin-top: 12px; padding-top: 12px; }
+      .bar-stat-ic { width: 24px; height: 24px; }
+      .bar-stat-ic :is(i, svg) { width: 13px; height: 13px; }
+      .bar-stat-label { font-size: 10.5px; }
+      .bar-stat-value { font-size: 13px; }
+
+      /* Category tabs */
+      .cat-tab { padding: 11px 12px; font-size: 13px; }
+      .cat-tab.is-active::after { left: 12px; right: 12px; }
+
+      /* Post list */
+      .post-list { border-radius: calc(var(--radius) * 0.85); }
+      .post-item { padding: 12px 14px; gap: 10px; }
+      .post-title { font-size: 14px; line-height: 1.38; margin-bottom: 3px; }
+      .post-summary { font-size: 12.5px; line-height: 1.4; margin-bottom: 7px; }
+      .post-thumb { width: 80px; height: 60px; border-radius: 6px; }
+      .post-author { font-size: 12px; }
+      .post-time { font-size: 11px; }
+      .post-meta-row { gap: 10px; }
+      .post-bar-tag { font-size: 10px; padding: 2px 7px; }
+      .post-meta-item { font-size: 11px; }
+      .post-meta-item :is(i, svg) { width: 12px; height: 12px; }
+      .post-last-reply { font-size: 11px; }
+      .post-badge { font-size: 10px; padding: 1px 6px; }
+
+      /* Tabbar: full-width flush bottom on mobile */
+      .bottom-tabbar {
+        max-width: 100%;
+        bottom: 0;
+        border-radius: 0;
+        box-shadow: none;
+        border-top: 0.5px solid var(--border);
+        height: calc(52px + env(safe-area-inset-bottom));
+        padding-bottom: env(safe-area-inset-bottom);
+      }
+      .publish-btn { margin-top: -14px; }
+    }
+
+    /* ================================================
+       REDUCED MOTION
+       ================================================ */
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        transition-duration: 0.01ms !important;
+        animation-duration: 0.01ms !important;
+      }
+    }
+  </style>
+
+  <script>
+    (function () {
+      'use strict';
+
+      // ---- Lucide icon render ----
+      if (window.lucide && typeof window.lucide.createIcons === 'function') {
+        window.lucide.createIcons();
+      }
+
+      // ---- Category tab switching (全部 / 精品 / 图片 / 视频) ----
+      var catTabs = document.querySelectorAll('.cat-tab');
+      catTabs.forEach(function (tab) {
+        tab.addEventListener('click', function () {
+          catTabs.forEach(function (t) {
+            t.classList.remove('is-active');
+            t.setAttribute('aria-selected', 'false');
+          });
+          tab.classList.add('is-active');
+          tab.setAttribute('aria-selected', 'true');
+        });
+      });
+
+      // ---- Follow toggle (header + bar card synced, no DOM mutation) ----
+      var followBtns = document.querySelectorAll('.follow-btn');
+      followBtns.forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          var followed = !btn.classList.contains('is-followed');
+          followBtns.forEach(function (b) {
+            b.classList.toggle('is-followed', followed);
+          });
+        });
+      });
+
+      // ---- Bottom tabbar: keep 圈子 active on this page ----
+      var bottomTabs = document.querySelectorAll('.bottom-tabbar .bottom-tab');
+      bottomTabs.forEach(function (tab) {
+        tab.addEventListener('click', function (e) {
+          e.preventDefault();
+        });
+      });
+
+      // ---- Post click: no real nav, just affordance ----
+      var posts = document.querySelectorAll('.post-item[data-dom-id="card-open-detail"]');
+      posts.forEach(function (p) {
+        p.addEventListener('click', function (e) {
+          // prevent stray link nav; real wiring registered by main agent
+          if (e.target.closest('a')) { e.preventDefault(); }
+        });
+      });
+    })();
+  </script>
+
+</body>
+</html>

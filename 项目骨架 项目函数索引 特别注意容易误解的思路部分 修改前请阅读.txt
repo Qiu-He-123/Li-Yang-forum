@@ -1,0 +1,303 @@
+查阅代码时请翻阅此文档 且按照现有格式修改
+
+一、项目骨架
+
+根目录
+- README.md：项目启动、部署、安全检查清单和 V1 范围说明（T9-3 已更新）。
+- 启动立洋社区.bat：Windows 一键启动脚本（T9-3 已更新），自动创建 .venv、安装依赖、执行 alembic upgrade head、启动前后端并打开浏览器。
+- .gitignore：忽略依赖、构建产物、缓存、本地数据库等生成文件。
+- backend/：Python FastAPI 后端。
+- frontend/：Vue3 + TypeScript + Vite 前端。
+- deploy/：Docker Compose 与 Nginx 部署配置。
+
+backend/
+- app/main.py：FastAPI 应用入口，注册中间件、异常处理、路由和启动初始化（含 jwt_secret 强校验 T2-4）。
+- app/core/config.py：读取 .env 配置，所有环境变量集中在这里。新增 env 字段用于区分 dev/prod。
+- app/core/database.py：SQLAlchemy engine、SessionLocal、Base、get_db。SQLite WAL 模式已启用（T8-1）。
+- app/core/security.py：bcrypt 密码哈希、JWT 生成和解析。
+- app/core/errors.py：统一错误码 ErrorCode 常量、错误码到中文消息的映射 get_error_message()、pydantic 校验错误到错误码的映射 pydantic_error_to_code()。
+- app/core/logger.py：loguru 日志配置，setup_logger() 同时输出到控制台和 logs/app.log（10MB 滚动，保留 7 天）。
+- app/core/alembic_helper.py：Alembic 启动辅助（T3-1），自动检测是否需要迁移。
+- app/models/entities.py：数据库模型，表名覆盖 users、schools、posts、comments、likes、favorites、messages、notifications、reports、admin、login_logs、operation_logs（含 user_id/admin_id/ip 字段及索引 T3-2）、tokens、images、announcement。
+- app/models/rate_limit.py：RateLimit / LoginFailure 持久化模型（T7-8/T7-9），登录失败锁定和 IP 限流改用 SQLite 持久化。
+- app/models/__init__.py：模型导出索引。
+- app/schemas/common.py：统一 API 返回结构 ok()。
+- app/schemas/auth.py：注册、登录、AdminLoginIn（T2-2）、ChangePasswordIn 入参模型。
+- app/schemas/post.py：帖子入参、出参和固定分类（含 HttpUrl 校验 T7-11）。
+- app/schemas/interactions.py：CommentCreate（含 parent_id 支持二级回复）。
+- app/api/deps.py：当前登录用户依赖 current_user、管理员依赖 admin_user（T2-1）、IP 提取工具 extract_ip()（含 XFF 校验 T7-13）。
+- app/api/routes/auth.py：验证码 stub、注册、登录、登出（撤销 refresh_token T2-5）、/auth/me 会话校验、/auth/refresh（T2-6）、/auth/change-password 接口。
+- app/api/routes/schools.py：校区列表接口。
+- app/api/routes/posts.py：帖子流（含分页/搜索/分类/标签过滤 T4-11/T6-8）、发帖、编辑、删除接口。route 仅做参数校验，业务在 post_service。
+- app/api/routes/comments.py：一级评论、二级回复、删除评论接口（返回 post_comment_count 绝对值 T6-6；级联删除 T9-1）。
+- app/api/routes/interactions.py：点赞、取消点赞、收藏、取消收藏、举报接口。
+- app/api/routes/users.py：个人主页、个人资料更新、用户帖子列表、我的草稿/收藏/点赞列表接口。
+- app/api/routes/images.py：图片上传入口，含 magic bytes 校验（T7-10），生产上传 MinIO，本地开发无 MinIO 时兜底到 uploads。
+- app/api/routes/admin.py：管理员登录（Body + admin_token Cookie T2-2）、帖子/评论/用户/举报/公告/日志管理、/admin/user-logs 用户操作日志查询接口。所有接口加 Depends(admin_user)（T2-1），admin_id 写入日志（T7-6）。
+- app/api/routes/announcements.py：公告列表接口（按 school_id 过滤 T7-7）。
+- app/api/routes/notifications.py：通知列表 + 已读/未读接口（T5-5）。
+- app/api/routes/ws.py：WebSocket 基础入口。
+- app/services/auth_service.py：登录/注册/登出/refresh 业务逻辑（T1-5 抽象）。
+- app/services/post_service.py：帖子 CRUD + 搜索 + 分页 + 草稿业务逻辑（T1-5 抽象）。
+- app/services/comment_service.py：评论 CRUD + 级联删除业务逻辑（T1-5 抽象，T9-1 Bug 修复）。delete_comment 删除根评论时级联删除所有回复，重新统计 comment_count 避免不一致。
+- app/services/interaction_service.py：点赞/收藏/举报业务逻辑（T1-5 抽象，T3-4 修复 IntegrityError count 不回滚）。
+- app/services/user_service.py：个人主页/资料/草稿/收藏/点赞业务逻辑（T1-5 抽象，T8-4 like_count 查询优化）。
+- app/services/admin_service.py：管理员后台业务逻辑（T1-5 抽象）。
+- app/services/notification_service.py：通知写入逻辑（T5-5），互动发生时调用 create_notification。
+- app/services/ai_service.py：所有 AI 能力的唯一封装入口。含熔断器（5 分钟失败后跳过 T8-1）和 get_status() 返回可用状态。
+- app/services/storage_service.py：MinIO 文件存储封装，数据库只保存 URL。无 MinIO 时缓存不可用状态避免重试阻塞（T8-1）。
+- app/services/rate_limit_service.py：IP 限流 + 登录失败锁定（T7-8/T7-9），SQLite 持久化。
+- app/services/audit_log.py：用户操作审计日志服务 log_user_action()，同时写文件日志（loguru）和 operation_logs 表。ip 为 None 时记录 "unknown"（T7-14）。
+- alembic.ini + alembic/env.py + alembic/versions/：Alembic 迁移配置和版本文件（T3-1）。0001_initial 创建全部表，0002 加 operation_logs 索引，0003 加 rate_limit 表。
+- scripts/create_admin.py：CLI 创建管理员账号（T2-3，移除默认 admin/admin123456 后门后的唯一创建入口）。
+- tests/conftest.py：测试公共 fixtures，in-memory SQLite + AI 关闭 + 限流放宽（T9-1）。
+- tests/test_auth.py / test_post.py / test_comment.py / test_interaction.py / test_user.py / test_admin.py / test_security.py：T9-1 回归测试套件，110 个用例。
+
+frontend/
+- src/main.ts：Vue 应用入口，注册 Pinia、Router、Element Plus + 全局 errorHandler（T5-8）。
+- src/App.vue：根组件。
+- src/style.css：全局样式和 Tailwind 引入。
+- src/api/http.ts：Axios 实例，统一处理后端 ApiResponse，code !== 0 时抛出带具体中文 msg 的 Error；401 时自动调 refresh（T2-7）。
+- src/api/auth.ts：注册/登录/登出/refresh/send-code/change-password API 模块（T1-2）。
+- src/api/post.ts：帖子 CRUD + 列表 + 搜索 API 模块（T1-2）。
+- src/api/comment.ts：评论 CRUD API 模块（T1-2，T6-6 类型声明 post_comment_count）。
+- src/api/interaction.ts：点赞/收藏/举报 API 模块（T1-2）。
+- src/api/user.ts：个人主页/资料/草稿/收藏 API 模块（T1-2）。
+- src/api/image.ts：图片上传 API 模块（T1-2，T4-2）。
+- src/api/announcement.ts：公告 API 模块（T1-2）。
+- src/api/notification.ts：通知 API 模块（T1-2）。
+- src/api/admin.ts：管理员 API 模块（T1-2）。
+- src/api/school.ts：校区 API 模块（T1-2）。
+- src/stores/session.ts：仅保留登录态 + validateSession + clearSession（T1-3 拆分）。
+- src/stores/school.ts：校区状态（T1-3）。
+- src/stores/post.ts：帖子列表 + 视图 + 分页（T1-3，T4-11）。
+- src/stores/user.ts：当前用户资料（T1-3）。
+- src/stores/admin.ts：管理员后台状态（T1-3）。
+- src/stores/announcement.ts：公告状态（T1-3）。
+- src/stores/interaction.ts：点赞/收藏 active 态回填（T1-3，T4-6）。
+- src/router/index.ts：14 条路由 + 登录守卫 + 管理员守卫 + 404 兜底（T1-4，懒加载）。
+- src/layouts/AdminLayout.vue：管理员后台布局（T5-6）。
+- src/views/CommunityHome.vue：首页主页面（T1-1 后 < 100 行，仅组合子组件；T9-1 加 onPostPublished 滚动到顶部）。
+- src/views/UserHome.vue：个人主页（T5-1，头像 banner + 帖子/收藏/点赞 Tab）。
+- src/views/Settings.vue：设置页（T5-2，基本资料 + 账号安全 Tab）。
+- src/views/MyDrafts.vue：我的草稿（T5-3）。
+- src/views/MyFavorites.vue：我的收藏（T5-4）。
+- src/views/Notifications.vue：通知中心（T5-5）。
+- src/views/Search.vue：搜索结果页（T4-12，watch route.query 处理组件复用 T9-1 Bug 修复）。
+- src/views/Agreement.vue：用户协议页（T6-2）。
+- src/views/Error/NotFound.vue：404 兜底页（T5-7）。
+- src/views/Admin/Login.vue：管理员登录页（T5-6）。
+- src/views/Admin/Posts.vue / Comments.vue / Users.vue / Reports.vue / Announcements.vue / Logs.vue / UserLogs.vue：管理员后台 7 个子页面（T5-6）。
+- src/components/header/AppHeader.vue：顶部栏（T1-1，含搜索框 T4-12 + 通知按钮 + 用户菜单 T4-1）。
+- src/components/sidebar/SideMenu.vue：左侧菜单（T1-1，激活态 + 点击 T6-7）。
+- src/components/sidebar/ProfileCard.vue：右侧栏个人卡片（T1-1，渲染真实头像 T6-10）。
+- src/components/sidebar/AnnouncementCard.vue：右侧栏公告卡片（T1-1，调用真实接口 T4-3）。
+- src/components/sidebar/StatsCard.vue：右侧栏统计卡片（T1-1）。
+- src/components/sidebar/AiAuditCard.vue：AI 审核状态卡片（T1-1，显示 AI 降级提示 T8-1）。
+- src/components/post/PostCard.vue：帖子卡片（T1-1，含编辑/删除按钮 T4-5 + 点赞 active 态 T4-6 + 举报弹窗 T4-10）。
+- src/components/post/PostEditor.vue：发帖编辑器（T1-1，图片上传 T4-2 + is_public 开关 T6-5；T9-1 修复发布后 setPage(1)）。
+- src/components/post/PostImages.vue：帖子图片网格（T1-1，el-image lazy + 预览 T6-9）。
+- src/components/comment/CommentList.vue：评论列表（T1-1，按 parent_id 分层 T4-8 + 分页 T8-3；T9-1 用 count-updated 绝对值替代 count-changed delta）。
+- src/components/comment/CommentItem.vue：评论项（T1-1，回复按钮 T4-8 + 点赞 T4-9 + 删除 T4-7；T9-1 用后端返回的 post_comment_count 绝对值覆盖）。
+- src/components/auth/AuthDialog.vue：登录注册弹窗（T1-1，发送验证码按钮 T6-1 + 协议链接 T6-2 + 关闭重置 T6-3）。
+- src/components/common/EmptyState.vue：空状态提示（T1-1）。
+- src/components/common/Pagination.vue：分页组件（T1-1，T4-11）。
+- vite.config.ts：Vite 开发服务和 /api、/ws 代理（T7 阶段修复代理配置）。
+- tailwind.config.js：LY Community 视觉 token。
+- package.json：前端依赖和脚本。
+
+deploy/
+- docker-compose.yml：MySQL8、Redis、MinIO、backend、frontend 服务。
+- nginx.conf：预留外层 Nginx 配置。
+
+二、项目函数索引
+
+后端核心函数
+- get_settings()：读取并缓存配置。新增配置必须先加到 Settings。
+- get_db()：FastAPI 数据库依赖。接口里通过 Depends(get_db) 获取 Session。
+- hash_password(password)：bcrypt 加密密码。
+- verify_password(password, password_hash)：校验密码。
+- create_token(subject, minutes=None, days=None)：生成 JWT。
+- decode_token(token)：解析 JWT，返回用户 id 字符串。
+- current_user(access_token, db)：从 HttpOnly Cookie 读取 access_token 并返回当前用户。失败抛出 ErrorCode.NOT_LOGGED_IN / TOKEN_INVALID / USER_NOT_FOUND。
+- admin_user(admin_token, db)：从 HttpOnly Cookie 读取 admin_token 并返回当前管理员（T2-1）。失败抛出 ErrorCode.NOT_LOGGED_IN。所有 /admin/* 接口必须 Depends(admin_user)。
+- extract_ip(request)：从 Request 中提取客户端 IP，校验 XFF 格式（T7-13），失败 fallback 到 request.client.host。
+- ok(data=None)：生成统一返回结构 {"code":0,"msg":"success","data":...}。
+- get_error_message(code)：根据错误码返回具体中文消息。所有业务错误统一返回负数错误码，前端可直接展示 msg。
+- pydantic_error_to_code(errors)：将 pydantic 校验错误列表的第一条映射为业务错误码（如 phone 缺失 -> -1，password 缺失 -> -3，content 缺失 -> -9）。
+- setup_logger()：配置 loguru 控制台彩色输出 + logs/app.log 文件滚动日志（10MB / 7 天）。
+- log_user_action(db, user_id, action, detail, ip)：用户操作审计日志，同时写 loguru 文件日志和 operation_logs 表（同事务提交）。ip 为 None 时记录 "unknown"（T7-14）。
+
+后端业务 service 函数（T1-5 抽象后，route 仅调用 service）
+- auth_service.register/login/logout/refresh/change_password：登录注册全套业务逻辑。
+- post_service.list_posts/create_post/update_post/delete_post/list_drafts/list_favorites/list_likes：帖子相关业务，含 AI 审核 + 标签 + 分页 + 搜索。
+- comment_service.list_comments/create_comment/delete_comment：评论业务。delete_comment 删除根评论时级联删除所有回复（T9-1 Bug 修复），重新统计 comment_count 返回绝对值。
+- interaction_service.like_target/unlike_target/favorite_post/unfavorite_post/create_report：互动业务。flush 后才 +1 避免 IntegrityError count 不回滚（T3-4）。
+- user_service.get_profile/update_me：个人主页业务。like_count 用 join 替代子查询（T8-4）。
+- admin_service.admin_login/admin_posts/admin_comments/admin_users/admin_reports/admin_logs/admin_user_logs/create_announcement：管理员后台业务。admin_id 写入 OperationLog（T7-6）。
+- notification_service.create_notification(db, user_id, title, content)：互动发生时写通知（T5-5）。
+- rate_limit_service.check_rate_limit(ip)/record_login_failure(phone)/is_login_locked(phone)：IP 限流 + 登录失败锁定（T7-8/T7-9），SQLite 持久化。
+
+后端接口函数（route 层，仅做参数校验 + 调 service）
+- send_code(phone)：开发阶段验证码 stub，固定 dev_code 为 123456；生产应替换短信服务和 Redis 冷却。
+- register(payload, request, response, db)：调 auth_service.register。
+- login(payload, request, response, db)：调 auth_service.login。
+- logout(response, db, user)：调 auth_service.logout，撤销 refresh_token（T2-5）。
+- refresh(refresh_token, response, db)：T2-6 新增，用 refresh_token 换新 access_token。
+- auth_me(user)：GET /auth/me，校验当前 Cookie 是否有效。
+- change_password(payload, db, user)：修改密码，撤销其他设备 token。
+- list_schools(db)：返回四个校区。
+- list_posts(view, page, page_size, q, category, tag, db, user)：帖子流，支持 all、school、hot、latest 四种视图 + 分页 + 搜索 + 标签过滤（T4-11/T6-8）。
+- create_post/update_post/delete_post：调 post_service。
+- list_comments(post_id, page, page_size, db)：评论分页（T8-3）。
+- create_comment(post_id, payload, request, db, user)：返回 post_comment_count 绝对值（T6-6）。
+- delete_comment(post_id, comment_id, request, db, user)：级联删除子回复，返回新 comment_count 绝对值（T9-1）。
+- like_target/unlike_target/favorite_post/unfavorite_post/create_report：调 interaction_service。
+- me(db, user)/update_me(payload, request, db, user)：调 user_service。
+- list_my_drafts/list_my_favorites/list_my_likes：我的草稿/收藏/点赞。
+- upload_image(file, db, user)：限制格式和大小 + magic bytes 校验（T7-10），审核后保存图片 URL。
+- admin_login(payload, response, db)：T2-2 改用 Body + 下发 admin_token Cookie。不再自动创建 admin/admin123456（T2-3 移除后门）。
+- admin_posts/admin_comments/admin_users/admin_reports/admin_logs：后台管理基础列表，全部 Depends(admin_user)。
+- admin_user_logs(user_id, action, db)：GET /admin/user-logs，查询用户操作日志。
+- create_announcement(payload, db, admin)：后台创建公告，admin_id 写入日志。
+- list_announcements(school_id, db)：按 school_id 过滤（T7-7）。
+- list_notifications/mark_notification_read：通知列表 + 已读（T5-5）。
+- websocket_endpoint(websocket)：WebSocket 基础 echo 入口。
+
+AI 服务函数
+- ai_service.check_text(content)：文本审核。业务层只能调用这个方法，不允许直接请求第三方模型。失败时返回 {pass: True, reason: "AI 不可用，已放行"} 不阻塞业务（T7-1/T8-1）。
+- ai_service.check_image(image)：图片审核入口。当前直接放行（T7-2，TODO 接入视觉模型）。
+- ai_service.generate_tags(content)：帖子标签生成。失败时返回 []。
+- ai_service.summary(content)：举报摘要生成。失败时返回 ""。
+- ai_service.get_status()：返回 AI 可用状态（available + reason），用于前端显示降级提示（T8-1）。
+- ai_service.chat(prompt)：通用 AI 对话封装。
+- AIService._chat(prompt)：内部 OpenAI 兼容请求实现，含超时、重试和日志。熔断器：5 分钟内失败后跳过所有 AI 调用（T8-1）。
+
+前端关键方法
+- session.validateSession()：调用 /auth/me 校验 Cookie 是否仍然有效。失败时调用 clearSession() 清理本地状态。
+- session.clearSession()：清除 localStorage.userId / nickname 和内存中的 session 状态。
+- session.login(payload)：调用 /auth/login 并保存 userId 到 localStorage。
+- session.logout()：调用 /auth/logout 后端清除 Cookie，再清理本地状态。
+- school.loadSchools()：加载校区。失败时返回空数组 + ElMessage.error（T7-4，不再 fallback 假数据）。
+- post.loadPosts()：按当前视图 + 分页加载帖子流。
+- post.setPage(p)：切换页码后调 loadPosts()。
+- user.loadProfile()：加载当前用户个人主页统计。
+- interaction.loadAll()：加载 likedPostIds / favoritedPostIds / likedCommentIds 集合，用于 active 态回填（T4-6）。
+- PostEditor.publish(asDraft)：发布帖子或保存草稿。T9-1 修复：发布后 postStore.setPage(1) + emit('published')。
+- CommunityHome.onPostPublished()：T9-1 修复：发布后 postStore.setPage(1) + loadPosts() + 滚动到顶部。
+- PostCard 点赞/收藏/举报：根据 active 态调 POST 或 DELETE（T4-6）。
+- CommentList.submit/submitReply：发表评论或回复，用后端返回的 post_comment_count 绝对值覆盖（T6-6）。
+- CommentList.onCountUpdated(total)：T9-1 修复：转发后端返回的绝对评论数，替代之前的 count-changed(delta) 手动加减。
+- CommentItem.onDelete()：T9-1 修复：用后端返回的 post_comment_count 绝对值 emit('count-updated')。
+- http.ts 拦截器：code === -101 时自动调 /auth/refresh 续期（T2-7），失败清 session + 跳首页。
+
+三、特别注意容易误解的思路部分
+
+1. 项目名称
+页面标题是"立洋校园社区"，Logo 副文案是"LY Community"。不要改回"立洋社交"，校园社区这个名字更适合后续扩展。
+
+2. 校区不是普通标签
+用户注册必须选择校区。帖子有所属校区。首页四个切换里，"本校区"必须基于当前用户 school_id 过滤，不是前端随便筛标签。
+
+3. 所有接口保持统一返回格式
+后端接口应返回：
+{"code":0,"msg":"success","data":{}}
+参数错误等业务错误不要让前端收到不一致结构。当前 main.py 已把 HTTPException 和参数校验错误映射为统一结构。
+
+3.5. 错误码必须返回具体原因，不要笼统说"参数错误"
+所有业务错误统一返回负数错误码，前端按 code 决定 UI 行为，msg 直接展示给用户。
+- 错误码常量定义在 app/core/errors.py 的 ErrorCode 类中，分四组：参数校验 (-1 ~ -15)、鉴权 (-100 ~ -104)、业务冲突 (-200 ~ -210)、权限 (-300)、兜底 (-1000 / -9999)。
+- get_error_message(code) 把错误码翻译成中文消息，如 -1 -> "手机号未填写"，-9 -> "内容不能为空"。
+- pydantic 校验错误通过 pydantic_error_to_code() 映射成具体错误码（依据 loc 的字段名 + type 判断缺失/格式/长度）。
+- 业务接口里抛 HTTPException 时 detail 必须传 ErrorCode 常量（int），不要传字符串。例外：AI 审核返回的动态原因仍是字符串。
+- 新增字段或新接口时，对应错误码要加到 ErrorCode 和 _ERROR_MESSAGES 里，前端 http.ts 拦截器会自动抛出带 msg 的 Error，ElMessage 直接展示。
+- 严禁改回笼统的 "参数错误" / code=1。如果用户看到 "参数错误" 一定是没给具体错误码，是 bug。
+
+3.6. 登录态持久化必须用 Cookie max_age
+登录后写 Cookie 必须显式设置 max_age，否则是 session cookie，浏览器关闭即丢失。
+- access_token max_age = settings.access_token_expire_minutes * 60
+- refresh_token max_age = settings.refresh_token_expire_days * 86400
+- 前端刷新页面后通过 /auth/me 校验 Cookie 是否仍然有效，失败时调用 clearSession() 清理 localStorage.userId，避免"显示已登录但实际 Cookie 已过期"的状态错位。
+- 切勿把 access_token 暴露给 JS（httponly=True），也不要在前端 localStorage 里保存 token 字符串。
+- admin_token 是独立 Cookie（T2-2），与 access_token 隔离，管理员鉴权不依赖用户登录态。
+
+3.7. 用户操作必须落日志
+所有写操作（登录、发帖、评论、点赞、收藏、举报、资料修改）成功后必须调用 log_user_action() 记录审计日志。
+- log_user_action 同时写 loguru 文件日志（logs/app.log，立即落盘）和 operation_logs 表（同事务提交）。
+- 日志失败绝不阻断主业务流程（catch 后 logger.warning）。
+- 排查用户错误时优先看 logs/app.log（按时间倒序），其次调用 GET /admin/user-logs?user_id=X&action=Y 过滤查询。
+- action 命名规范：动词_对象，如 create_post / delete_comment / like / favorite / login / login_failed / register / logout / update_profile / report。
+- 管理员操作必须写 admin_id（T7-6），便于追溯。
+
+4. AI 只能从后端统一调用
+前端不得直接调用任何 AI 接口。业务代码也不得绕过 app/services/ai_service.py。以后换 DeepSeek、通义千问或其他 OpenAI 兼容模型，只改 .env，不改业务接口。
+
+5. AI 故障不能拖垮网站
+AI 调用失败时，除审核相关能力外，其他系统功能必须正常。当前 ai_service 实现：
+- 没有 OPENAI_API_KEY 时直接返回空结果，发帖审核默认放行。
+- 网络异常 2 秒超时（T7-1）。
+- 5 分钟熔断器：失败一次后 5 分钟内跳过所有 AI 调用（T8-1），避免反复重试阻塞。
+- get_status() 返回 {available, reason}，前端通过 AiAuditCard 显示降级提示。
+- 生产如需更严格策略，应只改 ai_service，不要散落到各业务接口。
+
+6. 图片不进数据库
+数据库只保存图片 URL。真正上传、压缩、格式限制、MinIO 存储应放在独立上传模块里，后续不要把图片二进制塞进 users/posts/images 表。
+- 上传时校验 magic bytes（T7-10），防伪装 content_type 上传可执行文件。
+- 发帖时校验 image_urls 是合法 HttpUrl（T7-11），拒绝 javascript: 等 XSS URL。
+
+7. 当前验证码是开发 stub
+send_code 和注册/登录里的验证码目前固定为 123456，只为本地联调。生产必须换成短信服务 + Redis 60 秒冷却 + IP/设备限制。
+
+8. Alembic 是必做的迁移工具（T3-1 已完成）
+V1 已引入 Alembic，废弃 Base.metadata.create_all。启动 .bat 脚本会自动执行 alembic upgrade head。
+- 首次部署：alembic upgrade head 创建全部表。
+- 升级部署：自动增量迁移到最新 schema。
+- 禁止删除 alembic/ 目录或回退到 create_all。
+- 新增字段/索引必须 alembic revision --autogenerate 生成迁移文件，不要手工 ALTER 表。
+
+9. 安全能力已基本补齐（T2/T7 阶段）
+已实现：bcrypt、JWT Cookie、独立 admin_token、jwt_secret 强校验、logout 撤销 token、refresh token 轮转、登录失败锁定（SQLite 持久化）、IP 限流、图片 magic bytes、URL 协议白名单、CORS 收紧、XFF 校验、admin 鉴权依赖、OperationLog.admin_id。
+仍需补齐（生产前）：HTTPS、CSRF 防护、Redis 替代 SQLite 持久化限流（多 worker 场景）。
+
+10. 前端第一屏就是产品界面
+不要再加营销落地页。这个项目面向校内使用，打开后应该直接进入社区界面、登录弹窗和帖子流。
+
+11. 修改 UI 时保持三栏信息架构
+顶部：Logo、搜索、通知、头像。
+左侧：导航菜单。
+中间：发帖和帖子流。
+右侧：公告、热门/统计。
+可以细化组件，但不要把核心工作流拆散到不必要的页面里。
+
+12. 测试按接口逐步补齐
+T9-1 已完成 110 个回归测试用例，覆盖 auth/post/comment/interaction/user/admin/security 七大模块。新增接口时必须同步补测试，避免一次写大量空泛测试。
+
+13. 为什么直接点 frontend/index.html 会空白
+frontend/index.html 是 Vite 源码入口，不是普通静态网页。它依赖开发服务器把 Vue、TypeScript、Element Plus、Pinia 等源码编译后再交给浏览器。双击 HTML 会走 file://，浏览器无法正确解析 /src/main.ts、.vue 文件和 npm 依赖，Chrome 还会阻止 file:// 下的 ES Module/CSS 资源加载。正确方式是双击根目录"启动立洋社区.bat"，或在 frontend 目录执行 npm run dev 后访问 http://127.0.0.1:5173/。
+
+14. dist/index.html 也不是正式部署方式
+dist 是生产构建产物，应该由 Nginx、Vite preview 或其他 HTTP 服务托管。现代前端打包产物仍会使用 JS/CSS 资源，直接 file:// 打开不等同于线上部署。
+
+15. 评论计数必须用后端绝对值，不能用前端 delta（T9-1 Bug 修复）
+- 之前用 count-changed(delta) 手动 +1/-1，删除根评论时子回复未计入，导致 0 个评论却显示 1 个。
+- 现在统一用 count-updated(total) 事件，后端返回 post_comment_count 绝对值，前端直接覆盖。
+- delete_comment 删除根评论时级联删除所有子回复，重新统计 comment_count，保证数据库与列表一致。
+
+16. 发布帖子后必须重置页码 + 滚动到顶部（T9-1 Bug 修复）
+- 之前未重置页码，用户若在第 2 页发布，loadPosts 仍加载第 2 页，看不到新帖。
+- 现在 PostEditor.publish 中 postStore.setPage(1) + CommunityHome.onPostPublished 滚动到顶部。
+
+17. 路由参数变化时组件不会自动重新加载（T9-1 Bug 修复）
+- Vue Router 在同一路由组件复用场景下（如 /search?q=a -> /search?q=b），onMounted 不会重新触发。
+- 必须用 watch(() => route.query, ...) 监听参数变化重新加载数据。
+- Search.vue 已修复，其他类似页面（如带 query 参数的列表页）也要注意。
+
+18. 部署前必做清单（T9-3）
+- ENV=prod 已设置
+- JWT_SECRET 已修改为强随机字符串（≥ 32 位）
+- alembic upgrade head 已执行（.bat 脚本会自动跑）
+- 管理员账号已通过 python scripts/create_admin.py 创建（非默认后门）
+- FRONTEND_ORIGIN 已配置为生产域名
+- HTTPS 已启用（Nginx 反向代理 + TLS 证书）
+- CORS 已收紧到生产域名（main.py 已配置）
+- 数据库定期备份策略已就绪
