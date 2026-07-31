@@ -3,6 +3,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 import EmptyState from '../components/common/EmptyState.vue'
+import PostDetailSkeleton from '../components/post/PostDetailSkeleton.vue'
 import { Icon } from '../components/native'
 import { Dialog as NativeDialog } from '../components/native'
 import { toast } from '../components/native/Toast'
@@ -41,7 +42,10 @@ const postStore = usePostStore()
 const postId = ref<number>(Number(route.params.id))
 const post = ref<Post | null>(null)
 const related = ref<Post[]>([])
-const loading = ref(false)
+// Bug 修复：初始 loading 必须为 true。
+// 原先 loading=false + post=null，onMounted 中 await session.validateSession() 期间
+// 模板会先渲染 EmptyState "帖子不存在或已被删除"，再切到 loading-tip，造成闪烁误导用户。
+const loading = ref(true)
 // 帖子加载失败提示（区分私密发布与已删除）
 const postError = ref('')
 
@@ -122,6 +126,8 @@ function timeAgo(dateStr?: string | null): string {
 }
 
 async function loadPost() {
+  // keep-alive 守卫：route.params.id 变 undefined 时 Number(undefined)=NaN，必须跳过
+  if (!postId.value || isNaN(postId.value)) return
   loading.value = true
   try {
     const { data } = await fetchPost(postId.value)
@@ -493,6 +499,9 @@ watch(
     if (newId) {
       postId.value = Number(newId)
       post.value = null
+      // Bug 修复：切换帖子时立即标记 loading，避免短暂闪现"帖子已删除"
+      loading.value = true
+      postError.value = ''
       // 重置投票状态
       poll.value = null
       selectedOptionIds.value = new Set()
@@ -501,13 +510,19 @@ watch(
   },
 )
 
-onMounted(async () => {
-  await session.validateSession()
-  // 游客可查看帖子详情；仅登录用户加载互动状态（已点赞/已收藏等）
+onMounted(() => {
+  // 性能优化：去除 3 层串行阻塞（validateSession → loadAll → loadPost），
+  // 改为全部并行。原先是"加载一下再加载一下"的根因。
+  // - validateSession 仅刷新登录态/封号状态，不阻塞帖子加载（游客可看帖）
+  // - loadAll 依赖 session.userId（初始从 localStorage 读取已有值），
+  //   token 过期由 http 拦截器自动 refresh 处理，无需先等 validateSession
+  // - loadPost 是核心数据，立即开始
+  const tasks: Promise<unknown>[] = [loadPost()]
   if (session.userId) {
-    await interactionStore.loadAll()
+    tasks.push(interactionStore.loadAll())
+    tasks.push(session.validateSession())
   }
-  await loadPost()
+  void Promise.allSettled(tasks)
 })
 </script>
 
@@ -530,11 +545,8 @@ onMounted(async () => {
       <div class="layout">
         <!-- 主帖列 -->
         <div class="post-col">
-          <!-- 加载中 -->
-          <div v-if="loading" class="loading-tip">
-            <Icon name="refresh" :size="22" />
-            <span>加载中…</span>
-          </div>
+          <!-- 骨架屏：替代"加载中..."文字，展示内容结构 -->
+          <PostDetailSkeleton v-if="loading" />
 
           <template v-else-if="post">
             <!-- 审核中/不可查看提示（非作者访问审核中帖子） -->
@@ -659,8 +671,8 @@ onMounted(async () => {
 
               <h1 v-if="post.title" class="post-title">{{ post.title }}</h1>
 
-              <!-- 图片墙（带预览） -->
-              <PostImages v-if="post.image_urls?.length" :urls="post.image_urls" />
+              <!-- 图片墙（带预览）：详情页用原图保证清晰度，列表页才用缩略图 -->
+              <PostImages v-if="post.image_urls?.length" :urls="post.image_urls" :thumb="false" />
 
               <div v-if="post.content" class="post-body">
                 <p v-for="(para, idx) in post.content.split('\n').filter((l) => l.trim())" :key="idx">{{ para }}</p>

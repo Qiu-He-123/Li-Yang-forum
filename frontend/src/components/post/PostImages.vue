@@ -8,14 +8,37 @@ import { computed, onMounted, onUnmounted, ref } from 'vue'
 
 import { Icon } from '../native'
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   urls: string[]
-}>()
+  /** 列表场景用缩略图（400x400 JPEG ~30KB），详情页传 false 用原图 */
+  thumb?: boolean
+}>(), { thumb: true })
 
 const errored = ref<Set<number>>(new Set())
 const loaded = ref<Set<number>>(new Set())
+// 缩略图加载失败的索引集合 → 回退到原图（旧图无缩略图时自动降级）
+const useOriginal = ref<Set<number>>(new Set())
 
-// 预览
+/**
+ * 推导缩略图 URL。
+ * 上传时（images.py）：原图 {uuid}.jpg/png/webp → 缩略图 {uuid}_thumb.jpg（统一 JPEG 80 质量 400x400）
+ * GIF 无缩略图（上传时保留动效），直接用原图。
+ * 缩略图体积约为原图 1/50~1/100，列表页 9 图传输量从 ~30MB 降到 ~300KB，提速显著。
+ */
+const thumbUrls = computed(() =>
+  props.urls.map(url => {
+    if (/\.gif$/i.test(url)) return url
+    return url.replace(/\.(jpe?g|png|webp)$/i, '_thumb.jpg')
+  })
+)
+
+function srcFor(idx: number): string {
+  // 详情页(thumb=false) 或缩略图加载失败 → 用原图
+  if (!props.thumb || useOriginal.value.has(idx)) return props.urls[idx]
+  return thumbUrls.value[idx]
+}
+
+// 预览始终用原图（保证清晰度）
 const previewVisible = ref(false)
 const previewIndex = ref(0)
 const previewUrl = computed(() => props.urls[previewIndex.value] || '')
@@ -44,7 +67,14 @@ function onKey(e: KeyboardEvent) {
 onMounted(() => document.addEventListener('keydown', onKey))
 onUnmounted(() => document.removeEventListener('keydown', onKey))
 
-function onError(idx: number) {
+function onImgError(idx: number) {
+  if (props.thumb && !useOriginal.value.has(idx)) {
+    // 缩略图加载失败（旧图无缩略图 / 存储故障）→ 回退原图，不算真错误
+    useOriginal.value.add(idx)
+    useOriginal.value = new Set(useOriginal.value)
+    return
+  }
+  // 原图也失败 → 显示错误占位
   errored.value.add(idx)
   errored.value = new Set(errored.value)
 }
@@ -68,10 +98,11 @@ function onLoad(idx: number) {
       </div>
       <img
         v-if="!errored.has(idx)"
-        :src="url"
+        :src="srcFor(idx)"
         :alt="`图片${idx + 1}`"
         loading="lazy"
-        @error="onError(idx)"
+        decoding="async"
+        @error="onImgError(idx)"
         @load="onLoad(idx)"
       />
     </div>

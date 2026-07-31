@@ -45,12 +45,16 @@ export function fetchPost(postId: number) {
   return http.get<unknown, { data: { code: number; msg: string; data: Post } }>(`/posts/${postId}`)
 }
 
-export function createPost(payload: PostCreatePayload) {
-  return http.post<unknown, { data: { code: number; msg: string; data: Post } }>('/posts', payload)
+export function createPost(payload: PostCreatePayload, config: LoadingAxiosRequestConfig = {}) {
+  return http.post<unknown, { data: { code: number; msg: string; data: Post } }>(
+    '/posts',
+    payload,
+    config,
+  )
 }
 
-export function updatePost(postId: number, payload: Partial<PostCreatePayload>) {
-  return http.patch(`/posts/${postId}`, payload)
+export function updatePost(postId: number, payload: Partial<PostCreatePayload>, config: LoadingAxiosRequestConfig = {}) {
+  return http.patch(`/posts/${postId}`, payload, config)
 }
 
 export function deletePost(postId: number) {

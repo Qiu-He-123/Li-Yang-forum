@@ -24,10 +24,39 @@ export const http = axios.create({
 let refreshing: Promise<void> | null = null
 let authFailureHandled = false
 
+// 后台轮询 / 静默请求的 URL 模式：这些请求不触发全屏遮罩，避免每次交互都"加载中"
+const SILENT_URL_PATTERNS: string[] = [
+  '/notifications/unread-count',
+  '/notifications',          // 通知列表本身也常轮询
+  '/auth/me',                // 会话校验（每 45s 一次）
+  '/auth/refresh',           // token 续期
+  '/images',                 // 图片上传（PostEditor 有局部进度条）
+  '/posts/view',             // 浏览量上报（fire-and-forget）
+  '/posts/related',          // 相关推荐（异步加载，不阻塞主帖）
+  '/interactions/',          // 点赞 / 收藏（即时反馈，不应遮罩）
+  '/follow/',                // 关注 / 取消关注
+  '/comments/',              // 评论点赞等
+  '/topics/search',          // 话题搜索浮层
+  '/topics/hot',
+  '/circles',                // 圈子列表加载（编辑器内异步）
+  '/schools',                // 校区列表
+  '/search/suggest',         // 搜索建议
+  '/search/users',
+  '/users/',                 // 用户主页相关
+  '/polls/',                 // 投票详情
+  '/match/',                 // 匹配相关
+  '/bottle/',                // 漂流瓶
+  '/dm/',                    // 私信
+]
+
 function shouldShowGlobalLoading(config: LoadingAxiosRequestConfig): boolean {
   if (config.showGlobalLoading === false) return false
   const url = String(config.url || '')
-  return !url.includes('/notifications/unread-count')
+  // 显式 opt-in：调用方要求显示全屏加载（如首页帖子列表首次加载）
+  if (config.showGlobalLoading === true) return true
+  // 后台 / 交互类请求不显示全屏遮罩
+  if (SILENT_URL_PATTERNS.some((p) => url.includes(p))) return false
+  return true
 }
 
 function shouldShowGlobalError(config?: AxiosRequestConfig): boolean {
@@ -145,8 +174,16 @@ function clearSessionAndRedirect() {
     session.clearSession()
   })
   void import('../router').then(({ default: router }) => {
-    if (router.currentRoute.value.name !== 'home') {
-      router.replace({ name: 'home', query: { redirect: router.currentRoute.value.fullPath } })
+    const current = router.currentRoute.value
+    // Bug 修复：仅在"需要登录"的页面才跳首页。
+    // 公开页面（如 /post/:id、/circles、/circle/:slug、/announcements 等）
+    // 游客本就可访问，不应因 session 失效被强制踢回首页 —— 否则
+    // "分享帖子链接给朋友，朋友点进去回到首页"的 bug 就会出现。
+    // 仅清 session 即可，当前页面会以游客身份继续渲染。
+    if (current.meta.requiresAuth || current.meta.requiresAdmin) {
+      if (current.name !== 'home') {
+        router.replace({ name: 'home', query: { redirect: current.fullPath } })
+      }
     }
   })
 }

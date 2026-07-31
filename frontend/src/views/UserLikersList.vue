@@ -59,6 +59,8 @@ function avatarGradient(id: number | undefined): string {
 }
 
 async function loadProfile() {
+  // keep-alive 守卫：route.params.id 变 undefined 时 Number(undefined)=NaN，必须跳过
+  if (!userId.value || isNaN(userId.value)) return
   try {
     const { data } = await fetchUser(userId.value)
     profile.value = data.data
@@ -68,6 +70,7 @@ async function loadProfile() {
 }
 
 async function loadLikers() {
+  if (!userId.value || isNaN(userId.value)) return
   loading.value = true
   try {
     const { data } = await fetchUserLikers(userId.value)
@@ -127,12 +130,13 @@ function timeAgo(dateStr?: string | null): string {
 }
 
 onMounted(async () => {
-  const valid = await session.validateSession()
-  if (!valid) return
+  // 性能优化：validateSession 与业务请求并行，不阻塞
+  void session.validateSession()
   await Promise.all([loadProfile(), loadLikers()])
 })
 
 watch(userId, () => {
+  if (!userId.value || isNaN(userId.value)) return
   loadProfile()
   loadLikers()
 })

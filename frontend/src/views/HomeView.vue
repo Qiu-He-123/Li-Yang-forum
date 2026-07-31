@@ -6,11 +6,20 @@
  * - 帖子动态：Tab 切换（推荐 / 最新）+ 双列瀑布流
  * - 底部 TabBar：浮动药丸（首页 active）
  */
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, onActivated, onMounted, onUnmounted, ref, watch } from 'vue'
+import { useFadeUpdate } from '../composables/useFadeUpdate'
+// keep-alive 需要 name，与 App.vue 的 cachedViewNames 对应
+defineOptions({ name: 'HomeView' })
+
+// SWR 刷新渐变：数据变化时递增 key 触发 CSS 淡入动画
+const { fadeActive, triggerFade } = useFadeUpdate()
 import { useRoute, useRouter } from 'vue-router'
 
 import EmptyState from '../components/common/EmptyState.vue'
 import AiStatusBadge from '../components/common/AiStatusBadge.vue'
+import PostListSkeleton from '../components/post/PostListSkeleton.vue'
+import InfiniteScrollFooter from '../components/common/InfiniteScrollFooter.vue'
+import { useInfiniteScroll } from '../composables/useInfiniteScroll'
 import { Icon } from '../components/native'
 import { toast } from '../components/native/Toast'
 import { useSessionStore } from '../stores/session'
@@ -32,6 +41,11 @@ const postStore = usePostStore()
 const circleStore = useCircleStore()
 const announcementStore = useAnnouncementStore()
 const interactionStore = useInteractionStore()
+
+const { loading: loadMoreLoading, error: loadMoreError, retry: retryLoadMore } = useInfiniteScroll({
+  hasMore: computed(() => postStore.hasMore),
+  onLoadMore: () => postStore.loadMore(),
+})
 
 // 首页透明统计：在线人数 / 今日发帖 / 注册人数
 const homeStats = ref({ online_count: 0, logged_in_count: 0, visitor_count: 0, today_post_count: 0, total_users: 0 })
@@ -136,24 +150,40 @@ function resolveCircleSlug(post: Post): string {
 }
 
 onMounted(async () => {
-  const [, valid] = await Promise.all([
+  // 性能优化：validateSession 后台并行，不阻塞第一波加载
+  // 基于 localStorage 中的 session.userId 决定第二波请求
+  const validPromise = session.validateSession()
+  // 第一波：公告 + 圈子列表 + 首页统计（与 session 校验并行）
+  await Promise.all([
     announcementStore.loadAnnouncements(),
-    session.validateSession(),
     circleStore.loadCircles(),
     loadHomeStats(),
   ])
   // 在线人数定时刷新（30s），让首页统计实时反映在线状态
   homeStatsTimer = setInterval(loadHomeStats, 30_000)
   postStore.setView(feedView.value)
-  if (valid) {
+  // 用 localStorage 的 userId 立即判断（validateSession 结果回填到 store）
+  const hasUserId = !!session.userId
+  if (hasUserId) {
+    // 第二波：登录用户的互动数据 + 帖子 feed（全部并行）
     await Promise.all([
       userStore.loadProfile(),
       interactionStore.loadAll(),
       postStore.loadPosts(),
     ])
   } else {
-    // 匿名用户也能看首页 feed
-    await postStore.loadPosts()
+    // 匿名用户：等 validateSession 结果确认是否真的未登录
+    const valid = await validPromise
+    if (valid) {
+      await Promise.all([
+        userStore.loadProfile(),
+        interactionStore.loadAll(),
+        postStore.loadPosts(),
+      ])
+    } else {
+      // 匿名用户也能看首页 feed
+      await postStore.loadPosts()
+    }
   }
 })
 
@@ -162,6 +192,33 @@ async function onViewChange(view: 'hot' | 'latest') {
   postStore.setPage(1)
   await postStore.loadPosts()
 }
+
+/**
+ * keep-alive 重新激活时：恢复首页 view + 从缓存即时展示 + SWR 后台刷新。
+ *
+ * 关键：KeepAlive 首次挂载时 onMounted 和 onActivated 都会触发！
+ * onMounted 是 async，第一波 await 让出执行权时 onActivated 触发，
+ * 此时 loading 还是 false → 会和 onMounted 的 loadPosts 并发，导致
+ * "参数错误" + 重复加载变慢。用 skipFirstActivated 跳过首次触发。
+ */
+let skipFirstActivated = true
+onActivated(() => {
+  if (skipFirstActivated) {
+    skipFirstActivated = false
+    return // 首次由 onMounted 处理，不重复加载
+  }
+  // 恢复首页 view（可能被圈子页改成 'all'）
+  if (postStore.activeView !== feedView.value) {
+    postStore.setView(feedView.value)
+  }
+  // SWR：有缓存先展示旧数据，后台刷新；无缓存则正常加载
+  if (postStore.restoreFromCache()) {
+    // 数据变化时触发渐变动画（先不变 → 拉回后渐变过渡）
+    postStore.ensureFresh().then((changed) => { if (changed) triggerFade() })
+  } else {
+    postStore.loadPosts()
+  }
+})
 
 // 监听路由 query.view 变化（从发帖页跳转过来时自动加载对应视图）
 watch(
@@ -380,12 +437,10 @@ onUnmounted(() => {
           </button>
         </div>
 
-        <div v-if="postStore.loading" class="feed-loading">
-          <Icon name="refresh" :size="20" />
-          <span>加载中…</span>
-        </div>
+        <PostListSkeleton v-if="postStore.loading" :count="5" />
 
-        <div v-else-if="postStore.posts.length" class="feed">
+        <!-- :class swr-updated：SWR 刷新数据变化时渐变过渡（文字逐字淡变+图片滑动），不销毁 DOM 保持滚动 -->
+        <div v-else-if="postStore.posts.length" :class="{ 'swr-updated': fadeActive }" class="feed">
           <article
             v-for="post in postStore.posts"
             :key="post.id"
@@ -461,6 +516,14 @@ onUnmounted(() => {
               </div>
             </div>
           </article>
+
+          <InfiniteScrollFooter
+            :loading="loadMoreLoading"
+            :error="loadMoreError"
+            :has-more="postStore.hasMore"
+            :has-items="postStore.posts.length > 0"
+            @retry="retryLoadMore"
+          />
         </div>
 
         <EmptyState v-else text="暂无帖子，发布第一条校园动态。" />
@@ -736,31 +799,20 @@ onUnmounted(() => {
   to { transform: rotate(360deg); }
 }
 
-/* FEED masonry */
+/* FEED masonry
+   一屏最多 5 张：卡片按比例放大（桌面 2 列大卡片），
+   图片高度按 4 张一组、文字卡高度按 3 张一组略有差异，
+   形成错落又整齐的瀑布流。 */
 .feed {
   column-count: 2;
   column-gap: 14px;
-  /* 列宽严格固定，防止内容撑开 */
   column-fill: balance;
 }
 
-/* 桌面端：增加列数限制卡片大小，防止方块过大 */
-@media (min-width: 769px) {
-  .feed {
-    column-count: 3;
-    column-gap: 16px;
-  }
-  .card-img {
-    max-height: 280px;
-  }
-}
-@media (min-width: 1100px) {
-  .feed {
-    column-count: 4;
-  }
-  .card-img {
-    max-height: 260px;
-  }
+/* 骨架屏与 2 列大卡片保持一致，避免加载完成时布局跳动 */
+.feed-section :deep(.skeleton-feed) {
+  column-count: 2;
+  column-gap: 14px;
 }
 
 /* POST CARDS */
@@ -790,14 +842,54 @@ onUnmounted(() => {
 }
 .card-img {
   width: 100%;
-  /* 图片卡：增加最小高度，让卡片整体更舒展 */
-  min-height: 180px;
-  height: auto;
+  height: 240px;
   display: block;
   object-fit: cover;
 }
+.card:nth-of-type(4n+1) .card-img { height: 280px; }
+.card:nth-of-type(4n+2) .card-img { height: 205px; }
+.card:nth-of-type(4n+3) .card-img { height: 255px; }
+.card:nth-of-type(4n)   .card-img { height: 215px; }
+
+/* 纯文字卡：给基准最小高度 + 轻微高度节奏，与图片卡保持接近的体量 */
+.card--text {
+  display: flex;
+  flex-direction: column;
+  min-height: 240px;
+}
+.card--text:nth-of-type(3n+1) { min-height: 260px; }
+.card--text:nth-of-type(3n)   { min-height: 220px; }
+.card--text .card-body {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  flex: 1;
+}
 .card-body {
-  padding: 14px 16px 16px;
+  padding: 16px 18px 18px;
+}
+
+/* 桌面端：2 列大卡片，一屏最多 5 张 */
+@media (min-width: 769px) {
+  .feed {
+    column-count: 2;
+    column-gap: 20px;
+  }
+  .feed-section :deep(.skeleton-feed) {
+    column-gap: 20px;
+  }
+  .card-img {
+    height: 360px;
+  }
+  .card:nth-of-type(4n+1) .card-img { height: 440px; }
+  .card:nth-of-type(4n+2) .card-img { height: 340px; }
+  .card:nth-of-type(4n+3) .card-img { height: 390px; }
+  .card:nth-of-type(4n)   .card-img { height: 355px; }
+  .card--text {
+    min-height: 340px;
+  }
+  .card--text:nth-of-type(3n+1) { min-height: 370px; }
+  .card--text:nth-of-type(3n)   { min-height: 320px; }
 }
 .card-top {
   display: flex;
@@ -986,7 +1078,7 @@ onUnmounted(() => {
     margin-bottom: 12px;
     border-radius: calc(var(--radius-lg) * 0.8);
   }
-  .card-img { border-radius: calc(var(--radius-lg) * 0.8) calc(var(--radius-lg) * 0.8) 0 0; min-height: 140px; }
+  .card-img { border-radius: calc(var(--radius-lg) * 0.8) calc(var(--radius-lg) * 0.8) 0 0; }
   .card-body { padding: 12px 14px 14px; }
   .card-top { margin-bottom: 10px; gap: 6px; }
   .circle-pill { font-size: 11px; padding: 3px 8px; }

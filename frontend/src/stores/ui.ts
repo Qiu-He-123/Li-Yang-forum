@@ -16,6 +16,16 @@ export const useUIStore = defineStore('ui', () => {
   let globalLoadingHideTimer: ReturnType<typeof setTimeout> | null = null
   const GLOBAL_LOADING_DELAY = 120
   const GLOBAL_LOADING_HIDE_DELAY = 180
+  // 路由 loading 结束后的宽限期：给组件 onMounted → HTTP 请求发起留足时间，
+  // 避免"路由 loading 隐藏 → HTTP loading 又显示"的二次闪烁。
+  // 500ms 足以覆盖异步 chunk 下载 + Vue 挂载 + onMounted + axios 拦截器触发。
+  const ROUTE_LOADING_GRACE = 500
+
+  // ============ 路由级 loading ============
+  // 参考"心伴网页_新"的 safeNavigate 模式：点击导航瞬间立即显示全屏遮罩，
+  // 而不是等组件 onMounted 发起 API 请求后才显示（HTTP loading 有 120ms 延迟 + 组件加载延迟）。
+  // 路由 loading 立即显示，afterEach + nextTick 后结束，由 HTTP loading 无缝接管。
+  const routeLoading = ref(false)
 
   function openAuthDialog() {
     authDialogVisible.value = true
@@ -33,11 +43,33 @@ export const useUIStore = defineStore('ui', () => {
     inviteCodeDialogVisible.value = false
   }
 
+  /** 隐藏全屏 loading 的公共逻辑（考虑 HTTP loading 和路由 loading 双方） */
+  function scheduleHide() {
+    // 还有任意一方在进行，不隐藏
+    if (globalLoadingCount.value > 0 || routeLoading.value) return
+    if (!globalLoadingVisible.value) return
+    if (globalLoadingHideTimer) return
+    globalLoadingHideTimer = setTimeout(() => {
+      globalLoadingHideTimer = null
+      if (globalLoadingCount.value === 0 && !routeLoading.value) {
+        globalLoadingVisible.value = false
+      }
+    }, GLOBAL_LOADING_HIDE_DELAY)
+  }
+
   function beginGlobalLoading() {
     globalLoadingCount.value += 1
     if (globalLoadingHideTimer) {
       clearTimeout(globalLoadingHideTimer)
       globalLoadingHideTimer = null
+    }
+    // 路由 loading 已经在显示，无需 120ms 延迟，直接保持
+    if (routeLoading.value) {
+      if (globalLoadingShowTimer) {
+        clearTimeout(globalLoadingShowTimer)
+        globalLoadingShowTimer = null
+      }
+      return
     }
     if (
       globalLoadingCount.value === 1 &&
@@ -61,14 +93,41 @@ export const useUIStore = defineStore('ui', () => {
       clearTimeout(globalLoadingShowTimer)
       globalLoadingShowTimer = null
     }
-    if (globalLoadingVisible.value && !globalLoadingHideTimer) {
-      globalLoadingHideTimer = setTimeout(() => {
-        globalLoadingHideTimer = null
-        if (globalLoadingCount.value === 0) {
-          globalLoadingVisible.value = false
-        }
-      }, GLOBAL_LOADING_HIDE_DELAY)
+    // 路由 loading 还在，不隐藏（等路由 afterEach 结束时统一处理）
+    if (routeLoading.value) return
+    scheduleHide()
+  }
+
+  /** 路由切换开始：立即显示全屏 loading（无延迟） */
+  function beginRouteLoading() {
+    if (globalLoadingShowTimer) {
+      clearTimeout(globalLoadingShowTimer)
+      globalLoadingShowTimer = null
     }
+    if (globalLoadingHideTimer) {
+      clearTimeout(globalLoadingHideTimer)
+      globalLoadingHideTimer = null
+    }
+    routeLoading.value = true
+    globalLoadingVisible.value = true
+  }
+
+  /** 路由切换结束：若 HTTP 请求仍在进行则交由 HTTP loading 接管，否则隐藏。
+   *  关键：用 ROUTE_LOADING_GRACE 宽限期（而非 scheduleHide 的 180ms），
+   *  因为 nextTick 时组件还没挂载，HTTP 请求还没发起，180ms 太短会导致
+   *  loading 先隐藏再被 HTTP loading 重新触发 = 二次闪烁。
+   */
+  function endRouteLoading() {
+    routeLoading.value = false
+    if (globalLoadingCount.value > 0) return
+    // HTTP loading 还没接管，用宽限期等待 onMounted 的 HTTP 请求发起
+    if (globalLoadingHideTimer) clearTimeout(globalLoadingHideTimer)
+    globalLoadingHideTimer = setTimeout(() => {
+      globalLoadingHideTimer = null
+      if (globalLoadingCount.value === 0 && !routeLoading.value) {
+        globalLoadingVisible.value = false
+      }
+    }, ROUTE_LOADING_GRACE)
   }
 
   return {
@@ -82,5 +141,7 @@ export const useUIStore = defineStore('ui', () => {
     closeInviteCodeDialog,
     beginGlobalLoading,
     endGlobalLoading,
+    beginRouteLoading,
+    endRouteLoading,
   }
 })

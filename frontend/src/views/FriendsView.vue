@@ -154,10 +154,9 @@ const showSearchResults = computed(() => hasSearched.value && searchKeyword.valu
 
 // 轮询
 onMounted(async () => {
-  const valid = await session.validateSession()
-  if (!valid) return
-  await loadFriends()
-  await loadRequests()
+  // 性能优化：validateSession 与业务请求并行；loadFriends/loadRequests 也并行
+  void session.validateSession()
+  await Promise.all([loadFriends(), loadRequests()])
   pollTimer = setInterval(() => {
     loadFriends(false)
     loadRequests(false)

@@ -98,8 +98,8 @@ def get_user(user_id: int, db: Session, viewer: User | None = None) -> dict:
     return profile(user, db, viewer=viewer)
 
 
-def user_posts(user_id: int, db: Session, viewer_id: int | None = None) -> list[dict]:
-    """查询指定用户的帖子列表。
+def user_posts(user_id: int, db: Session, viewer_id: int | None = None, page: int = 1, page_size: int = 20) -> dict:
+    """查询指定用户的帖子列表（分页）。
 
     使用 post_dict 序列化，保留 ai_status / reject_reason / title 等字段，
     使前端 AiStatusBadge 能正确显示审核状态标签（审核中 / 未通过 / 人工复核中）。
@@ -109,6 +109,8 @@ def user_posts(user_id: int, db: Session, viewer_id: int | None = None) -> list[
 
     私密帖子（is_public=False）仅作者本人可见，他人查询时直接过滤掉，
     避免出现「列表可见但详情 404」的不一致体验。
+
+    返回: {items, total, page, page_size}
     """
     is_owner = (viewer_id is not None and viewer_id == user_id)
     # 私密帖子仅作者本人可见；他人查询时只返回公开帖子
@@ -120,7 +122,11 @@ def user_posts(user_id: int, db: Session, viewer_id: int | None = None) -> list[
             Post.is_draft.is_(False),
             or_(Post.is_public.is_(True), Post.author_id == viewer_id) if viewer_id else Post.is_public.is_(True),
         )
-    posts = db.scalars(stmt.order_by(Post.created_at.desc())).all()
+    # 总数（在排序/分页前计算）
+    total = db.scalar(select(func.count()).select_from(stmt.subquery())) or 0
+    posts = db.scalars(
+        stmt.order_by(Post.created_at.desc()).offset((page - 1) * page_size).limit(page_size)
+    ).all()
     result = []
     for p in posts:
         d = post_dict(p)
@@ -140,7 +146,12 @@ def user_posts(user_id: int, db: Session, viewer_id: int | None = None) -> list[
         else:
             d["is_viewable"] = True
         result.append(d)
-    return result
+    return {
+        "items": result,
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+    }
 
 
 def user_likers(user_id: int, db: Session) -> list[dict]:
@@ -253,26 +264,50 @@ def my_drafts(user_id: int, db: Session) -> list[dict]:
     return [post_dict(p) for p in rows]
 
 
-def my_favorite_posts(user_id: int, db: Session) -> list[dict]:
-    """查询当前用户收藏的帖子完整列表（T5-4，join favorites + posts）。"""
-    rows = db.scalars(
+def my_favorite_posts(user_id: int, db: Session, page: int = 1, page_size: int = 20) -> dict:
+    """查询当前用户收藏的帖子完整列表（T5-4，join favorites + posts，分页）。
+
+    返回: {items, total, page, page_size}
+    """
+    stmt = (
         select(Post)
         .join(Favorite, Favorite.post_id == Post.id)
         .where(Favorite.user_id == user_id)
-        .order_by(Favorite.created_at.desc())
-    ).all()
-    return [post_dict(p) for p in rows]
-
-
-def my_liked_posts(user_id: int, db: Session) -> list[dict]:
-    """查询当前用户点赞过的帖子完整列表（T5-1 点赞 Tab）。"""
+    )
+    # 总数（在排序/分页前计算）
+    total = db.scalar(select(func.count()).select_from(stmt.subquery())) or 0
     rows = db.scalars(
+        stmt.order_by(Favorite.created_at.desc()).offset((page - 1) * page_size).limit(page_size)
+    ).all()
+    return {
+        "items": [post_dict(p) for p in rows],
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+    }
+
+
+def my_liked_posts(user_id: int, db: Session, page: int = 1, page_size: int = 20) -> dict:
+    """查询当前用户点赞过的帖子完整列表（T5-1 点赞 Tab，分页）。
+
+    返回: {items, total, page, page_size}
+    """
+    stmt = (
         select(Post)
         .join(Like, Like.target_id == Post.id)
         .where(Like.user_id == user_id, Like.target_type == "post")
-        .order_by(Like.created_at.desc())
+    )
+    # 总数（在排序/分页前计算）
+    total = db.scalar(select(func.count()).select_from(stmt.subquery())) or 0
+    rows = db.scalars(
+        stmt.order_by(Like.created_at.desc()).offset((page - 1) * page_size).limit(page_size)
     ).all()
-    return [post_dict(p) for p in rows]
+    return {
+        "items": [post_dict(p) for p in rows],
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+    }
 
 
 # ============ 封号状态 & 申诉 ============

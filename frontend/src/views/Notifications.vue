@@ -4,7 +4,9 @@
  * - 顶部通知分类入口（评论/点赞/粉丝/系统），有未读则显示红点
  * - 下方私信会话列表（抖音/快手风格）
  */
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, onActivated, onMounted, onUnmounted, ref } from 'vue'
+// keep-alive 需要 name，与 App.vue 的 cachedViewNames 对应
+defineOptions({ name: 'NotificationsView' })
 import { useRouter } from 'vue-router'
 
 import EmptyState from '../components/common/EmptyState.vue'
@@ -12,6 +14,7 @@ import { Icon } from '../components/native'
 import { listConversations } from '../api/friend'
 import { useSessionStore } from '../stores/session'
 import { useNotificationStore } from '../stores/notification'
+import { wsClient } from '../utils/ws'
 
 const router = useRouter()
 const session = useSessionStore()
@@ -124,8 +127,8 @@ function avatarGradient(id: number | null | undefined): string {
 
 function startPolling() {
   if (pollTimer) return
-  // 15 秒轮询；只在指纹变化时才更新 UI，无变化时不触发重渲染（防闪烁）
-  pollTimer = setInterval(() => loadConversations(false), 15000)
+  // 30 秒轮询兜底：WebSocket 实时推送为主（setupWsListener），轮询为辅
+  pollTimer = setInterval(() => loadConversations(false), 30_000)
 }
 
 function stopPolling() {
@@ -145,18 +148,51 @@ function onVisibilityChange() {
   }
 }
 
+/** WebSocket 监听：收到 dm_message 时实时刷新会话列表 + 未读数，替代高频轮询 */
+let wsUnsubscribe: (() => void) | null = null
+function setupWsListener() {
+  wsUnsubscribe = wsClient.on((msg) => {
+    if (msg.type !== 'dm_message') return
+    // 收到新私信：会话列表顺序/未读数会变化，立即刷新
+    loadConversations(false)
+    // 未读数由 App.vue 全局监听器统一刷新，这里不重复
+  })
+}
+
 onMounted(async () => {
-  const valid = await session.validateSession()
-  if (!valid) return
+  // 性能优化：validateSession 与业务请求并行，不阻塞
+  void session.validateSession()
   await loadConversations(true)
   startPolling()
+  // WebSocket 实时推送监听（替代高频轮询）
+  setupWsListener()
   // 加载通知未读数（按类型分组，用于分类入口红点）
   notificationStore.refreshUnread()
   document.addEventListener('visibilitychange', onVisibilityChange)
 })
 
+/**
+ * keep-alive 重新激活时：静默刷新会话列表 + 未读数。
+ *
+ * 关键：KeepAlive 首次挂载时 onMounted 和 onActivated 都会触发！
+ * 用 skipFirstActivated 跳过首次触发，避免和 onMounted 并发请求。
+ */
+let skipFirstActivated = true
+onActivated(() => {
+  if (skipFirstActivated) {
+    skipFirstActivated = false
+    return // 首次由 onMounted 处理
+  }
+  loadConversations()
+  notificationStore.refreshUnread()
+})
+
 onUnmounted(() => {
   stopPolling()
+  if (wsUnsubscribe) {
+    wsUnsubscribe()
+    wsUnsubscribe = null
+  }
   document.removeEventListener('visibilitychange', onVisibilityChange)
 })
 </script>
@@ -196,9 +232,15 @@ onUnmounted(() => {
         <span>私信</span>
       </div>
 
-      <div v-if="loading && !conversations.length" class="loading-tip">
-        <Icon name="refresh" :size="20" />
-        <span>加载中…</span>
+      <!-- 会话列表骨架屏：替代"加载中..."文字，减少感知卡顿 -->
+      <div v-if="loading && !conversations.length" class="chat-skeleton" aria-hidden="true">
+        <div v-for="i in 5" :key="i" class="chat-sk-item">
+          <div class="chat-sk-avatar shimmer"></div>
+          <div class="chat-sk-content">
+            <div class="chat-sk-name shimmer"></div>
+            <div class="chat-sk-msg shimmer"></div>
+          </div>
+        </div>
       </div>
 
       <div v-else-if="conversations.length" class="chat-list">
@@ -360,14 +402,52 @@ onUnmounted(() => {
   letter-spacing: 0.5px;
 }
 
-.loading-tip {
+/* 会话列表骨架屏（iOS 风格 shimmer） */
+.chat-skeleton {
+  background: var(--bg-50);
+  border-radius: var(--radius-lg);
+  padding: 4px 0;
+}
+.chat-sk-item {
   display: flex;
   align-items: center;
-  justify-content: center;
+  gap: 12px;
+  padding: 12px 16px;
+}
+.chat-sk-avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.chat-sk-content {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
   gap: 8px;
-  padding: 32px 0;
-  color: var(--text-500);
-  font-size: 13px;
+}
+.chat-sk-name {
+  width: 100px;
+  height: 14px;
+  border-radius: 4px;
+}
+.chat-sk-msg {
+  width: 70%;
+  height: 12px;
+  border-radius: 4px;
+}
+.shimmer {
+  background: linear-gradient(90deg, var(--bg-200) 0%, var(--bg-300) 50%, var(--bg-200) 100%);
+  background-size: 200% 100%;
+  animation: sk-shimmer 1.4s ease-in-out infinite;
+}
+@keyframes sk-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .shimmer { animation: none; }
 }
 
 /* 会话列表 */

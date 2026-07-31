@@ -1,17 +1,19 @@
 import { createRouter, createWebHistory } from 'vue-router'
+import { nextTick } from 'vue'
 
 import { useSessionStore } from '../stores/session'
+import { useUIStore } from '../stores/ui'
 
 // 首页直接同步加载，避免首屏闪烁
 import HomeView from '../views/HomeView.vue'
-// 设置页入口高频且历史上出现过 chunk 缓存失配，直接同步加载避免点击时动态导入失败
-import SettingsView from '../views/Settings.vue'
 
 const routes = [
   {
     path: '/',
     name: 'home',
     component: HomeView,
+    // keep-alive + skeleton：底部主 Tab，缓存组件实例；首次加载用骨架屏替代全屏遮罩
+    meta: { keepAlive: true, skeleton: true },
   },
   {
     path: '/banned',
@@ -23,6 +25,7 @@ const routes = [
     path: '/circles',
     name: 'circles',
     component: () => import('../views/CircleDiscover.vue'),
+    meta: { keepAlive: true, skeleton: true },
   },
   {
     path: '/circles/all',
@@ -54,6 +57,8 @@ const routes = [
     path: '/post/:id',
     name: 'post-detail',
     component: () => import('../views/PostDetail.vue'),
+    // 帖子详情：骨架屏替代全屏遮罩
+    meta: { skeleton: true },
   },
   {
     path: '/search',
@@ -65,13 +70,14 @@ const routes = [
     path: '/user/:id',
     name: 'user-home',
     component: () => import('../views/UserHome.vue'),
-    meta: { requiresAuth: true },
+    // 「我的」Tab：keep-alive + skeleton，频繁切换时保留资料 + 已加载列表
+    meta: { requiresAuth: true, keepAlive: true, skeleton: true },
   },
   {
     path: '/user/:id/posts',
     name: 'user-posts',
     component: () => import('../views/UserPostsList.vue'),
-    meta: { requiresAuth: true },
+    meta: { requiresAuth: true, skeleton: true },
   },
   {
     path: '/user/:id/followers',
@@ -94,7 +100,7 @@ const routes = [
   {
     path: '/settings',
     name: 'settings',
-    component: SettingsView,
+    component: () => import('../views/Settings.vue'),
     meta: { requiresAuth: true },
   },
   {
@@ -143,7 +149,8 @@ const routes = [
     path: '/notifications',
     name: 'notifications',
     component: () => import('../views/Notifications.vue'),
-    meta: { requiresAuth: true },
+    // 「消息」Tab：keep-alive + skeleton，避免每次切换都重新拉取会话列表
+    meta: { requiresAuth: true, keepAlive: true, skeleton: true },
   },
   {
     path: '/notifications/:type',
@@ -178,7 +185,7 @@ const routes = [
     path: '/bottle',
     name: 'bottle',
     component: () => import('../views/BottleView.vue'),
-    meta: { requiresAuth: true },
+    meta: { requiresAuth: true, skeleton: true },
   },
   {
     path: '/match',
@@ -316,9 +323,24 @@ const routes = [
 const router = createRouter({
   history: createWebHistory(),
   routes,
+  scrollBehavior(to, from, savedPosition) {
+    // 返回/前进（浏览器 back/forward）：恢复上次的滚动位置
+    // 这样从帖子详情返回个人主页时，能回到之前浏览的位置（不回顶部）
+    if (savedPosition) return savedPosition
+    // 导航到新页面时回到顶部
+    // 修复：从"我的-作品"（已滚动到下方）点击帖子进入详情，
+    // 浏览器默认保持滚动位置导致直接显示在页面底部
+    return { top: 0 }
+  },
 })
 
 router.onError((error) => {
+  // 路由出错也要结束 loading，避免遮罩残留
+  try {
+    useUIStore().endRouteLoading()
+  } catch {
+    /* pinia 未就绪 */
+  }
   const message = String(error?.message || error)
   if (!/Failed to fetch dynamically imported module|Importing a module script failed|error loading dynamically imported module/i.test(message)) {
     return
@@ -331,12 +353,31 @@ router.onError((error) => {
 
 router.afterEach(() => {
   sessionStorage.removeItem('ly:chunk-reload-once')
+  // 等组件挂载 + onMounted 发起 API 请求后再结束路由 loading，
+  // 让 HTTP loading 无缝接管，避免 loading 闪烁消失再出现。
+  // 参考"心伴网页_新"双 requestAnimationFrame 确保绘制后再跳转的思路。
+  nextTick(() => {
+    try {
+      useUIStore().endRouteLoading()
+    } catch {
+      /* pinia 未就绪 */
+    }
+  })
 })
 
 // 全局守卫：
 // - requiresAuth：未登录跳首页
 // - requiresAdmin：未登录管理员跳 /admin/login
 router.beforeEach(async (to) => {
+  // 有骨架屏的页面（首页/圈子/消息）不显示全屏遮罩，让组件内骨架屏可见。
+  // 非骨架屏页面（详情页/设置页等）仍用全屏遮罩 + routeLoading 即时显示。
+  if (to.meta.skeleton !== true) {
+    try {
+      useUIStore().beginRouteLoading()
+    } catch {
+      /* pinia 未就绪（应用启动极早期） */
+    }
+  }
   // 封号用户强制跳转到封号提示页（除非已在封号页/退出登录流程）
   if (to.name !== 'banned' && localStorage.getItem('banned') === '1') {
     const session = useSessionStore()

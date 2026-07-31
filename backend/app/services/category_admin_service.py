@@ -115,9 +115,10 @@ def delete_post_as_admin(db: Session, category_id: int, post_id: int, admin_user
     post = db.get(Post, post_id)
     if not post:
         raise HTTPException(status_code=404, detail=ErrorCode.POST_NOT_FOUND)
-    # 通过 category_id 反查 Category，校验 post.category == Category.name
+    # 通过 category_id 反查 Category，校验 post.category 匹配 Category 的 name 或 slug
+    # （前端 PostEditor 发送 slug，历史帖子可能存 name，两者都需匹配）
     category = db.get(Category, category_id)
-    if not category or post.category != category.name:
+    if not category or post.category not in (category.name, category.slug):
         raise HTTPException(status_code=403, detail=ErrorCode.NO_PERMISSION)
     db.delete(post)
     # 圈子帖子计数减一

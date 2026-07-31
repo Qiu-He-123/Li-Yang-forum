@@ -338,6 +338,98 @@ body {
   background: var(--bg-400);
 }
 
+/* ============ SWR 数据刷新渐变动画 ============ */
+/* 用法：<div :class="{ 'swr-updated': fadeActive }">...</div> */
+/* 数据变化时添加 swr-updated 类，子元素自动播放渐变动画：
+ * - 文字：旧文字淡出（带轻微上移）→ Vue 原地替换文本 → 新文字淡入（带轻微下移）
+ * - 图片：旧图左滑消失 → 新图右滑进入
+ * 不销毁 DOM，保持滚动位置 */
+.swr-updated .post-title,
+.swr-updated .post-body,
+.swr-updated .post-author,
+.swr-updated .post-time,
+.swr-updated .post-count,
+.swr-updated .card-title,
+.swr-updated .card-body,
+.swr-updated .card-author,
+.swr-updated .card-meta,
+.swr-updated .footprint-name {
+  animation: swr-text-update 0.35s var(--ease-apple, ease-out);
+}
+
+.swr-updated .post-img,
+.swr-updated .card-img,
+.swr-updated .post-thumb,
+.swr-updated .footprint-icon {
+  animation: swr-img-update 0.35s var(--ease-apple, ease-out);
+}
+
+/* 文字渐变：淡出（上移）→ 替换 → 淡入（下移回到原位） */
+@keyframes swr-text-update {
+  0% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  45% {
+    opacity: 0;
+    transform: translateY(-3px);
+  }
+  55% {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* 图片渐变：左滑消失 → 右滑进入 */
+@keyframes swr-img-update {
+  0% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  45% {
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+  55% {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .swr-updated * {
+    animation: none !important;
+  }
+}
+
+/* ============ 骨架屏通用 shimmer 动画 ============ */
+/* 各骨架屏组件统一引用，避免重复定义 */
+.sk-shimmer {
+  background: linear-gradient(
+    90deg,
+    var(--bg-200) 0%,
+    var(--bg-300) 50%,
+    var(--bg-200) 100%
+  );
+  background-size: 200% 100%;
+  animation: sk-shimmer 1.4s ease-in-out infinite;
+}
+@keyframes sk-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sk-shimmer { animation: none; }
+}
+
 /* 兼容旧 tie- 风格（admin 页面） */
 .tie-module-title {
   position: relative;

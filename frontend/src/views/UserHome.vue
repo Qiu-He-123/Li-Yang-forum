@@ -1,11 +1,18 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, onActivated, ref, watch } from 'vue'
+// keep-alive 需要 name，与 App.vue 的 cachedViewNames 对应
+defineOptions({ name: 'UserHomeView' })
+import { useFadeUpdate } from '../composables/useFadeUpdate'
 import { useRoute, useRouter } from 'vue-router'
 
 import EmptyState from '../components/common/EmptyState.vue'
 import AiStatusBadge from '../components/common/AiStatusBadge.vue'
+import PostListSkeleton from '../components/post/PostListSkeleton.vue'
+import ProfileSkeleton from '../components/common/ProfileSkeleton.vue'
+import InfiniteScrollFooter from '../components/common/InfiniteScrollFooter.vue'
 import { Icon } from '../components/native'
 import { toast } from '../components/native/Toast'
+import { useInfiniteScroll } from '../composables/useInfiniteScroll'
 import {
   fetchMyFavoritePosts,
   fetchMyLikedPosts,
@@ -25,11 +32,28 @@ const session = useSessionStore()
 const userStore = useUserStore()
 const followStore = useFollowStore()
 
-const userId = computed(() => Number(route.params.id))
+// 关键修复：/user/:id 和 /post/:id 共用 :id 参数名。
+// keep-alive 缓存 UserHome 后导航到 PostDetail，route.params.id 变成帖子 ID，
+// watch 会触发 fetchUser(帖子ID) → "用户不存在"。
+// 解决：只在当前路由是 user-home 时才解析 userId，否则返回 NaN。
+const userId = computed(() => {
+  if (route.name !== 'user-home') return NaN
+  return Number(route.params.id)
+})
 const profile = ref<Profile | null>(null)
 const posts = ref<Post[]>([])
 const activeTab = ref<'posts' | 'favorites' | 'likes'>('posts')
 const loading = ref(false)
+// 分页状态
+const page = ref(1)
+const pageSize = ref(20)
+const total = ref(0)
+const hasMore = computed(() => posts.value.length < total.value)
+// 全页骨架屏：首次 onMounted 期间为 true，profile 就绪后永远 false
+const pageLoading = ref(true)
+
+// SWR 刷新渐变：数据变化时递增 key 触发 CSS 淡入动画
+const { fadeActive, triggerFade } = useFadeUpdate()
 const following = ref(false)
 const followLoading = ref(false)
 const warningStatus = ref<WarningStatus | null>(null)
@@ -120,6 +144,7 @@ function goWarningLogs() {
 }
 
 async function loadProfile() {
+  if (!userId.value || isNaN(userId.value)) return
   try {
     if (isMe.value && userStore.profile) {
       profile.value = userStore.profile
@@ -151,25 +176,36 @@ function onChat() {
 }
 
 async function loadPosts() {
+  if (!userId.value || isNaN(userId.value)) return
   loading.value = true
+  page.value = 1 // 重置到第1页
   try {
+    let payload: { items: Post[]; total: number } | Post[]
     if (activeTab.value === 'posts') {
-      const { data } = await fetchUserPosts(userId.value)
-      posts.value = data.data
+      const { data } = await fetchUserPosts(userId.value, 1, pageSize.value)
+      payload = data.data as any
     } else if (activeTab.value === 'favorites') {
       if (isMe.value) {
-        const { data } = await fetchMyFavoritePosts()
-        posts.value = data.data
+        const { data } = await fetchMyFavoritePosts(1, pageSize.value)
+        payload = data.data as any
       } else {
-        posts.value = []
+        payload = []
       }
-    } else if (activeTab.value === 'likes') {
+    } else {
       if (isMe.value) {
-        const { data } = await fetchMyLikedPosts()
-        posts.value = data.data
+        const { data } = await fetchMyLikedPosts(1, pageSize.value)
+        payload = data.data as any
       } else {
-        posts.value = []
+        payload = []
       }
+    }
+    // 兼容分页结构和旧版数组结构
+    if (Array.isArray(payload)) {
+      posts.value = payload
+      total.value = payload.length
+    } else {
+      posts.value = payload.items || []
+      total.value = payload.total || 0
     }
   } catch (err) {
     toast.error((err as Error).message)
@@ -177,6 +213,52 @@ async function loadPosts() {
     loading.value = false
   }
 }
+
+/** 加载更多（append 模式）：由 useInfiniteScroll 在触底时调用 */
+async function loadMore() {
+  if (!hasMore.value || loading.value) return
+  if (!userId.value || isNaN(userId.value)) return
+  const nextPage = page.value + 1
+  try {
+    let payload: { items: Post[]; total: number } | Post[]
+    if (activeTab.value === 'posts') {
+      const { data } = await fetchUserPosts(userId.value, nextPage, pageSize.value, { showGlobalLoading: false, showGlobalError: false })
+      payload = data.data as any
+    } else if (activeTab.value === 'favorites') {
+      if (isMe.value) {
+        const { data } = await fetchMyFavoritePosts(nextPage, pageSize.value, { showGlobalLoading: false, showGlobalError: false })
+        payload = data.data as any
+      } else {
+        return
+      }
+    } else {
+      if (isMe.value) {
+        const { data } = await fetchMyLikedPosts(nextPage, pageSize.value, { showGlobalLoading: false, showGlobalError: false })
+        payload = data.data as any
+      } else {
+        return
+      }
+    }
+    if (Array.isArray(payload)) {
+      posts.value = [...posts.value, ...payload]
+      total.value = posts.value.length
+    } else {
+      const existingIds = new Set(posts.value.map(p => p.id))
+      const newItems = (payload.items || []).filter(p => !existingIds.has(p.id))
+      posts.value = [...posts.value, ...newItems]
+      total.value = payload.total || total.value
+      page.value = nextPage
+    }
+  } catch {
+    throw new Error('加载更多失败')
+  }
+}
+
+// 无限滚动：触底预加载下一页
+const { loading: scrollLoading, error: scrollError, retry: scrollRetry } = useInfiniteScroll({
+  hasMore,
+  onLoadMore: loadMore,
+})
 
 async function onToggleFollow() {
   if (!session.userId) {
@@ -238,22 +320,91 @@ function goStatPage(type: 'posts' | 'followers' | 'following' | 'likers') {
   router.push(`/user/${userId.value}/${type}`)
 }
 
-watch(userId, () => {
+// keep-alive 关键修复：离开 /user/:id 路由时 route.params.id 变 undefined，
+// Number(undefined) = NaN，watch 会触发 fetchUser(NaN) → /users/NaN → 参数错误。
+// 用 isNaN 守卫，NaN 时跳过所有请求。
+watch(userId, (newId) => {
+  if (!newId || isNaN(newId)) return
   loadProfile()
   loadPosts()
   loadWarningStatus()
 })
 
+/**
+ * keep-alive 重新激活时：静默刷新数据（SWR 风格）。
+ * 首次由 onMounted 处理，跳过。
+ * 切回时先保留旧数据不变，后台静默刷新，数据变化时触发渐变动画。
+ */
+let skipFirstActivated = true
+onActivated(async () => {
+  if (skipFirstActivated) {
+    skipFirstActivated = false
+    return
+  }
+  if (!userId.value || isNaN(userId.value)) return
+  // 静默刷新：不触发 loading/骨架屏，保留旧数据可见
+  const oldPostsFp = posts.value.map(p => `${p.id}:${p.like_count}:${p.comment_count}`).join('|')
+  await Promise.all([loadProfile(), loadPostsSilent(), loadWarningStatus()])
+  const newPostsFp = posts.value.map(p => `${p.id}:${p.like_count}:${p.comment_count}`).join('|')
+  if (oldPostsFp !== newPostsFp) triggerFade()
+})
+
+/** 静默加载帖子：不显示 loading/骨架屏，用于 keep-alive 激活时后台刷新 */
+async function loadPostsSilent() {
+  if (!userId.value || isNaN(userId.value)) return
+  // 已加载多页时跳过静默刷新，避免覆盖后续页数据造成错乱
+  if (posts.value.length > pageSize.value) return
+  try {
+    let payload: { items: Post[]; total: number } | Post[]
+    if (activeTab.value === 'posts') {
+      const { data } = await fetchUserPosts(userId.value, 1, pageSize.value, { showGlobalLoading: false, showGlobalError: false })
+      payload = data.data as any
+    } else if (activeTab.value === 'favorites') {
+      if (isMe.value) {
+        const { data } = await fetchMyFavoritePosts(1, pageSize.value, { showGlobalLoading: false, showGlobalError: false })
+        payload = data.data as any
+      } else {
+        return
+      }
+    } else if (activeTab.value === 'likes') {
+      if (isMe.value) {
+        const { data } = await fetchMyLikedPosts(1, pageSize.value, { showGlobalLoading: false, showGlobalError: false })
+        payload = data.data as any
+      } else {
+        return
+      }
+    } else {
+      return
+    }
+    // 兼容分页结构和旧版数组结构
+    if (Array.isArray(payload)) {
+      posts.value = payload
+      total.value = payload.length
+    } else {
+      posts.value = payload.items || []
+      total.value = payload.total || 0
+      page.value = 1
+    }
+  } catch {
+    /* 静默刷新失败不影响用户 */
+  }
+}
+
 onMounted(async () => {
-  const valid = await session.validateSession()
-  // 封号或未登录：validateSession 已跳转，不再发后续请求避免 -301
-  if (!valid) return
-  await Promise.all([loadProfile(), loadPosts(), loadWarningStatus()])
+  // 性能优化：validateSession 与业务请求并行，不阻塞。
+  // 路由守卫已确保 session.userId 存在；封号/token 过期由 http 拦截器统一处理。
+  // 最小骨架显示 200ms，避免本地加载太快骨架屏一闪而过
+  void session.validateSession()
+  const minDelay = new Promise(resolve => setTimeout(resolve, 200))
+  await Promise.all([loadProfile(), loadPosts(), loadWarningStatus(), minDelay])
+  pageLoading.value = false
 })
 </script>
 
 <template>
-  <main class="page-me">
+  <!-- 首次加载骨架屏：profile 未就绪时展示全页骨架，避免空白闪烁 -->
+  <ProfileSkeleton v-if="pageLoading" />
+  <main v-else class="page-me">
     <!-- Hero 区 -->
     <section class="profile-hero">
       <div class="hero-topbar">
@@ -432,12 +583,11 @@ onMounted(async () => {
         </button>
       </div>
 
-      <div v-if="loading" class="loading-tip">
-        <Icon name="refresh" :size="20" />
-        <span>加载中…</span>
-      </div>
+      <!-- 帖子列表骨架屏 -->
+      <PostListSkeleton v-if="loading && !posts.length" :count="4" />
 
-      <div v-else-if="posts.length" class="posts-list">
+      <!-- :class swr-updated：SWR 刷新数据变化时渐变过渡（文字逐字淡变+图片滑动），不销毁 DOM 保持滚动 -->
+      <div v-else-if="posts.length" :class="{ 'swr-updated': fadeActive }" class="posts-list">
         <article v-for="post in posts" :key="post.id" class="post-item" @click="openPost(post)">
           <h3 class="post-title">
             <span v-if="post.is_public === false" class="private-badge">
@@ -471,6 +621,15 @@ onMounted(async () => {
             </span>
           </div>
         </article>
+
+        <!-- 无限滚动底部状态：加载中 / 加载失败重试 / 已显示全部 -->
+        <InfiniteScrollFooter
+          :loading="scrollLoading"
+          :error="scrollError"
+          :has-more="hasMore"
+          :has-items="posts.length > 0"
+          @retry="scrollRetry"
+        />
       </div>
 
       <EmptyState v-else :text="activeTab === 'posts' ? '还没有发布过作品' : '暂无内容'" />

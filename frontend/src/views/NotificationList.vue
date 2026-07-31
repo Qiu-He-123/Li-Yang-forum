@@ -11,9 +11,11 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 import EmptyState from '../components/common/EmptyState.vue'
+import InfiniteScrollFooter from '../components/common/InfiniteScrollFooter.vue'
 import { Icon } from '../components/native'
 import { toast } from '../components/native/Toast'
 import { listNotifications, markAllNotificationsRead, markNotificationRead } from '../api/notification'
+import { useInfiniteScroll } from '../composables/useInfiniteScroll'
 import { useNotificationStore } from '../stores/notification'
 import type { NotificationItem } from '../types/api'
 
@@ -44,6 +46,8 @@ const pageSize = 20
 
 async function loadList() {
   loading.value = true
+  // 切换分类 / 首次加载：重置到第 1 页
+  page.value = 1
   try {
     const { data } = await listNotifications(currentType.value, page.value, pageSize)
     items.value = data.data.items || []
@@ -54,6 +58,31 @@ async function loadList() {
     loading.value = false
   }
 }
+
+const hasMore = computed(() => items.value.length < total.value)
+
+/** 无限滚动：追加下一页数据（append 模式 + 去重） */
+async function loadMore() {
+  if (!hasMore.value || loading.value) return
+  const nextPage = page.value + 1
+  try {
+    const { data } = await listNotifications(currentType.value, nextPage, pageSize)
+    const newItems = data.data.items || []
+    // 去重：避免边界数据重复
+    const existingIds = new Set(items.value.map((n) => n.id))
+    const filtered = newItems.filter((n) => !existingIds.has(n.id))
+    items.value = [...items.value, ...filtered]
+    total.value = data.data.total || total.value
+    page.value = nextPage
+  } catch {
+    throw new Error('加载更多失败')
+  }
+}
+
+const { loading: scrollLoading, error: scrollError, retry: scrollRetry } = useInfiniteScroll({
+  hasMore,
+  onLoadMore: loadMore,
+})
 
 /** 进入列表页即清除该分类的未读红点：标记该类型全部已读并刷新 store。 */
 async function clearUnreadDot() {
@@ -201,6 +230,14 @@ watch(currentType, async () => {
           </div>
           <span v-if="!item.is_read" class="unread-dot" />
         </div>
+
+        <InfiniteScrollFooter
+          :loading="scrollLoading"
+          :error="scrollError"
+          :has-more="hasMore"
+          :has-items="items.length > 0"
+          @retry="scrollRetry"
+        />
       </div>
 
       <EmptyState v-else :icon="meta.icon" :text="`暂无${meta.title}消息`" />

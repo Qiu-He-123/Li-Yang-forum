@@ -20,7 +20,8 @@ import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { Icon, Switch as NativeSwitch, Dialog as NativeDialog } from '../native'
 import { toast } from '../native/Toast'
 import { createPost, updatePost } from '../../api/post'
-import { uploadImage } from '../../api/image'
+import { uploadImage, listMyImages } from '../../api/image'
+import type { LoadingAxiosRequestConfig } from '../../api/http'
 import { searchTopics, hotTopics, type Topic } from '../../api/topic'
 import type { PollCreate } from '../../api/poll'
 import { listFollowing } from '../../api/follow'
@@ -28,7 +29,7 @@ import { useCircleStore } from '../../stores/circle'
 import { usePostStore } from '../../stores/post'
 import { useSessionStore } from '../../stores/session'
 import { useSchoolStore } from '../../stores/school'
-import type { FollowUser } from '../../types/api'
+import type { FollowUser, MyImage } from '../../types/api'
 
 const props = defineProps<{
   postId?: number
@@ -454,27 +455,46 @@ async function onFileChange(e: Event) {
       toast.info(`最多还能上传 ${remaining} 张`)
     }
     uploadingCount.value = filesToUpload.length
-    for (let i = 0; i < filesToUpload.length; i++) {
-      const file = filesToUpload[i]
+
+    // Bug 优化：并行上传多张图片（原先串行 await，N 张图要等 N 倍时间）。
+    // 每张图先占位 __uploading__，所有上传并发执行，全部完成后统一清理状态。
+    const uploadSlots = filesToUpload.map((file) => {
       const startIdx = imageUrls.value.length
-      // 先占位一个 loading URL
       imageUrls.value.push('__uploading__')
       uploadProgress.value[startIdx] = 0
-      try {
-        const { data } = await uploadImage(file, (percent) => {
+      return { file, startIdx }
+    })
+
+    const results = await Promise.allSettled(
+      uploadSlots.map(({ file, startIdx }) =>
+        uploadImage(file, (percent) => {
           uploadProgress.value[startIdx] = percent
-        })
-        // 替换占位 URL 为真实 URL
-        imageUrls.value[startIdx] = data.data.url
-        delete uploadProgress.value[startIdx]
-      } catch (err) {
-        // 上传失败，移除占位
-        imageUrls.value.splice(startIdx, 1)
-        delete uploadProgress.value[startIdx]
-        throw err
+        }).then(({ data }) => {
+          // 替换占位 URL 为真实 URL
+          imageUrls.value[startIdx] = data.data.url
+          delete uploadProgress.value[startIdx]
+        }),
+      ),
+    )
+
+    // 处理失败的图片：移除占位 + 提示
+    // 注意：不能用 splice(originalIdx) —— 失败项删除后会导致后续索引前移错位。
+    // 改为：失败项保留 __uploading__ 标记，最后统一过滤掉所有 __uploading__ 占位。
+    let failCount = 0
+    results.forEach((r, i) => {
+      if (r.status === 'rejected') {
+        const { startIdx } = uploadSlots[i]
+        // 标记为失败，稍后统一过滤（不清除 __uploading__ 以免索引错位）
+        failCount++
       }
-      uploadingCount.value--
+    })
+    // 统一移除所有仍为 __uploading__ 的占位（即上传失败的格子）
+    imageUrls.value = imageUrls.value.filter((u) => u !== '__uploading__')
+    uploadProgress.value = {}
+    if (failCount > 0) {
+      toast.error(`${failCount} 张图片上传失败`)
     }
+    uploadingCount.value = 0
   } catch (err) {
     toast.error((err as Error).message)
   } finally {
@@ -485,6 +505,95 @@ async function onFileChange(e: Event) {
 
 function removeImage(idx: number) {
   imageUrls.value.splice(idx, 1)
+}
+
+// ============ 个人素材库（我的图片：复用历史上传） ============
+const showMyImages = ref(false)
+const myImages = ref<MyImage[]>([])
+const myImagesTotal = ref(0)
+const myImagesPage = ref(1)
+const myImagesLoading = ref(false)
+const myImagesLoadingMore = ref(false)
+const selectedMyImages = ref<Set<number>>(new Set())
+const MY_IMAGES_PAGE_SIZE = 60
+
+const selectedMyImageCount = computed(() => selectedMyImages.value.size)
+
+/** 发帖页内请求不弹全屏加载（发布/存草稿按钮自身有状态反馈） */
+const silentConfig: LoadingAxiosRequestConfig = { showGlobalLoading: false }
+
+function openMyImages() {
+  if (imageUrls.value.length >= 9) {
+    toast.info('最多 9 张图片')
+    return
+  }
+  selectedMyImages.value = new Set()
+  showMyImages.value = true
+  if (!myImages.value.length) {
+    void loadMyImages()
+  }
+}
+
+async function loadMyImages() {
+  if (myImagesLoading.value) return
+  myImagesLoading.value = true
+  try {
+    const { data } = await listMyImages(1, MY_IMAGES_PAGE_SIZE)
+    const payload = data.data
+    myImages.value = payload.items
+    myImagesTotal.value = payload.total
+    myImagesPage.value = payload.page
+  } catch (err) {
+    toast.error((err as Error).message)
+  } finally {
+    myImagesLoading.value = false
+  }
+}
+
+async function loadMoreMyImages() {
+  if (myImagesLoadingMore.value || myImages.value.length >= myImagesTotal.value) return
+  myImagesLoadingMore.value = true
+  try {
+    const { data } = await listMyImages(myImagesPage.value + 1, MY_IMAGES_PAGE_SIZE)
+    const payload = data.data
+    const existing = new Set(myImages.value.map((m) => m.id))
+    myImages.value = [...myImages.value, ...payload.items.filter((m) => !existing.has(m.id))]
+    myImagesTotal.value = payload.total
+    myImagesPage.value = payload.page
+  } catch {
+    // 加载更多失败静默处理，用户可再次点击
+  } finally {
+    myImagesLoadingMore.value = false
+  }
+}
+
+function isMyImageUsed(img: MyImage): boolean {
+  return imageUrls.value.includes(img.url)
+}
+
+function toggleMyImage(img: MyImage) {
+  if (isMyImageUsed(img)) return
+  const next = new Set(selectedMyImages.value)
+  if (next.has(img.id)) {
+    next.delete(img.id)
+  } else {
+    next.add(img.id)
+  }
+  selectedMyImages.value = next
+}
+
+function confirmMyImages() {
+  const remaining = 9 - imageUrls.value.length
+  const selected = myImages.value.filter((m) => selectedMyImages.value.has(m.id) && !isMyImageUsed(m))
+  const add = selected.slice(0, remaining)
+  if (selected.length > remaining) {
+    toast.info(`最多还能添加 ${remaining} 张`)
+  }
+  if (add.length) {
+    imageUrls.value.push(...add.map((m) => m.url))
+    selectedMyImages.value = new Set()
+    showMyImages.value = false
+  }
 }
 
 // 工具按钮
@@ -1188,9 +1297,9 @@ async function saveDraft(silent = false) {
       poll: pollData.value,
     }
     if (draftPostId.value) {
-      await updatePost(draftPostId.value, payload)
+      await updatePost(draftPostId.value, payload, silentConfig)
     } else {
-      const { data } = await createPost(payload)
+      const { data } = await createPost(payload, silentConfig)
       // 保存新创建的草稿 id，后续走 update
       const newId = (data as any)?.data?.id
       if (newId) draftPostId.value = newId
@@ -1312,11 +1421,11 @@ async function doPublish(asDraft: boolean) {
     const payload = buildPayload(asDraft) as ReturnType<typeof buildPayload> & { is_public?: boolean }
     if (!isEditMode() && !asDraft) payload.is_public = true
     if (isEditMode()) {
-      await updatePost(props.postId!, payload)
+      await updatePost(props.postId!, payload, silentConfig)
       toast.success('已更新')
       emit('updated')
     } else {
-      await createPost(payload)
+      await createPost(payload, silentConfig)
       toast.success(asDraft ? '草稿已保存' : '发布成功，内容审核中')
       if (!asDraft) {
         resetForm()
@@ -1326,7 +1435,7 @@ async function doPublish(asDraft: boolean) {
       }
     }
     postStore.setPage(1)
-    await postStore.loadPosts()
+    await postStore.loadPosts(silentConfig)
   } catch (err) {
     toast.error((err as Error).message)
   } finally {
@@ -1760,7 +1869,18 @@ defineExpose({
     <section class="images-card">
       <div class="images-head">
         <span class="images-title">图片</span>
-        <span class="images-hint">已选 {{ imageUrls.length }} 张 · 最多 9 张</span>
+        <div class="images-head-right">
+          <button
+            class="my-images-btn"
+            type="button"
+            :disabled="uploading"
+            @click="openMyImages"
+          >
+            <Icon name="image-plus" :size="14" />
+            我的图片
+          </button>
+          <span class="images-hint">已选 {{ imageUrls.length }} 张 · 最多 9 张</span>
+        </div>
       </div>
       <div class="image-grid">
         <div v-for="(url, i) in imageUrls" :key="'img-' + i" class="img-cell">
@@ -1769,9 +1889,11 @@ defineExpose({
             <div class="upload-progress-overlay">
               <Icon name="refresh" :size="28" class="spin" />
               <div class="progress-bar-wrap">
-                <div class="progress-bar-fill" :style="{ width: (uploadProgress[i] || 0) + '%' }" />
+                <div class="progress-bar-fill" :style="{ width: Math.min(uploadProgress[i] || 0, 98) + '%' }" />
               </div>
-              <span class="progress-text">{{ uploadProgress[i] || 0 }}%</span>
+              <span class="progress-text">
+                {{ (uploadProgress[i] || 0) >= 100 ? '马上就好…' : (uploadProgress[i] || 0) + '%' }}
+              </span>
             </div>
           </template>
           <!-- 已上传 -->
@@ -1803,6 +1925,56 @@ defineExpose({
         @change="onFileChange"
       />
     </section>
+
+    <!-- 个人素材库：复用历史上传的图片 -->
+    <NativeDialog v-model="showMyImages" title="我的图片" width="560px">
+      <div class="my-images-body">
+        <div v-if="myImagesLoading" class="my-images-loading">加载中…</div>
+        <template v-else>
+          <div v-if="myImages.length" class="my-images-grid">
+            <button
+              v-for="img in myImages"
+              :key="img.id"
+              type="button"
+              class="my-img-cell"
+              :class="{
+                'is-selected': selectedMyImages.has(img.id),
+                'is-used': isMyImageUsed(img),
+              }"
+              :disabled="isMyImageUsed(img)"
+              @click="toggleMyImage(img)"
+            >
+              <img :src="img.url" :alt="`素材${img.id}`" loading="lazy" />
+              <span v-if="selectedMyImages.has(img.id)" class="my-img-check">
+                <Icon name="check" :size="14" color="#fff" />
+              </span>
+              <span v-if="isMyImageUsed(img)" class="my-img-used">已添加</span>
+            </button>
+          </div>
+          <div v-else class="my-images-empty">暂无历史图片，先上传一张吧</div>
+          <button
+            v-if="myImages.length < myImagesTotal"
+            class="btn btn-outline btn-pill my-images-more"
+            type="button"
+            :disabled="myImagesLoadingMore"
+            @click="loadMoreMyImages"
+          >
+            {{ myImagesLoadingMore ? '加载中…' : '加载更多' }}
+          </button>
+        </template>
+      </div>
+      <template #footer>
+        <button class="btn btn-outline" type="button" @click="showMyImages = false">取消</button>
+        <button
+          class="btn btn-primary"
+          type="button"
+          :disabled="!selectedMyImageCount"
+          @click="confirmMyImages"
+        >
+          添加 ({{ selectedMyImageCount }})
+        </button>
+      </template>
+    </NativeDialog>
 
     <!-- 校区选择行 -->
     <section class="school-select-card">
@@ -2761,6 +2933,99 @@ defineExpose({
 .images-hint {
   font-size: 13px;
   color: var(--text-500);
+}
+.images-head-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.my-images-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--bg-300);
+  background: var(--bg-50);
+  font-family: inherit;
+  font-size: 12.5px;
+  color: var(--brand-600);
+  cursor: pointer;
+  transition: all 0.15s var(--ease-apple);
+}
+.my-images-btn:hover:not(:disabled) {
+  background: var(--brand-50);
+  border-color: var(--brand-500);
+}
+.my-images-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* 个人素材库弹窗 */
+.my-images-body {
+  min-height: 240px;
+}
+.my-images-loading,
+.my-images-empty {
+  padding: 48px 0;
+  text-align: center;
+  font-size: 13px;
+  color: var(--text-500);
+}
+.my-images-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+.my-img-cell {
+  position: relative;
+  aspect-ratio: 1 / 1;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  border: 2px solid transparent;
+  padding: 0;
+  cursor: pointer;
+  background: var(--bg-100);
+}
+.my-img-cell img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.my-img-cell.is-selected {
+  border-color: var(--brand-500);
+}
+.my-img-cell.is-used {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.my-img-check {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--brand-500);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.my-img-used {
+  position: absolute;
+  left: 6px;
+  bottom: 6px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  font-size: 11px;
+}
+.my-images-more {
+  margin: 14px auto 0;
+  display: block;
 }
 .image-grid {
   display: grid;

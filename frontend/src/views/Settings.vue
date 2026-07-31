@@ -415,8 +415,8 @@ onMounted(async () => {
     ElMessage.info('请先登录')
     router.push('/')
   } else {
-    const valid = await session.validateSession()
-    if (!valid) return
+    // 性能优化：validateSession 与 load 并行，不阻塞
+    void session.validateSession()
     await load()
     void Promise.allSettled([
       loadMessagePerm(),

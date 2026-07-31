@@ -320,20 +320,22 @@ function onVisibilityChange() {
     // 标签页重新可见：立即拉取一次（补漏隐藏期间可能错过的消息），再恢复轮询
     pollMessages()
     if (!pollTimer) {
-      // 轮询兜底：10 秒间隔（WebSocket 实时推送为主，轮询为辅）
-      pollTimer = setInterval(pollMessages, 10000)
+      // 轮询兜底：30 秒间隔（WebSocket 实时推送为主，轮询为辅）
+      pollTimer = setInterval(pollMessages, 30_000)
     }
   }
 }
 
 onMounted(async () => {
-  const valid = await session.validateSession()
-  if (!valid) return
-  if (!userStore.profile) await userStore.loadProfile()
+  // 性能优化：validateSession / loadProfile 与业务请求并行，不阻塞主流程
+  // loadFriendInfo → loadMessagesInitial 保持串行（后者依赖前者）
+  const parallel: Promise<unknown>[] = [session.validateSession()]
+  if (!userStore.profile) parallel.push(userStore.loadProfile())
+  void Promise.allSettled(parallel)
   await loadFriendInfo()
   await loadMessagesInitial()
-  // 轮询兜底：10 秒间隔（WebSocket 实时推送为主，轮询为辅，减少闪烁）
-  pollTimer = setInterval(pollMessages, 10000)
+  // 轮询兜底：30 秒间隔（WebSocket 实时推送为主，轮询为辅，减少闪烁）
+  pollTimer = setInterval(pollMessages, 30_000)
   // WebSocket 实时推送监听
   setupWsListener()
   // 监听滚动：判断用户是否在底部附近（决定收到新消息时是否自动滚动）

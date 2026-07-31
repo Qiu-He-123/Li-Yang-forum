@@ -44,7 +44,10 @@ export const useNotificationStore = defineStore('notification', () => {
     return refreshPromise
   }
 
-  function startPolling(intervalMs = 5_000) {
+  // 轮询间隔：30s。
+  // 已有 WebSocket 兜底：收到 dm_message 时 App.vue 立即调用 refreshUnread()，
+  // 因此轮询只需保证"长时间无 WS 事件时也能拿到点赞/关注等非 DM 类通知的未读数"。
+  function startPolling(intervalMs = 30_000) {
     stopPolling()
     timer = setInterval(refreshUnread, intervalMs)
   }

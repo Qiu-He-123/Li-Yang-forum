@@ -2,7 +2,7 @@ import io
 import asyncio as aio
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
 from loguru import logger
 from PIL import Image as PILImage
 from sqlalchemy.orm import Session
@@ -122,3 +122,32 @@ async def upload_image(file: UploadFile = File(...), db: Session = Depends(get_d
     db.commit()
     db.refresh(image)
     return ok({"id": image.id, "url": url, "thumb_url": thumb_url or url})
+
+
+@router.get("")
+async def list_my_images(
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=24, ge=1, le=100),
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+) -> dict:
+    """个人素材库：返回当前用户历史上传的图片（最新在前），供发帖时复用。"""
+    query = db.query(Image).filter(Image.user_id == user.id).order_by(Image.id.desc())
+    total = query.count()
+    items = query.offset((page - 1) * page_size).limit(page_size).all()
+    return ok(
+        {
+            "items": [
+                {
+                    "id": img.id,
+                    "url": img.url,
+                    "mime_type": img.mime_type,
+                    "created_at": img.created_at.isoformat() if img.created_at else None,
+                }
+                for img in items
+            ],
+            "total": total,
+            "page": page,
+            "page_size": page_size,
+        }
+    )

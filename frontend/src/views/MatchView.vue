@@ -221,6 +221,7 @@ function startWaitingTimer() {
     if (waitingTimer.value >= WAIT_TIMEOUT) {
       // 客户端超时兜底
       stopWaitingTimer()
+      stopWaitingPolling()
       if (phase.value === 'waiting') {
         phase.value = 'setup'
         toast.error('匹配超时，请重新发起')
@@ -328,6 +329,7 @@ function onWsMessage(msg: WsMessage) {
       const expiresAt = msg.expires_at as string
       stopWaitingTimer()
       stopMatchingCountPolling()
+      stopWaitingPolling()
       const s: MatchSession = {
         id: sessionId,
         user_a: session.userId!,
@@ -359,6 +361,7 @@ function onWsMessage(msg: WsMessage) {
       // 等待匹配超时
       stopWaitingTimer()
       stopMatchingCountPolling()
+      stopWaitingPolling()
       if (phase.value === 'waiting') {
         phase.value = 'setup'
         waitingSub.value = 'searching'
@@ -443,6 +446,8 @@ async function onStartMatch() {
   waitingSub.value = 'searching'
   startWaitingTimer()
   startMatchingCountPolling()
+  // 启动 waiting 阶段轮询：作为 WS match_found 推送的兜底
+  startWaitingPolling()
   // 把三态标签拆分为 tag_required 和 tag_preferred
   const tagRequired: string[] = []
   const tagPreferred: string[] = []
@@ -466,6 +471,7 @@ async function onStartMatch() {
       waitingSub.value = 'matched'
       stopWaitingTimer()
       stopMatchingCountPolling()
+      stopWaitingPolling()
       // 展示匹配成功动画 1.5 秒后进入聊天
       if (matchedTransitionTimer) clearTimeout(matchedTransitionTimer)
       matchedTransitionTimer = setTimeout(() => {
@@ -480,6 +486,7 @@ async function onStartMatch() {
   } catch (err) {
     stopWaitingTimer()
     stopMatchingCountPolling()
+    stopWaitingPolling()
     phase.value = 'setup'
     waitingSub.value = 'searching'
     toast.error((err as Error).message)
@@ -510,6 +517,7 @@ async function onCancelMatch() {
   }
   stopWaitingTimer()
   stopMatchingCountPolling()
+  stopWaitingPolling()
   if (matchedTransitionTimer) {
     clearTimeout(matchedTransitionTimer)
     matchedTransitionTimer = null
@@ -676,6 +684,47 @@ async function checkActiveSession() {
 let sessionPollingTimer: ReturnType<typeof setInterval> | null = null
 const SESSION_POLL_INTERVAL = 5000
 
+// ============ waiting 阶段轮询（匹配结果兜底） ============
+// Bug 修复：A 先入队 waiting，B 入队触发匹配成功后端通过 WS 推 match_found 给 A。
+// 但 WS 推送可能因各种原因失败（loop 引用错误、网络抖动、连接未就绪等），
+// 导致 A 卡在 waiting 页面需要刷新。此处主动轮询 getActiveSession 兜底，
+// 即使 WS 推送失败，A 也能在 3 秒内发现自己已被匹配。
+let waitingPollingTimer: ReturnType<typeof setInterval> | null = null
+const WAITING_POLL_INTERVAL = 3000
+
+function startWaitingPolling() {
+  stopWaitingPolling()
+  waitingPollingTimer = setInterval(pollWaitingMatch, WAITING_POLL_INTERVAL)
+}
+
+function stopWaitingPolling() {
+  if (waitingPollingTimer) {
+    clearInterval(waitingPollingTimer)
+    waitingPollingTimer = null
+  }
+}
+
+async function pollWaitingMatch() {
+  // 仅在 waiting 阶段且尚未收到 match_found 时轮询
+  if (phase.value !== 'waiting' || pendingSession.value) return
+  try {
+    const { data } = await getActiveSession({
+      showGlobalLoading: false,
+      showGlobalError: false,
+    })
+    if (data.data && data.data.id) {
+      // 服务器已有活动会话 → 匹配成功，但 WS 推送丢失，主动恢复
+      stopWaitingTimer()
+      stopMatchingCountPolling()
+      stopWaitingPolling()
+      // 复用 match_found 的恢复逻辑（不在 waiting 阶段时直接进入聊天）
+      enterChatWithSession(data.data)
+    }
+  } catch {
+    /* 静默 */
+  }
+}
+
 function startSessionPolling() {
   stopSessionPolling()
   sessionPollingTimer = setInterval(pollSessionSync, SESSION_POLL_INTERVAL)
@@ -753,8 +802,8 @@ async function syncMessages(sessionId: number) {
 
 // ============ 生命周期 ============
 onMounted(async () => {
-  const valid = await session.validateSession()
-  if (!valid) return
+  // 性能优化：validateSession 后台并行，不阻塞（邀请码检查基于 localStorage 缓存的 verificationStatus）
+  void session.validateSession()
   // 邀请码系统：未认证用户进入随机匹配页时直接弹邀请码框并返回
   if (session.isLoggedIn() && !session.isVerified()) {
     // 先返回再弹窗，避免路由 watcher 立即关闭弹窗
@@ -790,6 +839,7 @@ onMounted(async () => {
 onUnmounted(() => {
   stopWaitingTimer()
   stopMatchingCountPolling()
+  stopWaitingPolling()
   stopCountdown()
   stopSessionPolling()
   if (matchedTransitionTimer) {

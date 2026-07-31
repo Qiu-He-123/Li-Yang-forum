@@ -8,6 +8,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 import EmptyState from '../components/common/EmptyState.vue'
+import PostListSkeleton from '../components/post/PostListSkeleton.vue'
 import { Icon } from '../components/native'
 import { toast } from '../components/native/Toast'
 import { fetchUser, fetchUserPosts } from '../api/user'
@@ -39,6 +40,8 @@ function avatarGradient(id: number | undefined): string {
 }
 
 async function loadProfile() {
+  // keep-alive 守卫：route.params.id 变 undefined 时 Number(undefined)=NaN，必须跳过
+  if (!userId.value || isNaN(userId.value)) return
   try {
     const { data } = await fetchUser(userId.value)
     profile.value = data.data
@@ -48,10 +51,13 @@ async function loadProfile() {
 }
 
 async function loadPosts() {
+  if (!userId.value || isNaN(userId.value)) return
   loading.value = true
   try {
     const { data } = await fetchUserPosts(userId.value)
-    posts.value = data.data || []
+    // 兼容分页结构 {items, total} 和旧版数组结构
+    const payload = data.data as any
+    posts.value = Array.isArray(payload) ? payload : (payload.items || [])
   } catch (err) {
     toast.error((err as Error).message)
   } finally {
@@ -67,6 +73,18 @@ function openPost(post: Post) {
   router.push(`/post/${post.id}`)
 }
 
+/** 推导缩略图 URL（与 PostImages.vue 一致的规则） */
+function thumbUrl(url: string): string {
+  if (/\.gif$/i.test(url)) return url
+  return url.replace(/\.(jpe?g|png|webp)$/i, '_thumb.jpg')
+}
+
+/** 缩略图加载失败 → 回退原图 */
+function onImgError(e: Event, originalUrl: string) {
+  const img = e.target as HTMLImageElement
+  if (img.src !== originalUrl) img.src = originalUrl
+}
+
 function goBack() {
   if (window.history.length > 1) router.back()
   else router.push(`/user/${userId.value}`)
@@ -77,6 +95,7 @@ onMounted(async () => {
 })
 
 watch(userId, () => {
+  if (!userId.value || isNaN(userId.value)) return
   loadProfile()
   loadPosts()
 })
@@ -95,10 +114,8 @@ watch(userId, () => {
 
     <!-- 列表 -->
     <div class="page-container">
-      <div v-if="loading && !posts.length" class="loading-tip">
-        <Icon name="refresh" :size="20" />
-        <span>加载中…</span>
-      </div>
+      <!-- 骨架屏替代"加载中..."文字 -->
+      <PostListSkeleton v-if="loading && !posts.length" :count="4" />
 
       <div v-else-if="posts.length" class="posts-waterfall">
         <article
@@ -110,9 +127,11 @@ watch(userId, () => {
           <img
             v-if="post.image_urls?.length"
             class="post-img"
-            :src="post.image_urls[0]"
+            :src="thumbUrl(post.image_urls[0])"
             :alt="post.title || ''"
             loading="lazy"
+            decoding="async"
+            @error="onImgError($event, post.image_urls[0])"
           />
           <div v-else class="post-img-placeholder">
             <Icon name="image" :size="24" />

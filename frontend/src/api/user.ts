@@ -26,8 +26,19 @@ export function fetchUser(userId: number, config: LoadingAxiosRequestConfig = {}
   return http.get<unknown, { data: { code: number; msg: string; data: Profile } }>(`/users/${userId}`, config)
 }
 
-export function fetchUserPosts(userId: number) {
-  return http.get<unknown, { data: { code: number; msg: string; data: Post[] } }>(`/users/${userId}/posts`)
+/** 分页结果结构 */
+export interface PaginatedPosts {
+  items: Post[]
+  total: number
+  page: number
+  page_size: number
+}
+
+export function fetchUserPosts(userId: number, page = 1, pageSize = 20, config: LoadingAxiosRequestConfig = {}) {
+  return http.get<unknown, { data: { code: number; msg: string; data: PaginatedPosts | Post[] } }>(
+    `/users/${userId}/posts`,
+    { ...config, params: { page, page_size: pageSize } },
+  )
 }
 
 /** 获赞列表：点赞过该用户帖子的用户列表 */
@@ -44,13 +55,19 @@ export function fetchMyFavorites(config: LoadingAxiosRequestConfig = {}) {
   return http.get<unknown, { data: { code: number; msg: string; data: { post_ids: number[] } } }>('/users/me/favorites', config)
 }
 
-// T5-1 / T5-3 / T5-4：返回完整 Post 列表，用于个人主页 Tab 与独立页面
-export function fetchMyLikedPosts() {
-  return http.get<unknown, { data: { code: number; msg: string; data: Post[] } }>('/users/me/likes/posts')
+// T5-1 / T5-3 / T5-4：返回分页 Post 列表，用于个人主页 Tab 与独立页面
+export function fetchMyLikedPosts(page = 1, pageSize = 20, config: LoadingAxiosRequestConfig = {}) {
+  return http.get<unknown, { data: { code: number; msg: string; data: PaginatedPosts | Post[] } }>(
+    '/users/me/likes/posts',
+    { ...config, params: { page, page_size: pageSize } },
+  )
 }
 
-export function fetchMyFavoritePosts() {
-  return http.get<unknown, { data: { code: number; msg: string; data: Post[] } }>('/users/me/favorites/posts')
+export function fetchMyFavoritePosts(page = 1, pageSize = 20, config: LoadingAxiosRequestConfig = {}) {
+  return http.get<unknown, { data: { code: number; msg: string; data: PaginatedPosts | Post[] } }>(
+    '/users/me/favorites/posts',
+    { ...config, params: { page, page_size: pageSize } },
+  )
 }
 
 export function fetchMyDrafts() {

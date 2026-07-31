@@ -106,10 +106,12 @@ def list_circle_posts(
         page_size: 每页条数
     """
     c = get_circle_by_slug(slug, db, user)
+    # 帖子 category 可能存的是圈子 name（如"表白墙"）或 slug（如"confess"），
+    # 前端 PostEditor 发送的是 slug，但历史帖子可能存 name，两者都需匹配
     query = (
         select(Post)
         .options(selectinload(Post.author), selectinload(Post.school))
-        .where(Post.is_draft.is_(False), Post.category == c.name)
+        .where(Post.is_draft.is_(False), Post.category.in_([c.name, c.slug]))
     )
     # 私密帖子只有作者本人可见（匿名用户只看公开）
     if user is not None:

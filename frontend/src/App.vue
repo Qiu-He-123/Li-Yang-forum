@@ -1,15 +1,18 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, watch } from 'vue'
+import { computed, defineAsyncComponent, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
 
-import AuthDialog from './components/auth/AuthDialog.vue'
-import InviteCodeDialog from './components/auth/InviteCodeDialog.vue'
 import BottomTabBar from './components/BottomTabBar.vue'
-import AnnouncementPopup from './components/AnnouncementPopup.vue'
 import { useSessionStore } from './stores/session'
 import { useNotificationStore } from './stores/notification'
 import { useUIStore } from './stores/ui'
 import { connectWs, wsClient } from './utils/ws'
+
+// 弹窗类组件改为异步加载：避免 element-plus 被打入首屏主 chunk（EP ~400KB）
+// 用户点击登录/收到邀请码提示/查看公告时才发起 chunk 下载，首屏只加载原生组件
+const AuthDialog = defineAsyncComponent(() => import('./components/auth/AuthDialog.vue'))
+const InviteCodeDialog = defineAsyncComponent(() => import('./components/auth/InviteCodeDialog.vue'))
+const AnnouncementPopup = defineAsyncComponent(() => import('./components/AnnouncementPopup.vue'))
 
 /**
  * 全局根组件（P1-10 改造后）。
@@ -23,6 +26,44 @@ const uiStore = useUIStore()
 const session = useSessionStore()
 const notificationStore = useNotificationStore()
 let wsNotificationUnsubscribe: (() => void) | null = null
+
+/**
+ * Keep-alive 缓存的视图组件名列表。
+ * 与各视图文件中的 defineOptions({ name }) 一致。
+ * 仅缓存底部 5 个主 Tab 对应的视图，避免页面切换时重复加载：
+ * - HomeView（首页）
+ * - CircleDiscoverView（圈子）
+ * - NotificationsView（消息）
+ * - UserHomeView（我的）
+ * 切换 Tab 时组件实例 + 滚动位置 + 已加载数据全部保留，
+ * 配合各视图 onActivated 中的 SWR 静默刷新实现"即时展示 + 后台更新"。
+ */
+const cachedViewNames = ['HomeView', 'CircleDiscoverView', 'NotificationsView', 'UserHomeView']
+
+/**
+ * 移除 index.html 中的启动预加载遮罩（#app-preloader）。
+ * 加 is-hidden 触发淡出动画，300ms 后彻底从 DOM 移除。
+ * 若 Vue 挂载前用户已离开页面（preloader 不存在），静默忽略。
+ */
+function removeAppPreloader() {
+  const preloader = document.getElementById('app-preloader')
+  if (!preloader) return
+  preloader.classList.add('is-hidden')
+  // 淡出动画结束后移除节点（transition-duration: 0.3s）
+  window.setTimeout(() => {
+    const el = document.getElementById('app-preloader')
+    if (el && el.parentNode) {
+      el.parentNode.removeChild(el)
+    }
+  }, 400)
+  // 兜底：5s 后强制移除，防止任何异常导致遮罩残留
+  window.setTimeout(() => {
+    const el = document.getElementById('app-preloader')
+    if (el && el.parentNode) {
+      el.parentNode.removeChild(el)
+    }
+  }, 5000)
+}
 
 // 管理端不显示底部 TabBar；聊天页全屏沉浸式，也不显示
 const showTabBar = computed(() =>
@@ -97,6 +138,11 @@ onMounted(async () => {
       notificationStore.refreshUnread()
     }
   })
+
+  // Bug 修复：移除启动预加载遮罩。
+  // 等 session 校验 + 通知初始化完成后再移除，确保用户看到的是已就绪的页面，
+  // 避免路由组件 onMounted 异步加载期间闪现"帖子已删除"等错误状态。
+  removeAppPreloader()
 })
 onUnmounted(() => {
   if (banCheckTimer) clearInterval(banCheckTimer)
@@ -107,7 +153,11 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <RouterView />
+  <RouterView v-slot="{ Component }">
+    <KeepAlive :include="cachedViewNames">
+      <component :is="Component" />
+    </KeepAlive>
+  </RouterView>
   <BottomTabBar v-if="showTabBar" />
   <AuthDialog
     :model-value="uiStore.authDialogVisible"
@@ -119,7 +169,8 @@ onUnmounted(() => {
   />
   <AnnouncementPopup />
   <Transition name="global-loading">
-    <div v-if="uiStore.globalLoadingVisible" class="global-loading-overlay" aria-live="polite" aria-busy="true">
+    <!-- skeleton 页面（首页/圈子/消息）不显示全屏遮罩，让组件内骨架屏可见 -->
+    <div v-if="uiStore.globalLoadingVisible && route.meta.skeleton !== true" class="global-loading-overlay" aria-live="polite" aria-busy="true">
       <div class="global-loading-card">
         <span class="global-loading-spinner" aria-hidden="true"></span>
         <span class="global-loading-text">加载中…</span>

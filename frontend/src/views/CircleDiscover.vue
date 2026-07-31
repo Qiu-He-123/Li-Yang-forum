@@ -13,11 +13,20 @@
  * - 加入/退出圈子按钮实时更新 member_count
  * - 点击帖子进入帖子详情
  */
-import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
+import { computed, onActivated, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
+import { useFadeUpdate } from '../composables/useFadeUpdate'
+// keep-alive 需要 name，与 App.vue 的 cachedViewNames 对应
+defineOptions({ name: 'CircleDiscoverView' })
+
+// SWR 刷新渐变：数据变化时递增 key 触发 CSS 淡入动画
+const { fadeActive, triggerFade } = useFadeUpdate()
 import { useRoute, useRouter } from 'vue-router'
 
 import EmptyState from '../components/common/EmptyState.vue'
 import AiStatusBadge from '../components/common/AiStatusBadge.vue'
+import PostListSkeleton from '../components/post/PostListSkeleton.vue'
+import InfiniteScrollFooter from '../components/common/InfiniteScrollFooter.vue'
+import { useInfiniteScroll } from '../composables/useInfiniteScroll'
 import { Dialog, Icon } from '../components/native'
 import { toast } from '../components/native/Toast'
 import { useSessionStore } from '../stores/session'
@@ -39,6 +48,11 @@ const postStore = usePostStore()
 const circleStore = useCircleStore()
 const announcementStore = useAnnouncementStore()
 const interactionStore = useInteractionStore()
+
+const { loading: loadMoreLoading, error: loadMoreError, retry: retryLoadMore } = useInfiniteScroll({
+  hasMore: computed(() => postStore.hasMore),
+  onLoadMore: () => postStore.loadMore(),
+})
 
 // 圈子 Feed Tab：joined（我加入的）/ all（全部圈子）
 const feedTab = computed<'joined' | 'all'>(() => (route.query.tab === 'joined' ? 'joined' : 'all'))
@@ -141,32 +155,64 @@ function resolveCircleSlug(post: Post): string {
   return post.category || 'default'
 }
 
-// 我的足迹：登录用户浏览过的圈子列表
-const viewedCircles = ref<Circle[]>([])
+// 我的足迹：从 circleStore 读取（提升到 store 后，CircleDetail 进入时即可即时更新）
+// 修复"延迟一步"问题：之前 viewedCircles 是组件内部状态，CircleDetail 记录浏览后
+// 只有返回 CircleDiscover 并触发 onActivated 才会刷新，存在时序/缓存导致的延迟
+const viewedCircles = computed(() => circleStore.viewedCircles)
+// 足迹加载中状态：用于显示骨架屏，避免"先空白 → 随后出现"的闪烁
+const viewedLoading = ref(false)
 
 async function loadViewedCircles() {
+  if (!session.userId) return
+  viewedLoading.value = true
+  try {
+    const res = await listViewedCircles(20, {
+      showGlobalLoading: false,
+      showGlobalError: false,
+    })
+    circleStore.setViewedCircles(res.data.data || [])
+  } catch {
+    circleStore.setViewedCircles([])
+  } finally {
+    viewedLoading.value = false
+  }
+}
+
+/** 静默加载足迹：不显示骨架屏，保留旧数据可见，数据变化时触发渐变 */
+async function loadViewedCirclesSilent() {
   if (!session.userId) return
   try {
     const res = await listViewedCircles(20, {
       showGlobalLoading: false,
       showGlobalError: false,
     })
-    viewedCircles.value = res.data.data || []
+    const newList = res.data.data || []
+    // 数据指纹对比：只有圈子列表真的变了才更新 + 触发渐变
+    const oldFp = viewedCircles.value.map(c => `${c.id}:${c.name}`).join('|')
+    const newFp = newList.map(c => `${c.id}:${c.name}`).join('|')
+    circleStore.setViewedCircles(newList)
+    if (oldFp !== newFp) triggerFade()
   } catch {
-    viewedCircles.value = []
+    /* 静默刷新失败不影响用户 */
   }
 }
 
 onMounted(async () => {
-  const [, valid] = await Promise.all([
+  // 性能优化：validateSession 后台并行，不阻塞第一波加载
+  // 基于 localStorage 中的 session.userId 决定第二波请求（已登录用户加载互动状态）
+  const validPromise = session.validateSession()
+  // 第一波：公告 + 圈子列表（与 session 校验并行）
+  await Promise.all([
     announcementStore.loadAnnouncements(),
-    session.validateSession(),
     circleStore.loadCircles(),
   ])
   // 圈子页 feed：使用 view=all 拉取全部帖子，"我加入的" Tab 在客户端过滤
   postStore.setView('all')
   postStore.setCategory('')
-  if (valid) {
+  // 用 localStorage 的 userId 立即判断（validateSession 结果回填到 store）
+  const hasUserId = !!session.userId
+  if (hasUserId) {
+    // 第二波：登录用户的互动数据 + 帖子 feed + 浏览过的圈子（全部并行）
     await Promise.all([
       userStore.loadProfile(),
       interactionStore.loadAll(),
@@ -174,9 +220,50 @@ onMounted(async () => {
       loadViewedCircles(),
     ])
   } else {
-    // 匿名用户也能看圈子页 feed
-    await postStore.loadPosts()
+    // 匿名用户：等 validateSession 结果确认是否真的未登录
+    const valid = await validPromise
+    if (valid) {
+      await Promise.all([
+        userStore.loadProfile(),
+        interactionStore.loadAll(),
+        postStore.loadPosts(),
+        loadViewedCircles(),
+      ])
+    } else {
+      // 匿名用户也能看圈子页 feed
+      await postStore.loadPosts()
+    }
   }
+})
+
+/**
+ * keep-alive 重新激活时：恢复圈子页 view=all + 从缓存即时展示 + SWR 后台刷新。
+ *
+ * 关键：KeepAlive 首次挂载时 onMounted 和 onActivated 都会触发！
+ * onMounted 是 async，第一波 await 让出执行权时 onActivated 触发，
+ * 此时 loading 还是 false → 会和 onMounted 的 loadPosts 并发。
+ * 用 skipFirstActivated 跳过首次触发。
+ */
+let skipFirstActivated = true
+onActivated(() => {
+  if (skipFirstActivated) {
+    skipFirstActivated = false
+    return // 首次由 onMounted 处理，不重复加载
+  }
+  // 恢复圈子页 view（可能被首页改成 hot/latest）
+  if (postStore.activeView !== 'all' || postStore.activeCategory !== '') {
+    postStore.setView('all')
+    postStore.setCategory('')
+  }
+  // SWR：有缓存先展示旧数据，后台刷新；无缓存则正常加载
+  if (postStore.restoreFromCache()) {
+    postStore.ensureFresh().then((changed) => { if (changed) triggerFade() })
+  } else {
+    postStore.loadPosts()
+  }
+  // 重新加载"我的足迹"：用户可能在其他页面浏览了新圈子，回来后需要同步
+  // 静默刷新：不显示骨架屏，保留旧数据可见，数据变化时触发渐变
+  loadViewedCirclesSilent()
 })
 
 async function onTabChange(tab: 'joined' | 'all') {
@@ -410,13 +497,17 @@ onUnmounted(() => stopAuditPolling())
           <div v-if="!session.userId" class="empty-mini">
             请先登录后查看足迹
           </div>
+          <!-- 足迹骨架屏：加载中显示 shimmer 占位，避免空白后突然出现 -->
+          <div v-else-if="viewedLoading" class="footprint-skeleton">
+            <div v-for="i in 5" :key="'fs-' + i" class="footprint-sk-item sk-shimmer"></div>
+          </div>
           <div
             v-else-if="!viewedCircles.length"
             class="empty-mini"
           >
             还没有浏览过任何吧，去下面看看吧
           </div>
-          <div v-else class="footprint-scroll">
+          <div v-else :class="{ 'swr-updated': fadeActive }" class="footprint-scroll">
             <button
               v-for="circle in viewedCircles"
               :key="'fp-' + circle.id"
@@ -627,12 +718,10 @@ onUnmounted(() => stopAuditPolling())
           </button>
         </div>
 
-        <div v-if="postStore.loading" class="feed-loading">
-          <Icon name="refresh" :size="20" />
-          <span>加载中…</span>
-        </div>
+        <PostListSkeleton v-if="postStore.loading" :count="6" />
 
-        <div v-else-if="displayedPosts.length" class="feed">
+        <!-- :class swr-updated：SWR 刷新数据变化时渐变过渡（文字逐字淡变+图片滑动），不销毁 DOM 保持滚动 -->
+        <div v-else-if="displayedPosts.length" :class="{ 'swr-updated': fadeActive }" class="feed">
           <article
             v-for="post in displayedPosts"
             :key="post.id"
@@ -694,6 +783,14 @@ onUnmounted(() => stopAuditPolling())
               </div>
             </div>
           </article>
+
+          <InfiniteScrollFooter
+            :loading="loadMoreLoading"
+            :error="loadMoreError"
+            :has-more="postStore.hasMore"
+            :has-items="displayedPosts.length > 0"
+            @retry="retryLoadMore"
+          />
         </div>
 
         <EmptyState
@@ -1077,6 +1174,19 @@ onUnmounted(() => stopAuditPolling())
 }
 .footprint-item:hover { transform: translateY(-2px); }
 .footprint-item:active { transform: scale(0.94); }
+
+/* 足迹骨架屏 */
+.footprint-skeleton {
+  display: flex;
+  gap: 12px;
+  overflow: hidden;
+}
+.footprint-sk-item {
+  flex-shrink: 0;
+  width: 52px;
+  height: 52px;
+  border-radius: 16px;
+}
 
 .footprint-icon {
   position: relative;

@@ -83,5 +83,22 @@ window.addEventListener('error', (event) => {
 // 用户端页面不加载 Element Plus，仅 /admin 后台页面按需加载
 app.use(createPinia()).use(router).mount('#app')
 
-// 挂载原生 Toast 容器
+// 挂载 Toast 容器
 mountToast()
+
+// ============ 启动预加载遮罩兜底移除 ============
+// App.vue onMounted 正常情况下会移除 #app-preloader，
+// 但如果 Vue 挂载失败 / onMounted 抛异常，遮罩会永久残留导致白屏。
+// 这里设一个 8s 兜底定时器，确保任何情况下遮罩最终都会被移除。
+function forceRemovePreloader() {
+  const el = document.getElementById('app-preloader')
+  if (el && el.parentNode) {
+    el.parentNode.removeChild(el)
+  }
+}
+window.setTimeout(forceRemovePreloader, 8000)
+// 如果页面发生致命错误，立即移除遮罩让用户看到错误
+window.addEventListener('error', () => {
+  // 延迟一点移除，给 errorHandler 处理时间
+  window.setTimeout(forceRemovePreloader, 1000)
+}, { once: true })

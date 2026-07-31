@@ -32,9 +32,14 @@ def my_favorites(db: Session = Depends(get_db), user: User = Depends(current_use
 
 
 @router.get("/me/favorites/posts")
-def my_favorite_posts(db: Session = Depends(get_db), user: User = Depends(current_user)) -> dict:
-    """返回当前用户收藏的帖子完整列表（T5-4 我的收藏页用）。"""
-    return ok(user_service.my_favorite_posts(user.id, db))
+def my_favorite_posts(
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=100),
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+) -> dict:
+    """返回当前用户收藏的帖子完整列表（T5-4 我的收藏页用，分页）。"""
+    return ok(user_service.my_favorite_posts(user.id, db, page=page, page_size=page_size))
 
 
 @router.get("/me/drafts")
@@ -44,9 +49,14 @@ def my_drafts(db: Session = Depends(get_db), user: User = Depends(current_user))
 
 
 @router.get("/me/likes/posts")
-def my_liked_posts(db: Session = Depends(get_db), user: User = Depends(current_user)) -> dict:
-    """返回当前用户点赞过的帖子完整列表（T5-1 个人主页点赞 Tab 用）。"""
-    return ok(user_service.my_liked_posts(user.id, db))
+def my_liked_posts(
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=100),
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+) -> dict:
+    """返回当前用户点赞过的帖子完整列表（T5-1 个人主页点赞 Tab 用，分页）。"""
+    return ok(user_service.my_liked_posts(user.id, db, page=page, page_size=page_size))
 
 
 @router.patch("/me")
@@ -120,8 +130,14 @@ def my_warning_logs(
 
 
 @router.get("/{user_id}/posts")
-def user_posts_list(user_id: int, db: Session = Depends(get_db), user: User = Depends(current_user)) -> dict:
-    return ok(user_service.user_posts(user_id, db, viewer_id=user.id))
+def user_posts_list(
+    user_id: int,
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=100),
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+) -> dict:
+    return ok(user_service.user_posts(user_id, db, viewer_id=user.id, page=page, page_size=page_size))
 
 
 @router.get("/{user_id}/likers")

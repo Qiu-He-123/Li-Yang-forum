@@ -27891,3 +27891,516 @@ AttributeError: Neither 'BinaryExpression' object nor 'Comparator' object has an
 2026-07-31 16:22:07.692 | INFO     | app.services.connection_manager:61 - [WS] user=9 disconnected client=0889b780a3fc4f528700e2fa4e6154a2
 2026-07-31 16:22:08.630 | INFO     | app.services.connection_manager:48 - [WS] user=9 connected client=73dbc89d64794baab8affc37e401d50b
 2026-07-31 16:32:26.700 | INFO     | app.services.connection_manager:61 - [WS] user=9 disconnected client=73dbc89d64794baab8affc37e401d50b
+2026-07-31 17:28:36.416 | INFO     | app.services.connection_manager:48 - [WS] user=9 connected client=d543ad0f9390460699930b5b686b83a9
+2026-07-31 18:26:05.030 | INFO     | app.core.alembic_helper:94 - [ALEMBIC] upgrade head 完成（已有版本表）
+2026-07-31 18:26:05.059 | INFO     | app.main:157 - 立洋校园社区 started (env=dev)
+2026-07-31 18:26:08.701 | INFO     | app.services.connection_manager:48 - [WS] user=0 connected client=2a4f3af3a21c48768ee617454591303f
+2026-07-31 18:26:15.563 | INFO     | app.services.audit_log:42 - [USER_OP] user=None action=login_failed detail={"username": "15793243441", "reason": "user_not_found"} ip=127.0.0.1
+2026-07-31 18:26:15.567 | WARNING  | app.main:84 - [HTTP_EXC] status=401 code=-103 msg=手机号或密码错误
+2026-07-31 18:26:16.196 | INFO     | app.services.audit_log:42 - [USER_OP] user=None action=login_failed detail={"username": "15793243441", "reason": "user_not_found"} ip=127.0.0.1
+2026-07-31 18:26:16.199 | WARNING  | app.main:84 - [HTTP_EXC] status=401 code=-103 msg=手机号或密码错误
+2026-07-31 18:26:16.482 | INFO     | app.services.audit_log:42 - [USER_OP] user=None action=login_failed detail={"username": "15793243441", "reason": "user_not_found"} ip=127.0.0.1
+2026-07-31 18:26:16.484 | WARNING  | app.main:84 - [HTTP_EXC] status=401 code=-103 msg=手机号或密码错误
+2026-07-31 18:26:16.669 | INFO     | app.services.audit_log:42 - [USER_OP] user=None action=login_failed detail={"username": "15793243441", "reason": "user_not_found"} ip=127.0.0.1
+2026-07-31 18:26:16.671 | WARNING  | app.main:84 - [HTTP_EXC] status=401 code=-103 msg=手机号或密码错误
+2026-07-31 18:26:26.965 | WARNING  | app.main:84 - [HTTP_EXC] status=401 code=-101 msg=登录已过期，请重新登录
+2026-07-31 18:26:26.973 | WARNING  | app.main:84 - [HTTP_EXC] status=401 code=-101 msg=登录已过期，请重新登录
+2026-07-31 18:26:27.918 | WARNING  | app.main:84 - [HTTP_EXC] status=401 code=-101 msg=登录已过期，请重新登录
+2026-07-31 18:26:27.926 | WARNING  | app.main:84 - [HTTP_EXC] status=401 code=-101 msg=登录已过期，请重新登录
+2026-07-31 18:26:31.123 | WARNING  | app.main:84 - [HTTP_EXC] status=401 code=-101 msg=登录已过期，请重新登录
+2026-07-31 18:26:31.128 | WARNING  | app.main:84 - [HTTP_EXC] status=401 code=-101 msg=登录已过期，请重新登录
+2026-07-31 18:26:33.164 | WARNING  | app.main:84 - [HTTP_EXC] status=401 code=-101 msg=登录已过期，请重新登录
+2026-07-31 18:26:33.173 | WARNING  | app.main:84 - [HTTP_EXC] status=401 code=-101 msg=登录已过期，请重新登录
+2026-07-31 18:26:34.808 | WARNING  | app.main:84 - [HTTP_EXC] status=401 code=-101 msg=登录已过期，请重新登录
+2026-07-31 18:26:34.815 | WARNING  | app.main:84 - [HTTP_EXC] status=401 code=-101 msg=登录已过期，请重新登录
+2026-07-31 18:26:36.278 | WARNING  | app.main:84 - [HTTP_EXC] status=401 code=-101 msg=登录已过期，请重新登录
+2026-07-31 18:26:36.287 | WARNING  | app.main:84 - [HTTP_EXC] status=401 code=-101 msg=登录已过期，请重新登录
+2026-07-31 18:26:37.963 | INFO     | app.services.connection_manager:61 - [WS] user=0 disconnected client=2a4f3af3a21c48768ee617454591303f
+2026-07-31 18:26:48.511 | INFO     | app.services.connection_manager:48 - [WS] user=1 connected client=76b1c2e4ae454c95954b916eb0e0e1c5
+2026-07-31 18:27:14.704 | INFO     | app.services.connection_manager:61 - [WS] user=1 disconnected client=76b1c2e4ae454c95954b916eb0e0e1c5
+2026-07-31 18:41:06.445 | INFO     | app.services.connection_manager:48 - [WS] user=1 connected client=d868d0f0b6d54f5eb8ee13dd5d02b6e6
+2026-07-31 18:44:53.012 | INFO     | app.services.connection_manager:61 - [WS] user=1 disconnected client=d868d0f0b6d54f5eb8ee13dd5d02b6e6
+2026-07-31 18:45:01.437 | INFO     | app.services.connection_manager:48 - [WS] user=1 connected client=f6f19a4fcf6a4bc9a4a0191737778c67
+2026-07-31 18:45:21.503 | INFO     | app.services.connection_manager:61 - [WS] user=1 disconnected client=f6f19a4fcf6a4bc9a4a0191737778c67
+2026-07-31 18:51:49.318 | INFO     | app.services.connection_manager:48 - [WS] user=1 connected client=2a4b32617dbf41569acec5b1655939b0
+2026-07-31 18:52:02.931 | INFO     | app.services.connection_manager:61 - [WS] user=1 disconnected client=2a4b32617dbf41569acec5b1655939b0
+2026-07-31 18:52:33.473 | INFO     | app.core.alembic_helper:94 - [ALEMBIC] upgrade head 完成（已有版本表）
+2026-07-31 18:52:33.515 | INFO     | app.main:157 - 立洋校园社区 started (env=dev)
+2026-07-31 18:52:37.685 | INFO     | app.services.connection_manager:48 - [WS] user=0 connected client=8b0704b8b74d4da3b6026b1bd90248e3
+2026-07-31 18:52:38.667 | INFO     | app.services.connection_manager:61 - [WS] user=0 disconnected client=8b0704b8b74d4da3b6026b1bd90248e3
+2026-07-31 18:52:59.114 | INFO     | app.services.connection_manager:48 - [WS] user=1 connected client=2421bb4e24e3417a8f9db4a9f23e670f
+2026-07-31 18:55:58.011 | INFO     | app.services.connection_manager:61 - [WS] user=1 disconnected client=2421bb4e24e3417a8f9db4a9f23e670f
+2026-07-31 18:56:05.380 | INFO     | app.core.alembic_helper:94 - [ALEMBIC] upgrade head 完成（已有版本表）
+2026-07-31 18:56:05.407 | INFO     | app.main:157 - 立洋校园社区 started (env=dev)
+2026-07-31 18:56:10.082 | INFO     | app.services.connection_manager:48 - [WS] user=0 connected client=b504f75535cb44b393f40537dd0d0c49
+2026-07-31 18:56:15.099 | INFO     | app.services.connection_manager:61 - [WS] user=0 disconnected client=b504f75535cb44b393f40537dd0d0c49
+2026-07-31 18:56:21.288 | INFO     | app.services.connection_manager:48 - [WS] user=1 connected client=eef7378df4924f69b2e19768f55834ff
+2026-07-31 19:00:52.131 | INFO     | app.core.alembic_helper:94 - [ALEMBIC] upgrade head 完成（已有版本表）
+2026-07-31 19:00:52.159 | INFO     | app.main:157 - 立洋校园社区 started (env=dev)
+2026-07-31 19:00:53.287 | INFO     | app.services.connection_manager:48 - [WS] user=1 connected client=14780e4ba3a54e5a8d91d85c855943c0
+2026-07-31 19:01:08.260 | INFO     | app.services.connection_manager:48 - [WS] user=1 connected client=4a38cb180cf14e5e911d3cf49ec188e7
+2026-07-31 19:01:37.121 | INFO     | app.services.connection_manager:61 - [WS] user=1 disconnected client=14780e4ba3a54e5a8d91d85c855943c0
+2026-07-31 19:01:37.148 | INFO     | app.services.connection_manager:61 - [WS] user=1 disconnected client=4a38cb180cf14e5e911d3cf49ec188e7
+2026-07-31 19:08:20.124 | INFO     | app.services.connection_manager:48 - [WS] user=9 connected client=2d341342559c4e7c8eb7452366b6a333
+2026-07-31 19:12:11.535 | INFO     | app.services.connection_manager:48 - [WS] user=0 connected client=f9ce4286329f42119d37f8a8122ddd69
+2026-07-31 19:12:57.281 | INFO     | app.services.connection_manager:61 - [WS] user=0 disconnected client=f9ce4286329f42119d37f8a8122ddd69
+2026-07-31 19:14:32.712 | INFO     | app.core.alembic_helper:94 - [ALEMBIC] upgrade head 完成（已有版本表）
+2026-07-31 19:14:32.739 | INFO     | app.main:171 - 立洋校园社区 started (env=dev)
+2026-07-31 19:16:26.113 | INFO     | app.core.alembic_helper:94 - [ALEMBIC] upgrade head 完成（已有版本表）
+2026-07-31 19:16:26.148 | INFO     | app.main:196 - 立洋校园社区 started (env=dev)
+2026-07-31 19:18:19.775 | INFO     | app.core.alembic_helper:94 - [ALEMBIC] upgrade head 完成（已有版本表）
+2026-07-31 19:18:19.805 | INFO     | app.main:198 - 立洋校园社区 started (env=dev)
+2026-07-31 19:18:49.670 | INFO     | app.core.alembic_helper:94 - [ALEMBIC] upgrade head 完成（已有版本表）
+2026-07-31 19:18:49.698 | INFO     | app.main:198 - 立洋校园社区 started (env=dev)
+2026-07-31 19:18:51.707 | INFO     | app.services.connection_manager:61 - [WS] user=9 disconnected client=2d341342559c4e7c8eb7452366b6a333
+2026-07-31 19:18:53.696 | INFO     | app.services.connection_manager:48 - [WS] user=9 connected client=723203f14cd44a65bdd73f0d3d7fe7e1
+2026-07-31 19:19:17.085 | INFO     | app.core.alembic_helper:94 - [ALEMBIC] upgrade head 完成（已有版本表）
+2026-07-31 19:19:17.121 | INFO     | app.main:199 - 立洋校园社区 started (env=dev)
+2026-07-31 19:24:56.083 | INFO     | app.core.alembic_helper:94 - [ALEMBIC] upgrade head 完成（已有版本表）
+2026-07-31 19:24:56.125 | INFO     | app.main:193 - 立洋校园社区 started (env=dev)
+2026-07-31 19:26:50.470 | INFO     | app.core.alembic_helper:94 - [ALEMBIC] upgrade head 完成（已有版本表）
+2026-07-31 19:26:50.500 | INFO     | app.main:193 - 立洋校园社区 started (env=dev)
+2026-07-31 19:26:54.989 | INFO     | app.services.connection_manager:48 - [WS] user=1 connected client=8ec9a275cd3c451e83986b9d88e429e5
+2026-07-31 19:26:56.845 | INFO     | app.services.connection_manager:61 - [WS] user=1 disconnected client=8ec9a275cd3c451e83986b9d88e429e5
+2026-07-31 19:27:02.998 | INFO     | app.services.connection_manager:48 - [WS] user=1 connected client=339ae2f3def540c0875b9fa96a9ffbb5
+2026-07-31 19:27:14.168 | INFO     | app.services.connection_manager:61 - [WS] user=1 disconnected client=339ae2f3def540c0875b9fa96a9ffbb5
+2026-07-31 19:27:20.698 | INFO     | app.core.alembic_helper:94 - [ALEMBIC] upgrade head 完成（已有版本表）
+2026-07-31 19:27:20.732 | INFO     | app.main:193 - 立洋校园社区 started (env=dev)
+2026-07-31 19:27:23.983 | INFO     | app.services.connection_manager:48 - [WS] user=0 connected client=37c2f3132a5d41119a124a56626884bb
+2026-07-31 19:27:29.779 | INFO     | app.services.connection_manager:61 - [WS] user=0 disconnected client=37c2f3132a5d41119a124a56626884bb
+2026-07-31 19:38:56.121 | INFO     | app.core.alembic_helper:94 - [ALEMBIC] upgrade head 完成（已有版本表）
+2026-07-31 19:38:56.157 | INFO     | app.main:193 - 立洋校园社区 started (env=dev)
+2026-07-31 19:39:06.690 | INFO     | app.services.connection_manager:48 - [WS] user=0 connected client=3f0e6d8a3a844ad3915adb1876b09842
+2026-07-31 19:39:07.700 | INFO     | app.services.connection_manager:61 - [WS] user=0 disconnected client=3f0e6d8a3a844ad3915adb1876b09842
+2026-07-31 19:39:09.535 | WARNING  | app.main:120 - [HTTP_EXC] status=401 code=-101 msg=登录已过期，请重新登录
+2026-07-31 19:39:09.682 | INFO     | app.services.connection_manager:48 - [WS] user=0 connected client=f59b8730c82749c1b524b88ee104eb6d
+2026-07-31 19:39:09.930 | INFO     | app.services.audit_log:42 - [USER_OP] user=1 action=refresh_token detail={"old_token_id": 10} ip=120.217.144.110
+2026-07-31 19:39:20.088 | WARNING  | app.main:153 - [VALIDATION_ERR] code=-1000 msg=参数错误 errors=[{'loc': ('path', 'user_id'), 'msg': 'Input should be a valid integer, unable to parse string as an integer', 'type': 'int_parsing'}]
+2026-07-31 19:39:20.089 | WARNING  | app.main:153 - [VALIDATION_ERR] code=-1000 msg=参数错误 errors=[{'loc': ('path', 'user_id'), 'msg': 'Input should be a valid integer, unable to parse string as an integer', 'type': 'int_parsing'}]
+2026-07-31 19:39:28.132 | WARNING  | app.main:153 - [VALIDATION_ERR] code=-1000 msg=参数错误 errors=[{'loc': ('path', 'user_id'), 'msg': 'Input should be a valid integer, unable to parse string as an integer', 'type': 'int_parsing'}]
+2026-07-31 19:39:28.138 | WARNING  | app.main:153 - [VALIDATION_ERR] code=-1000 msg=参数错误 errors=[{'loc': ('path', 'user_id'), 'msg': 'Input should be a valid integer, unable to parse string as an integer', 'type': 'int_parsing'}]
+2026-07-31 19:39:36.637 | INFO     | app.services.connection_manager:61 - [WS] user=0 disconnected client=f59b8730c82749c1b524b88ee104eb6d
+2026-07-31 19:43:59.055 | INFO     | app.core.alembic_helper:94 - [ALEMBIC] upgrade head 完成（已有版本表）
+2026-07-31 19:43:59.089 | INFO     | app.main:193 - 立洋校园社区 started (env=dev)
+2026-07-31 19:44:04.488 | INFO     | app.services.connection_manager:48 - [WS] user=0 connected client=dd7e0f777105442eb09b5b5c13851ba8
+2026-07-31 19:44:07.013 | INFO     | app.services.connection_manager:61 - [WS] user=0 disconnected client=dd7e0f777105442eb09b5b5c13851ba8
+2026-07-31 19:44:18.374 | INFO     | app.services.connection_manager:48 - [WS] user=1 connected client=53b153f08c0d42f3a6f1087c769cb0bd
+2026-07-31 19:44:28.779 | WARNING  | app.main:153 - [VALIDATION_ERR] code=-1000 msg=参数错误 errors=[{'loc': ('path', 'user_id'), 'msg': 'Input should be a valid integer, unable to parse string as an integer', 'type': 'int_parsing'}]
+2026-07-31 19:44:28.785 | WARNING  | app.main:153 - [VALIDATION_ERR] code=-1000 msg=参数错误 errors=[{'loc': ('path', 'user_id'), 'msg': 'Input should be a valid integer, unable to parse string as an integer', 'type': 'int_parsing'}]
+2026-07-31 19:48:27.965 | WARNING  | app.main:153 - [VALIDATION_ERR] code=-1000 msg=参数错误 errors=[{'loc': ('path', 'user_id'), 'msg': 'Input should be a valid integer, unable to parse string as an integer', 'type': 'int_parsing'}]
+2026-07-31 19:48:27.967 | WARNING  | app.main:153 - [VALIDATION_ERR] code=-1000 msg=参数错误 errors=[{'loc': ('path', 'user_id'), 'msg': 'Input should be a valid integer, unable to parse string as an integer', 'type': 'int_parsing'}]
+2026-07-31 19:48:35.434 | WARNING  | app.main:153 - [VALIDATION_ERR] code=-1000 msg=参数错误 errors=[{'loc': ('path', 'user_id'), 'msg': 'Input should be a valid integer, unable to parse string as an integer', 'type': 'int_parsing'}]
+2026-07-31 19:48:35.438 | WARNING  | app.main:153 - [VALIDATION_ERR] code=-1000 msg=参数错误 errors=[{'loc': ('path', 'user_id'), 'msg': 'Input should be a valid integer, unable to parse string as an integer', 'type': 'int_parsing'}]
+2026-07-31 19:49:29.175 | WARNING  | app.main:120 - [HTTP_EXC] status=404 code=-102 msg=用户不存在
+2026-07-31 19:49:37.724 | WARNING  | app.main:153 - [VALIDATION_ERR] code=-1000 msg=参数错误 errors=[{'loc': ('path', 'user_id'), 'msg': 'Input should be a valid integer, unable to parse string as an integer', 'type': 'int_parsing'}]
+2026-07-31 19:49:37.726 | WARNING  | app.main:153 - [VALIDATION_ERR] code=-1000 msg=参数错误 errors=[{'loc': ('path', 'user_id'), 'msg': 'Input should be a valid integer, unable to parse string as an integer', 'type': 'int_parsing'}]
+2026-07-31 19:50:21.047 | WARNING  | app.main:153 - [VALIDATION_ERR] code=-1000 msg=参数错误 errors=[{'loc': ('path', 'user_id'), 'msg': 'Input should be a valid integer, unable to parse string as an integer', 'type': 'int_parsing'}]
+2026-07-31 19:50:21.047 | WARNING  | app.main:153 - [VALIDATION_ERR] code=-1000 msg=参数错误 errors=[{'loc': ('path', 'user_id'), 'msg': 'Input should be a valid integer, unable to parse string as an integer', 'type': 'int_parsing'}]
+2026-07-31 19:50:25.054 | WARNING  | app.main:120 - [HTTP_EXC] status=404 code=-102 msg=用户不存在
+2026-07-31 19:54:23.702 | INFO     | app.services.connection_manager:61 - [WS] user=1 disconnected client=53b153f08c0d42f3a6f1087c769cb0bd
+2026-07-31 19:54:23.932 | INFO     | app.services.connection_manager:48 - [WS] user=1 connected client=36faaf5b3aaa40de8c8c34e32171704d
+2026-07-31 20:04:55.694 | INFO     | app.services.connection_manager:61 - [WS] user=1 disconnected client=36faaf5b3aaa40de8c8c34e32171704d
+2026-07-31 20:04:56.887 | INFO     | app.services.connection_manager:48 - [WS] user=1 connected client=75d809c8027c4bdc97a24e776d39b9d8
+2026-07-31 20:15:40.690 | INFO     | app.services.connection_manager:61 - [WS] user=1 disconnected client=75d809c8027c4bdc97a24e776d39b9d8
+2026-07-31 20:15:41.141 | INFO     | app.services.connection_manager:48 - [WS] user=1 connected client=75ffed0b8e444fd6838efa4813112a85
+2026-07-31 20:25:42.694 | INFO     | app.services.connection_manager:61 - [WS] user=1 disconnected client=75ffed0b8e444fd6838efa4813112a85
+2026-07-31 20:25:43.921 | INFO     | app.services.connection_manager:48 - [WS] user=1 connected client=5b32fbb536254aa0bb90ff0648023662
+2026-07-31 20:35:45.699 | INFO     | app.services.connection_manager:61 - [WS] user=1 disconnected client=5b32fbb536254aa0bb90ff0648023662
+2026-07-31 20:35:47.936 | INFO     | app.services.connection_manager:48 - [WS] user=1 connected client=282b9108deaa420096291455dc612cb8
+2026-07-31 20:46:42.713 | INFO     | app.services.connection_manager:61 - [WS] user=1 disconnected client=282b9108deaa420096291455dc612cb8
+2026-07-31 20:46:43.152 | INFO     | app.services.connection_manager:48 - [WS] user=1 connected client=9a98d64bd6fa45fd806b6f584b3bd6b0
+2026-07-31 20:48:24.875 | INFO     | app.services.connection_manager:61 - [WS] user=1 disconnected client=9a98d64bd6fa45fd806b6f584b3bd6b0
+2026-07-31 20:48:34.979 | INFO     | app.core.alembic_helper:94 - [ALEMBIC] upgrade head 完成（已有版本表）
+2026-07-31 20:48:35.010 | INFO     | app.main:157 - 立洋校园社区 started (env=dev)
+2026-07-31 20:48:40.333 | INFO     | app.services.connection_manager:48 - [WS] user=0 connected client=3c326ff45c9c4a7cba7b52f755506360
+2026-07-31 20:48:47.061 | INFO     | app.services.audit_log:42 - [USER_OP] user=None action=login_failed detail={"username": "15793243441", "reason": "user_not_found"} ip=127.0.0.1
+2026-07-31 20:48:47.069 | WARNING  | app.main:84 - [HTTP_EXC] status=401 code=-103 msg=手机号或密码错误
+2026-07-31 20:48:48.009 | INFO     | app.services.audit_log:42 - [USER_OP] user=None action=login_failed detail={"username": "15793243441", "reason": "user_not_found"} ip=127.0.0.1
+2026-07-31 20:48:48.011 | WARNING  | app.main:84 - [HTTP_EXC] status=401 code=-103 msg=手机号或密码错误
+2026-07-31 20:48:48.399 | INFO     | app.services.audit_log:42 - [USER_OP] user=None action=login_failed detail={"username": "15793243441", "reason": "user_not_found"} ip=127.0.0.1
+2026-07-31 20:48:48.402 | WARNING  | app.main:84 - [HTTP_EXC] status=401 code=-103 msg=手机号或密码错误
+2026-07-31 20:48:48.566 | INFO     | app.services.audit_log:42 - [USER_OP] user=None action=login_failed detail={"username": "15793243441", "reason": "user_not_found"} ip=127.0.0.1
+2026-07-31 20:48:48.568 | WARNING  | app.main:84 - [HTTP_EXC] status=401 code=-103 msg=手机号或密码错误
+2026-07-31 20:48:48.749 | INFO     | app.services.audit_log:42 - [USER_OP] user=None action=login_failed detail={"username": "15793243441", "reason": "user_not_found"} ip=127.0.0.1
+2026-07-31 20:48:48.750 | WARNING  | app.main:84 - [HTTP_EXC] status=401 code=-103 msg=手机号或密码错误
+2026-07-31 20:48:51.160 | INFO     | app.services.connection_manager:61 - [WS] user=0 disconnected client=3c326ff45c9c4a7cba7b52f755506360
+2026-07-31 20:48:57.382 | INFO     | app.services.connection_manager:48 - [WS] user=1 connected client=6df10a56b7504018991b83238450e1b2
+2026-07-31 20:49:19.346 | WARNING  | app.main:84 - [HTTP_EXC] status=404 code=-102 msg=用户不存在
+2026-07-31 20:49:22.991 | WARNING  | app.main:84 - [HTTP_EXC] status=404 code=-102 msg=用户不存在
+2026-07-31 20:49:31.927 | WARNING  | app.main:84 - [HTTP_EXC] status=404 code=-102 msg=用户不存在
+2026-07-31 21:06:20.168 | INFO     | app.services.connection_manager:48 - [WS] user=0 connected client=5a3b043aeee04e5996c5c8b0a7509bb9
+2026-07-31 21:06:33.176 | INFO     | app.services.audit_log:42 - [USER_OP] user=None action=login_failed detail={"username": "test1", "reason": "user_not_found"} ip=127.0.0.1
+2026-07-31 21:06:33.186 | WARNING  | app.main:120 - [HTTP_EXC] status=401 code=-103 msg=手机号或密码错误
+2026-07-31 21:06:41.865 | INFO     | app.services.audit_log:42 - [USER_OP] user=None action=login_failed detail={"username": "test2", "reason": "user_not_found"} ip=127.0.0.1
+2026-07-31 21:06:41.869 | WARNING  | app.main:120 - [HTTP_EXC] status=401 code=-103 msg=手机号或密码错误
+2026-07-31 21:06:57.142 | INFO     | app.services.audit_log:42 - [USER_OP] user=None action=login_failed detail={"username": "admin", "reason": "user_not_found"} ip=127.0.0.1
+2026-07-31 21:06:57.145 | WARNING  | app.main:120 - [HTTP_EXC] status=401 code=-103 msg=手机号或密码错误
+2026-07-31 21:07:52.154 | INFO     | app.services.connection_manager:61 - [WS] user=0 disconnected client=5a3b043aeee04e5996c5c8b0a7509bb9
+2026-07-31 21:07:57.635 | INFO     | app.services.connection_manager:48 - [WS] user=0 connected client=ca0faef6281544b98b97ebfa90991865
+2026-07-31 21:09:25.536 | INFO     | app.services.connection_manager:61 - [WS] user=0 disconnected client=ca0faef6281544b98b97ebfa90991865
+2026-07-31 21:09:26.795 | INFO     | app.services.connection_manager:48 - [WS] user=0 connected client=f651cb8b8f12435bb889988ef7838c82
+2026-07-31 21:09:46.602 | INFO     | app.services.audit_log:42 - [USER_OP] user=None action=login_failed detail={"username": "test1", "reason": "user_not_found"} ip=127.0.0.1
+2026-07-31 21:09:46.606 | WARNING  | app.main:120 - [HTTP_EXC] status=401 code=-103 msg=手机号或密码错误
+2026-07-31 21:09:55.432 | INFO     | app.services.audit_log:42 - [USER_OP] user=None action=login_failed detail={"username": "test2", "reason": "user_not_found"} ip=127.0.0.1
+2026-07-31 21:09:55.435 | WARNING  | app.main:120 - [HTTP_EXC] status=401 code=-103 msg=手机号或密码错误
+2026-07-31 21:11:22.838 | INFO     | app.services.audit_log:42 - [USER_OP] user=None action=login_failed detail={"username": "13900000020", "reason": "user_not_found"} ip=127.0.0.1
+2026-07-31 21:11:22.841 | WARNING  | app.main:120 - [HTTP_EXC] status=401 code=-103 msg=手机号或密码错误
+2026-07-31 21:13:27.485 | INFO     | app.services.audit_log:42 - [USER_OP] user=None action=login_failed detail={"username": "13800000001", "reason": "user_not_found"} ip=127.0.0.1
+2026-07-31 21:13:27.487 | WARNING  | app.main:120 - [HTTP_EXC] status=401 code=-103 msg=手机号或密码错误
+2026-07-31 21:13:44.533 | INFO     | app.services.audit_log:42 - [USER_OP] user=None action=login_failed detail={"username": "13800000002", "reason": "user_not_found"} ip=127.0.0.1
+2026-07-31 21:13:44.535 | WARNING  | app.main:120 - [HTTP_EXC] status=401 code=-103 msg=手机号或密码错误
+2026-07-31 21:14:40.116 | INFO     | app.services.audit_log:42 - [USER_OP] user=None action=login_failed detail={"username": "13800000000", "reason": "user_not_found"} ip=127.0.0.1
+2026-07-31 21:14:40.118 | WARNING  | app.main:120 - [HTTP_EXC] status=401 code=-103 msg=手机号或密码错误
+2026-07-31 21:14:48.747 | INFO     | app.services.audit_log:42 - [USER_OP] user=None action=login_failed detail={"username": "testuser_001", "reason": "user_not_found"} ip=127.0.0.1
+2026-07-31 21:14:48.749 | WARNING  | app.main:120 - [HTTP_EXC] status=401 code=-103 msg=手机号或密码错误
+2026-07-31 21:14:55.381 | INFO     | app.services.audit_log:42 - [USER_OP] user=None action=login_failed detail={"username": "testuser_001", "reason": "user_not_found"} ip=127.0.0.1
+2026-07-31 21:14:55.384 | WARNING  | app.main:120 - [HTTP_EXC] status=401 code=-103 msg=手机号或密码错误
+2026-07-31 21:15:05.656 | INFO     | app.services.audit_log:42 - [USER_OP] user=None action=login_failed detail={"username": "testuser03", "reason": "user_not_found"} ip=127.0.0.1
+2026-07-31 21:15:05.657 | WARNING  | app.main:120 - [HTTP_EXC] status=401 code=-103 msg=手机号或密码错误
+2026-07-31 21:16:20.575 | INFO     | app.services.audit_log:42 - [USER_OP] user=None action=login_failed detail={"username": "testuser_001", "reason": "user_not_found"} ip=127.0.0.1
+2026-07-31 21:16:20.578 | WARNING  | app.main:120 - [HTTP_EXC] status=401 code=-103 msg=手机号或密码错误
+2026-07-31 21:16:27.435 | INFO     | app.services.audit_log:42 - [USER_OP] user=None action=login_failed detail={"username": "testuser_001", "reason": "user_not_found"} ip=127.0.0.1
+2026-07-31 21:16:27.436 | WARNING  | app.main:120 - [HTTP_EXC] status=401 code=-103 msg=手机号或密码错误
+2026-07-31 21:17:01.970 | INFO     | app.services.audit_log:42 - [USER_OP] user=1 action=login detail={"username": "qiuhe"} ip=127.0.0.1
+2026-07-31 21:17:21.315 | INFO     | app.services.audit_log:42 - [USER_OP] user=1 action=login detail={"username": "qiuhe"} ip=127.0.0.1
+2026-07-31 21:17:21.321 | INFO     | app.services.connection_manager:61 - [WS] user=0 disconnected client=f651cb8b8f12435bb889988ef7838c82
+2026-07-31 21:17:21.325 | INFO     | app.services.connection_manager:48 - [WS] user=1 connected client=615606870ec44620a6f34ebcd1f0fc25
+2026-07-31 21:17:22.337 | INFO     | app.services.connection_manager:48 - [WS] user=1 connected client=8cbe5a331921417cb6d09250a2db2c72
+2026-07-31 21:22:01.369 | INFO     | app.services.connection_manager:61 - [WS] user=1 disconnected client=615606870ec44620a6f34ebcd1f0fc25
+2026-07-31 21:22:01.370 | INFO     | app.services.connection_manager:61 - [WS] user=1 disconnected client=8cbe5a331921417cb6d09250a2db2c72
+2026-07-31 21:22:01.489 | INFO     | app.services.connection_manager:48 - [WS] user=1 connected client=52c546d2b3094fdc839b7547b4029e36
+2026-07-31 21:26:07.337 | INFO     | app.services.connection_manager:61 - [WS] user=1 disconnected client=52c546d2b3094fdc839b7547b4029e36
+2026-07-31 21:26:07.437 | INFO     | app.services.connection_manager:48 - [WS] user=1 connected client=3fc7e2a0826149afbefec2380775f140
+2026-07-31 21:27:21.711 | INFO     | app.core.alembic_helper:94 - [ALEMBIC] upgrade head 完成（已有版本表）
+2026-07-31 21:27:21.741 | INFO     | app.main:157 - 立洋校园社区 started (env=dev)
+2026-07-31 21:27:27.170 | INFO     | app.services.connection_manager:48 - [WS] user=0 connected client=01866f5751374bb0adec90715a36f4d3
+2026-07-31 21:27:30.300 | INFO     | app.services.connection_manager:61 - [WS] user=0 disconnected client=01866f5751374bb0adec90715a36f4d3
+2026-07-31 21:27:39.395 | INFO     | app.services.connection_manager:48 - [WS] user=1 connected client=4e99658df5dd42f4bd42358e37bf85fd
+2026-07-31 21:29:29.227 | INFO     | app.services.audit_log:42 - [USER_OP] user=1 action=save_draft detail={"post_id": 26, "category": "校园圈", "anonymous": false} ip=120.217.144.110
+2026-07-31 21:29:36.335 | INFO     | app.services.audit_log:42 - [USER_OP] user=1 action=create_post detail={"post_id": 27, "category": "confess", "anonymous": false} ip=120.217.144.110
+2026-07-31 21:29:37.999 | INFO     | app.services.deepseek_service:154 - DeepSeek 审核完成 model=deepseek-v4-flash len=68
+2026-07-31 21:29:40.120 | INFO     | app.services.connection_manager:61 - [WS] user=1 disconnected client=4e99658df5dd42f4bd42358e37bf85fd
+2026-07-31 21:29:40.676 | INFO     | app.services.connection_manager:48 - [WS] user=1 connected client=b743bd31005944bd9312316b5e53333a
+2026-07-31 21:30:43.242 | INFO     | app.services.audit_log:42 - [USER_OP] user=1 action=save_draft detail={"post_id": 28, "category": "校园圈", "anonymous": false} ip=120.217.144.110
+2026-07-31 21:30:49.486 | INFO     | app.services.audit_log:42 - [USER_OP] user=1 action=update_post detail={"post_id": 28, "fields": ["content", "image_urls", "is_anonymous", "school_id", "category", "is_draft", "title", "is_original", "has_ai_content", "topic_name", "location", "mention_user_ids", "poll"] ip=120.217.144.110
+2026-07-31 21:30:51.692 | INFO     | app.services.audit_log:42 - [USER_OP] user=1 action=create_post detail={"post_id": 29, "category": "treehole", "anonymous": false} ip=120.217.144.110
+2026-07-31 21:30:53.367 | INFO     | app.services.deepseek_service:154 - DeepSeek 审核完成 model=deepseek-v4-flash len=68
+2026-07-31 21:30:55.701 | INFO     | app.services.connection_manager:61 - [WS] user=1 disconnected client=b743bd31005944bd9312316b5e53333a
+2026-07-31 21:30:56.823 | INFO     | app.services.connection_manager:48 - [WS] user=1 connected client=dfaed21200dc447681a46fe332e4ff1a
+2026-07-31 21:30:59.817 | INFO     | app.services.connection_manager:61 - [WS] user=1 disconnected client=dfaed21200dc447681a46fe332e4ff1a
+2026-07-31 21:31:00.406 | INFO     | app.services.connection_manager:48 - [WS] user=1 connected client=70cb6ad6d3af4a4ea5ff3ad70172a65f
+2026-07-31 21:34:21.541 | INFO     | app.services.connection_manager:48 - [WS] user=1 connected client=00b02104b6ef4a24bc5fb9d4558f70ad
+2026-07-31 21:34:26.870 | INFO     | app.core.alembic_helper:94 - [ALEMBIC] upgrade head 完成（已有版本表）
+2026-07-31 21:34:26.909 | INFO     | app.main:157 - 立洋校园社区 started (env=dev)
+2026-07-31 21:35:46.549 | INFO     | app.services.connection_manager:48 - [WS] user=1 connected client=ae5337f7bd184ec683a4da3c6d011a45
+2026-07-31 21:35:47.334 | INFO     | app.services.connection_manager:48 - [WS] user=1 connected client=5fd080d9153b4a8396ec7e01ca3a56c8
+2026-07-31 21:35:52.286 | INFO     | app.core.alembic_helper:94 - [ALEMBIC] upgrade head 完成（已有版本表）
+2026-07-31 21:35:52.316 | INFO     | app.main:157 - 立洋校园社区 started (env=dev)
+2026-07-31 21:36:02.531 | INFO     | app.services.connection_manager:48 - [WS] user=1 connected client=69861d0a5bdc4d2e92282f78694691e9
+2026-07-31 21:37:43.118 | INFO     | app.services.connection_manager:61 - [WS] user=1 disconnected client=ae5337f7bd184ec683a4da3c6d011a45
+2026-07-31 21:37:43.252 | INFO     | app.services.connection_manager:48 - [WS] user=1 connected client=659e71f8ec034f799905801f36e6127f
+2026-07-31 21:39:04.444 | INFO     | app.services.connection_manager:61 - [WS] user=1 disconnected client=659e71f8ec034f799905801f36e6127f
+2026-07-31 21:39:51.296 | INFO     | app.services.connection_manager:48 - [WS] user=1 connected client=a6ac6b5d0779404ca9449ae26c515db8
+2026-07-31 21:39:55.383 | INFO     | app.core.alembic_helper:94 - [ALEMBIC] upgrade head 完成（已有版本表）
+2026-07-31 21:39:55.409 | INFO     | app.main:157 - 立洋校园社区 started (env=dev)
+2026-07-31 21:40:02.115 | INFO     | app.services.connection_manager:48 - [WS] user=1 connected client=1e7951135a7446e2ae4111b2c8e78298
+2026-07-31 21:43:37.460 | INFO     | app.services.connection_manager:48 - [WS] user=1 connected client=d27ce586388441abacbd1942e67bd386
+2026-07-31 21:43:45.916 | INFO     | app.services.connection_manager:61 - [WS] user=1 disconnected client=d27ce586388441abacbd1942e67bd386
+2026-07-31 21:43:46.047 | INFO     | app.services.connection_manager:48 - [WS] user=1 connected client=3bc29653ee9e48569a13fe9b11f680dd
+2026-07-31 21:46:11.714 | INFO     | app.services.connection_manager:61 - [WS] user=1 disconnected client=5fd080d9153b4a8396ec7e01ca3a56c8
+2026-07-31 21:46:12.532 | INFO     | app.services.connection_manager:48 - [WS] user=1 connected client=d9916a87919949359ac5c075c598d719
+2026-07-31 21:50:23.700 | INFO     | app.services.connection_manager:61 - [WS] user=1 disconnected client=a6ac6b5d0779404ca9449ae26c515db8
+2026-07-31 21:50:24.702 | INFO     | app.services.connection_manager:61 - [WS] user=1 disconnected client=1e7951135a7446e2ae4111b2c8e78298
+2026-07-31 21:50:24.798 | INFO     | app.services.connection_manager:48 - [WS] user=1 connected client=172025e305034bf69fd8bd770ee572b2
+2026-07-31 21:50:25.503 | INFO     | app.services.connection_manager:48 - [WS] user=1 connected client=7e8563a33fd94fb0bd77fa8b95fc9272
+2026-07-31 21:54:55.298 | INFO     | app.core.alembic_helper:94 - [ALEMBIC] upgrade head 完成（已有版本表）
+2026-07-31 21:54:55.329 | INFO     | app.main:157 - 立洋校园社区 started (env=dev)
+2026-07-31 21:54:55.489 | INFO     | app.services.connection_manager:48 - [WS] user=1 connected client=e65dbcd761334bc79731cc1519773e9d
+2026-07-31 21:54:55.936 | INFO     | app.services.connection_manager:48 - [WS] user=1 connected client=f79affff5dd64be9bc994dcd1239786a
+2026-07-31 21:54:55.996 | INFO     | app.services.connection_manager:48 - [WS] user=1 connected client=783f225e243846848b9e243b564df876
+2026-07-31 21:54:56.503 | INFO     | app.services.connection_manager:48 - [WS] user=1 connected client=8ffa400809a148bf9e099baa248b3163
+2026-07-31 22:01:52.922 | INFO     | app.services.connection_manager:61 - [WS] user=1 disconnected client=f79affff5dd64be9bc994dcd1239786a
+2026-07-31 22:01:53.208 | INFO     | app.services.connection_manager:48 - [WS] user=1 connected client=aa9598a552894c95ba6e58d2f4fcc10a
+2026-07-31 22:03:01.957 | INFO     | app.services.connection_manager:61 - [WS] user=1 disconnected client=aa9598a552894c95ba6e58d2f4fcc10a
+2026-07-31 22:03:02.037 | INFO     | app.services.connection_manager:48 - [WS] user=1 connected client=0e0dcd82438d4e82bd52b2398f923143
+2026-07-31 22:04:20.126 | INFO     | app.services.connection_manager:61 - [WS] user=1 disconnected client=0e0dcd82438d4e82bd52b2398f923143
+2026-07-31 22:04:20.272 | INFO     | app.services.connection_manager:48 - [WS] user=1 connected client=7563911ba0db4bbdad81e02c39f0ce2c
+2026-07-31 22:05:43.701 | INFO     | app.services.connection_manager:61 - [WS] user=1 disconnected client=e65dbcd761334bc79731cc1519773e9d
+2026-07-31 22:05:43.702 | INFO     | app.services.connection_manager:61 - [WS] user=1 disconnected client=8ffa400809a148bf9e099baa248b3163
+2026-07-31 22:05:44.551 | INFO     | app.services.connection_manager:48 - [WS] user=1 connected client=a67969dbbd754270b5b82e140a66da9a
+2026-07-31 22:05:44.708 | INFO     | app.services.connection_manager:61 - [WS] user=1 disconnected client=783f225e243846848b9e243b564df876
+2026-07-31 22:05:45.151 | INFO     | app.services.connection_manager:48 - [WS] user=1 connected client=fcf52cbcc0834bec9311b392e375de83
+2026-07-31 22:05:45.751 | INFO     | app.services.connection_manager:48 - [WS] user=1 connected client=531e565df75e4f05a2fe6fd1be6d4a50
+2026-07-31 22:05:51.681 | INFO     | app.services.connection_manager:61 - [WS] user=1 disconnected client=7563911ba0db4bbdad81e02c39f0ce2c
+2026-07-31 22:05:51.805 | INFO     | app.services.connection_manager:48 - [WS] user=1 connected client=61769cfc6b7849f698ad6798a9fb2781
+2026-07-31 22:06:51.686 | INFO     | app.services.connection_manager:61 - [WS] user=1 disconnected client=61769cfc6b7849f698ad6798a9fb2781
+2026-07-31 22:06:51.795 | INFO     | app.services.connection_manager:48 - [WS] user=1 connected client=a85286accc1c41608229651cf4d4ae4d
+2026-07-31 22:10:40.341 | INFO     | app.services.connection_manager:48 - [WS] user=1 connected client=49dc5820c4f94bfda5d263335ac360e6
+2026-07-31 22:10:40.939 | INFO     | app.services.connection_manager:61 - [WS] user=1 disconnected client=49dc5820c4f94bfda5d263335ac360e6
+2026-07-31 22:10:47.171 | INFO     | app.services.connection_manager:48 - [WS] user=1 connected client=5b28d3c56a424879bf10e0c8dc013d83
+2026-07-31 22:11:26.140 | INFO     | app.core.alembic_helper:94 - [ALEMBIC] upgrade head 完成（已有版本表）
+2026-07-31 22:11:26.166 | INFO     | app.main:157 - 立洋校园社区 started (env=dev)
+2026-07-31 22:11:30.385 | INFO     | app.services.connection_manager:48 - [WS] user=0 connected client=51f119df8a4f4527bffa32ecf38cba48
+2026-07-31 22:11:32.220 | INFO     | app.services.connection_manager:61 - [WS] user=0 disconnected client=51f119df8a4f4527bffa32ecf38cba48
+2026-07-31 22:11:34.467 | INFO     | app.services.connection_manager:61 - [WS] user=1 disconnected client=5b28d3c56a424879bf10e0c8dc013d83
+2026-07-31 22:11:42.089 | INFO     | app.services.connection_manager:48 - [WS] user=1 connected client=78a7be81a7ed4babbe111f3188157eca
+2026-07-31 22:11:44.899 | INFO     | app.services.connection_manager:61 - [WS] user=1 disconnected client=78a7be81a7ed4babbe111f3188157eca
+2026-07-31 22:11:45.395 | INFO     | app.services.connection_manager:48 - [WS] user=1 connected client=b8e4f8ceb07a42cda4df7844b8991656
+2026-07-31 22:11:48.067 | INFO     | app.services.audit_log:70 - [ADMIN_OP] admin=2 action=admin_login detail={"username": "大司命"} ip=120.217.144.110
+2026-07-31 22:11:58.308 | INFO     | app.services.connection_manager:61 - [WS] user=1 disconnected client=b8e4f8ceb07a42cda4df7844b8991656
+2026-07-31 22:11:58.829 | INFO     | app.services.connection_manager:48 - [WS] user=1 connected client=fdfb26d665cb4e15a32b48c3e03fe507
+2026-07-31 22:16:53.713 | INFO     | app.services.connection_manager:61 - [WS] user=1 disconnected client=a67969dbbd754270b5b82e140a66da9a
+2026-07-31 22:16:53.713 | INFO     | app.services.connection_manager:61 - [WS] user=1 disconnected client=531e565df75e4f05a2fe6fd1be6d4a50
+2026-07-31 22:16:54.558 | INFO     | app.services.connection_manager:48 - [WS] user=1 connected client=b99fe40998a2421ea854461cf90602bc
+2026-07-31 22:16:54.695 | INFO     | app.services.connection_manager:61 - [WS] user=1 disconnected client=fcf52cbcc0834bec9311b392e375de83
+2026-07-31 22:16:55.118 | INFO     | app.services.connection_manager:48 - [WS] user=1 connected client=426d5cec62d74644a8732ff960038ee9
+2026-07-31 22:16:55.679 | INFO     | app.services.connection_manager:48 - [WS] user=1 connected client=59e96fc80f07482b8b90288316ef063e
+2026-07-31 22:22:01.695 | INFO     | app.services.connection_manager:61 - [WS] user=1 disconnected client=fdfb26d665cb4e15a32b48c3e03fe507
+2026-07-31 22:22:02.560 | INFO     | app.services.connection_manager:48 - [WS] user=1 connected client=52842bccc79d428ba94d65b67839ed7b
+2026-07-31 22:27:11.484 | INFO     | app.services.connection_manager:48 - [WS] user=1 connected client=2103a3851f9741cfbf60411e040bb790
+2026-07-31 22:27:11.704 | INFO     | app.services.connection_manager:61 - [WS] user=1 disconnected client=b99fe40998a2421ea854461cf90602bc
+2026-07-31 22:27:11.705 | INFO     | app.services.connection_manager:61 - [WS] user=1 disconnected client=59e96fc80f07482b8b90288316ef063e
+2026-07-31 22:27:12.041 | INFO     | app.services.connection_manager:48 - [WS] user=1 connected client=aeec4969edeb4e0e92e527f5aa96c2c7
+2026-07-31 22:27:12.585 | INFO     | app.services.connection_manager:48 - [WS] user=1 connected client=7d9b9b4640d141178edc99c6707f6325
+2026-07-31 22:27:12.702 | INFO     | app.services.connection_manager:61 - [WS] user=1 disconnected client=426d5cec62d74644a8732ff960038ee9
+2026-07-31 22:32:35.710 | INFO     | app.services.connection_manager:61 - [WS] user=1 disconnected client=52842bccc79d428ba94d65b67839ed7b
+2026-07-31 22:32:37.561 | INFO     | app.services.connection_manager:48 - [WS] user=1 connected client=9dc5b4ed00f74dfc89d4c40ee1f6c08f
+2026-07-31 22:35:36.381 | INFO     | app.services.connection_manager:61 - [WS] user=1 disconnected client=7d9b9b4640d141178edc99c6707f6325
+2026-07-31 22:35:36.385 | INFO     | app.services.connection_manager:61 - [WS] user=1 disconnected client=aeec4969edeb4e0e92e527f5aa96c2c7
+2026-07-31 22:35:36.414 | INFO     | app.services.connection_manager:61 - [WS] user=1 disconnected client=2103a3851f9741cfbf60411e040bb790
+2026-07-31 22:35:42.553 | INFO     | app.services.connection_manager:48 - [WS] user=1 connected client=be2fe3f8601c4519906496971237be3a
+2026-07-31 22:35:43.990 | INFO     | app.core.alembic_helper:94 - [ALEMBIC] upgrade head 完成（已有版本表）
+2026-07-31 22:35:44.021 | INFO     | app.main:157 - 立洋校园社区 started (env=dev)
+2026-07-31 22:35:48.448 | INFO     | app.services.connection_manager:48 - [WS] user=0 connected client=fbd2dea504164cb89238cb9bfd8ed1db
+2026-07-31 22:35:57.412 | INFO     | app.services.audit_log:42 - [USER_OP] user=None action=login_failed detail={"username": "15793243441", "reason": "user_not_found"} ip=127.0.0.1
+2026-07-31 22:35:57.417 | WARNING  | app.main:84 - [HTTP_EXC] status=401 code=-103 msg=手机号或密码错误
+2026-07-31 22:35:58.095 | INFO     | app.services.connection_manager:61 - [WS] user=0 disconnected client=fbd2dea504164cb89238cb9bfd8ed1db
+2026-07-31 22:35:58.311 | INFO     | app.services.connection_manager:61 - [WS] user=1 disconnected client=be2fe3f8601c4519906496971237be3a
+2026-07-31 22:36:54.359 | INFO     | app.services.connection_manager:48 - [WS] user=1 connected client=77bab658287a4a169c3a2b0f64a0a0f3
+2026-07-31 22:37:17.832 | INFO     | app.services.connection_manager:61 - [WS] user=1 disconnected client=77bab658287a4a169c3a2b0f64a0a0f3
+2026-07-31 22:37:18.427 | INFO     | app.services.connection_manager:48 - [WS] user=1 connected client=52f14eec670244369e89cbb90ae48f3b
+2026-07-31 22:39:55.403 | INFO     | app.services.audit_log:42 - [USER_OP] user=1 action=create_comment detail={"comment_id": 8, "post_id": 29, "parent_id": null} ip=120.217.144.110
+2026-07-31 22:39:57.051 | INFO     | app.services.deepseek_service:154 - DeepSeek 审核完成 model=deepseek-v4-flash len=68
+2026-07-31 22:40:08.941 | WARNING  | app.services.storage_service:47 - MinIO 不可用，本次会话将使用本地存储: TimeoutError
+2026-07-31 22:40:08.950 | WARNING  | app.main:117 - [VALIDATION_ERR] code=-1000 msg=图片 URL 必须以 http(s):// 或 /uploads/ 开头：__uploading__ errors=[{'loc': ('body', 'image_urls'), 'msg': 'Value error, 图片 URL 必须以 http(s):// 或 /uploads/ 开头：__uploading__', 'type': 'value_error', 'ctx': {'error': '图片 URL 必须以 http(s):// 或 /uploads/ 开头：__uploading__'}}]
+2026-07-31 22:40:11.666 | INFO     | app.services.audit_log:42 - [USER_OP] user=1 action=save_draft detail={"post_id": 30, "category": "校园圈", "anonymous": false} ip=120.217.144.110
+2026-07-31 22:40:16.120 | INFO     | app.services.audit_log:42 - [USER_OP] user=1 action=update_post detail={"post_id": 30, "fields": ["content", "image_urls", "is_anonymous", "school_id", "category", "is_draft", "title", "is_original", "has_ai_content", "topic_name", "location", "mention_user_ids", "poll"] ip=120.217.144.110
+2026-07-31 22:40:20.954 | INFO     | app.services.audit_log:42 - [USER_OP] user=1 action=update_post detail={"post_id": 30, "fields": ["content", "image_urls", "is_anonymous", "school_id", "category", "is_draft", "title", "is_original", "has_ai_content", "topic_name", "location", "mention_user_ids", "poll"] ip=120.217.144.110
+2026-07-31 22:41:54.771 | INFO     | app.services.connection_manager:48 - [WS] user=0 connected client=ac6832c9bae647b3a196ae4b95f9c2c1
+2026-07-31 22:41:57.744 | INFO     | app.services.connection_manager:61 - [WS] user=0 disconnected client=ac6832c9bae647b3a196ae4b95f9c2c1
+2026-07-31 22:41:57.778 | INFO     | app.services.connection_manager:48 - [WS] user=0 connected client=d041f8e282294c67afa972030b4d5c9a
+2026-07-31 22:41:59.680 | INFO     | app.services.connection_manager:61 - [WS] user=0 disconnected client=d041f8e282294c67afa972030b4d5c9a
+2026-07-31 22:41:59.712 | INFO     | app.services.connection_manager:48 - [WS] user=0 connected client=7c3e93ac16a94658908d85e0bf547810
+2026-07-31 22:42:05.306 | INFO     | app.services.connection_manager:61 - [WS] user=0 disconnected client=7c3e93ac16a94658908d85e0bf547810
+2026-07-31 22:42:17.148 | INFO     | app.services.connection_manager:48 - [WS] user=0 connected client=27a223bde71d460db172d1dcf81c344f
+2026-07-31 22:42:18.932 | INFO     | app.services.connection_manager:61 - [WS] user=0 disconnected client=27a223bde71d460db172d1dcf81c344f
+2026-07-31 22:42:56.330 | INFO     | app.services.connection_manager:48 - [WS] user=0 connected client=14157218028d4be2b2ea23b1ce2e9e38
+2026-07-31 22:42:58.768 | INFO     | app.services.connection_manager:61 - [WS] user=0 disconnected client=14157218028d4be2b2ea23b1ce2e9e38
+2026-07-31 22:42:58.812 | INFO     | app.services.connection_manager:48 - [WS] user=0 connected client=d34f400d169b45d4b282bc1fb9012c2d
+2026-07-31 22:43:01.046 | INFO     | app.services.connection_manager:61 - [WS] user=0 disconnected client=d34f400d169b45d4b282bc1fb9012c2d
+2026-07-31 22:43:52.687 | INFO     | app.services.connection_manager:48 - [WS] user=0 connected client=dabdb885140f44f1892549776c8c381b
+2026-07-31 22:43:55.133 | INFO     | app.services.connection_manager:61 - [WS] user=0 disconnected client=dabdb885140f44f1892549776c8c381b
+2026-07-31 22:43:55.174 | INFO     | app.services.connection_manager:48 - [WS] user=0 connected client=b006709486b6472f9000672c8d4cb0af
+2026-07-31 22:43:57.392 | INFO     | app.services.connection_manager:61 - [WS] user=0 disconnected client=b006709486b6472f9000672c8d4cb0af
+2026-07-31 22:44:05.910 | INFO     | app.services.connection_manager:48 - [WS] user=0 connected client=2bd02de782e6499abb782de2ab769010
+2026-07-31 22:44:07.903 | INFO     | app.services.connection_manager:61 - [WS] user=0 disconnected client=2bd02de782e6499abb782de2ab769010
+2026-07-31 22:44:48.613 | INFO     | app.services.connection_manager:48 - [WS] user=0 connected client=abbe55389abc42c4a8a4e98375a937f1
+2026-07-31 22:44:49.997 | INFO     | app.services.connection_manager:61 - [WS] user=0 disconnected client=abbe55389abc42c4a8a4e98375a937f1
+2026-07-31 22:44:50.031 | INFO     | app.services.connection_manager:48 - [WS] user=0 connected client=b4b4f75a947a4fff8ec65b83f2f86afb
+2026-07-31 22:44:51.247 | INFO     | app.services.connection_manager:61 - [WS] user=0 disconnected client=b4b4f75a947a4fff8ec65b83f2f86afb
+2026-07-31 22:44:51.280 | INFO     | app.services.connection_manager:48 - [WS] user=0 connected client=d6dc3d2290ec419390791a2653bf55f9
+2026-07-31 22:44:52.504 | INFO     | app.services.connection_manager:61 - [WS] user=0 disconnected client=d6dc3d2290ec419390791a2653bf55f9
+2026-07-31 22:44:52.537 | INFO     | app.services.connection_manager:48 - [WS] user=0 connected client=a1d70f9a160a414189b79a1c926768e7
+2026-07-31 22:44:53.754 | INFO     | app.services.connection_manager:61 - [WS] user=0 disconnected client=a1d70f9a160a414189b79a1c926768e7
+2026-07-31 22:44:53.788 | INFO     | app.services.connection_manager:48 - [WS] user=0 connected client=352e978f9c83422bbec4a386758ff619
+2026-07-31 22:44:55.001 | INFO     | app.services.connection_manager:61 - [WS] user=0 disconnected client=352e978f9c83422bbec4a386758ff619
+2026-07-31 22:44:55.035 | INFO     | app.services.connection_manager:48 - [WS] user=0 connected client=c0e0f4a59f66480584a18a0fe750e943
+2026-07-31 22:44:56.263 | INFO     | app.services.connection_manager:61 - [WS] user=0 disconnected client=c0e0f4a59f66480584a18a0fe750e943
+2026-07-31 22:45:06.180 | INFO     | app.services.connection_manager:48 - [WS] user=0 connected client=d206ff865a584ffeb2c7ec7df51628b0
+2026-07-31 22:45:07.520 | INFO     | app.services.connection_manager:61 - [WS] user=0 disconnected client=d206ff865a584ffeb2c7ec7df51628b0
+2026-07-31 22:45:07.555 | INFO     | app.services.connection_manager:48 - [WS] user=0 connected client=b9f3db28afd248cd84d56dfe90c52e22
+2026-07-31 22:45:08.781 | INFO     | app.services.connection_manager:61 - [WS] user=0 disconnected client=b9f3db28afd248cd84d56dfe90c52e22
+2026-07-31 22:45:08.819 | INFO     | app.services.connection_manager:48 - [WS] user=0 connected client=6918c81784bb41a58556b01f4b34a0b2
+2026-07-31 22:45:10.036 | INFO     | app.services.connection_manager:61 - [WS] user=0 disconnected client=6918c81784bb41a58556b01f4b34a0b2
+2026-07-31 22:45:10.073 | INFO     | app.services.connection_manager:48 - [WS] user=0 connected client=d7987f6bbb2849939c13484c64f6515b
+2026-07-31 22:45:11.296 | INFO     | app.services.connection_manager:61 - [WS] user=0 disconnected client=d7987f6bbb2849939c13484c64f6515b
+2026-07-31 22:45:11.327 | INFO     | app.services.connection_manager:48 - [WS] user=0 connected client=7e3268de7fb6480197735f2abe23d177
+2026-07-31 22:45:12.549 | INFO     | app.services.connection_manager:61 - [WS] user=0 disconnected client=7e3268de7fb6480197735f2abe23d177
+2026-07-31 22:45:12.579 | INFO     | app.services.connection_manager:48 - [WS] user=0 connected client=f25df7ff08494537a3a3e427c65a476d
+2026-07-31 22:45:13.797 | INFO     | app.services.connection_manager:61 - [WS] user=0 disconnected client=f25df7ff08494537a3a3e427c65a476d
+2026-07-31 22:45:23.188 | INFO     | app.services.connection_manager:48 - [WS] user=0 connected client=50d648e5a21744b89f4f72f91b7ad639
+2026-07-31 22:45:24.693 | INFO     | app.services.connection_manager:61 - [WS] user=0 disconnected client=50d648e5a21744b89f4f72f91b7ad639
+2026-07-31 22:45:33.838 | INFO     | app.services.connection_manager:48 - [WS] user=0 connected client=d182e0c0fd2c4c9b81a74b4e32bf3b3d
+2026-07-31 22:45:35.151 | INFO     | app.services.connection_manager:61 - [WS] user=0 disconnected client=d182e0c0fd2c4c9b81a74b4e32bf3b3d
+2026-07-31 22:45:35.184 | INFO     | app.services.connection_manager:48 - [WS] user=0 connected client=7cc24806746c424ab5d0ac9bad65650f
+2026-07-31 22:45:36.389 | INFO     | app.services.connection_manager:61 - [WS] user=0 disconnected client=7cc24806746c424ab5d0ac9bad65650f
+2026-07-31 22:45:36.423 | INFO     | app.services.connection_manager:48 - [WS] user=0 connected client=672bc1570a3d4452b1267adf994cb34e
+2026-07-31 22:45:37.628 | INFO     | app.services.connection_manager:61 - [WS] user=0 disconnected client=672bc1570a3d4452b1267adf994cb34e
+2026-07-31 22:45:37.661 | INFO     | app.services.connection_manager:48 - [WS] user=0 connected client=5e5685d356af4f01a095899b014307a0
+2026-07-31 22:45:38.878 | INFO     | app.services.connection_manager:61 - [WS] user=0 disconnected client=5e5685d356af4f01a095899b014307a0
+2026-07-31 22:46:32.324 | INFO     | app.services.connection_manager:48 - [WS] user=0 connected client=feef089cc6d54706a928735930a8d757
+2026-07-31 22:46:34.695 | INFO     | app.services.connection_manager:61 - [WS] user=0 disconnected client=feef089cc6d54706a928735930a8d757
+2026-07-31 22:46:34.728 | INFO     | app.services.connection_manager:48 - [WS] user=0 connected client=9d8c7801a8834b7dab6ebafcfc1c7d71
+2026-07-31 22:46:36.958 | INFO     | app.services.connection_manager:61 - [WS] user=0 disconnected client=9d8c7801a8834b7dab6ebafcfc1c7d71
+2026-07-31 22:46:36.990 | INFO     | app.services.connection_manager:48 - [WS] user=0 connected client=46157fddd9554d51a30e6bf6a85ce051
+2026-07-31 22:46:40.571 | INFO     | app.services.connection_manager:61 - [WS] user=0 disconnected client=46157fddd9554d51a30e6bf6a85ce051
+2026-07-31 22:46:50.554 | INFO     | app.services.connection_manager:48 - [WS] user=0 connected client=62ced0a129d1402da83137f149fe750c
+2026-07-31 22:46:52.522 | INFO     | app.services.connection_manager:61 - [WS] user=0 disconnected client=62ced0a129d1402da83137f149fe750c
+2026-07-31 22:47:25.538 | INFO     | app.services.connection_manager:48 - [WS] user=0 connected client=889beb2678714448b0444a6fb813e299
+2026-07-31 22:47:27.530 | INFO     | app.services.connection_manager:61 - [WS] user=0 disconnected client=889beb2678714448b0444a6fb813e299
+2026-07-31 22:47:27.565 | INFO     | app.services.connection_manager:48 - [WS] user=0 connected client=0f11fa07eff444de8dab5154fa404577
+2026-07-31 22:47:39.703 | INFO     | app.services.connection_manager:61 - [WS] user=1 disconnected client=52f14eec670244369e89cbb90ae48f3b
+2026-07-31 22:47:41.511 | INFO     | app.services.connection_manager:48 - [WS] user=1 connected client=cc53829d1ca74ecfaf2a4f2cdea478c9
+2026-07-31 22:47:57.641 | INFO     | app.services.connection_manager:61 - [WS] user=0 disconnected client=0f11fa07eff444de8dab5154fa404577
+2026-07-31 22:48:03.086 | INFO     | app.services.connection_manager:48 - [WS] user=0 connected client=f6dac4e34ba44aa888391ec6879e6bae
+2026-07-31 22:48:03.762 | INFO     | app.services.connection_manager:61 - [WS] user=0 disconnected client=f6dac4e34ba44aa888391ec6879e6bae
+2026-07-31 22:51:31.518 | INFO     | app.services.connection_manager:48 - [WS] user=1 connected client=a3ae1d33436344bc916a0c578e8c8429
+2026-07-31 22:51:31.704 | INFO     | app.core.alembic_helper:94 - [ALEMBIC] upgrade head 完成（已有版本表）
+2026-07-31 22:51:31.734 | INFO     | app.main:157 - 立洋校园社区 started (env=dev)
+2026-07-31 22:51:33.479 | WARNING  | app.main:84 - [HTTP_EXC] status=401 code=-100 msg=未登录，请先登录
+2026-07-31 22:52:27.148 | INFO     | app.services.audit_log:42 - [USER_OP] user=11 action=register detail={"username": "libtest1785509546", "school_id": 1, "verification_status": "verified"} ip=127.0.0.1
+2026-07-31 22:52:27.350 | INFO     | app.services.connection_manager:48 - [WS] user=11 connected client=2790d60f94bf4d8889d8844790531b9c
+2026-07-31 22:52:43.081 | INFO     | app.services.connection_manager:61 - [WS] user=11 disconnected client=2790d60f94bf4d8889d8844790531b9c
+2026-07-31 22:52:56.802 | WARNING  | app.main:84 - [HTTP_EXC] status=400 code=-303 msg=邀请码无效或已被使用
+2026-07-31 22:53:10.597 | INFO     | app.services.audit_log:42 - [USER_OP] user=12 action=register detail={"username": "libtest1785509590", "school_id": 1, "verification_status": "verified"} ip=127.0.0.1
+2026-07-31 22:53:10.782 | INFO     | app.services.connection_manager:48 - [WS] user=12 connected client=f3cfc05ba2004b6f9a0fa5d05b82d64a
+2026-07-31 22:53:26.477 | INFO     | app.services.connection_manager:61 - [WS] user=12 disconnected client=f3cfc05ba2004b6f9a0fa5d05b82d64a
+2026-07-31 22:53:33.964 | INFO     | app.services.audit_log:42 - [USER_OP] user=13 action=register detail={"username": "libtest1785509613", "school_id": 1, "verification_status": "verified"} ip=127.0.0.1
+2026-07-31 22:53:34.145 | INFO     | app.services.connection_manager:48 - [WS] user=13 connected client=83ba7cd919e74716a5346d0a418734bc
+2026-07-31 22:53:40.220 | INFO     | app.services.connection_manager:61 - [WS] user=13 disconnected client=83ba7cd919e74716a5346d0a418734bc
+2026-07-31 22:53:55.442 | INFO     | app.services.audit_log:42 - [USER_OP] user=14 action=register detail={"username": "libtest1785509635", "school_id": 1, "verification_status": "verified"} ip=127.0.0.1
+2026-07-31 22:54:08.187 | INFO     | app.services.audit_log:42 - [USER_OP] user=15 action=register detail={"username": "libtest1785509647", "school_id": 1, "verification_status": "verified"} ip=127.0.0.1
+2026-07-31 22:54:08.372 | INFO     | app.services.connection_manager:48 - [WS] user=15 connected client=ed1c96579bfa44a6b376b3e99f42459c
+2026-07-31 22:54:13.420 | INFO     | app.services.connection_manager:61 - [WS] user=15 disconnected client=ed1c96579bfa44a6b376b3e99f42459c
+2026-07-31 22:54:25.237 | INFO     | app.services.audit_log:42 - [USER_OP] user=16 action=register detail={"username": "libtest1785509664", "school_id": 1, "verification_status": "verified"} ip=127.0.0.1
+2026-07-31 22:54:25.429 | INFO     | app.services.connection_manager:48 - [WS] user=16 connected client=dca4d3e7a7954704ae48e50ffa02f669
+2026-07-31 22:54:30.483 | INFO     | app.services.connection_manager:61 - [WS] user=16 disconnected client=dca4d3e7a7954704ae48e50ffa02f669
+2026-07-31 22:54:40.084 | INFO     | app.services.connection_manager:48 - [WS] user=0 connected client=d165d4767668474ea97769a41802065d
+2026-07-31 22:54:43.138 | INFO     | app.services.connection_manager:61 - [WS] user=0 disconnected client=d165d4767668474ea97769a41802065d
+2026-07-31 22:54:50.001 | INFO     | app.services.connection_manager:48 - [WS] user=0 connected client=f07212884b3a40e1b1edc7709d56aa68
+2026-07-31 22:54:52.053 | INFO     | app.services.connection_manager:61 - [WS] user=0 disconnected client=f07212884b3a40e1b1edc7709d56aa68
+2026-07-31 22:55:14.684 | INFO     | app.services.audit_log:42 - [USER_OP] user=17 action=register detail={"username": "libtest1785509714", "school_id": 1, "verification_status": "verified"} ip=127.0.0.1
+2026-07-31 22:55:14.874 | INFO     | app.services.connection_manager:48 - [WS] user=17 connected client=e9d848a53809484696195fc86ac5193e
+2026-07-31 22:55:46.784 | INFO     | app.services.connection_manager:61 - [WS] user=17 disconnected client=e9d848a53809484696195fc86ac5193e
+2026-07-31 22:56:14.189 | INFO     | app.services.audit_log:42 - [USER_OP] user=18 action=register detail={"username": "libtest1785509773", "school_id": 1, "verification_status": "verified"} ip=127.0.0.1
+2026-07-31 22:56:14.368 | INFO     | app.services.connection_manager:48 - [WS] user=18 connected client=3a312ab003e744cdb19e071be1d7013c
+2026-07-31 22:56:26.267 | INFO     | app.services.connection_manager:61 - [WS] user=18 disconnected client=3a312ab003e744cdb19e071be1d7013c
+2026-07-31 22:56:37.119 | INFO     | app.services.connection_manager:48 - [WS] user=0 connected client=15fa881a6dff4506aa3d6d89dbd03049
+2026-07-31 22:56:42.731 | INFO     | app.services.connection_manager:61 - [WS] user=0 disconnected client=15fa881a6dff4506aa3d6d89dbd03049
+2026-07-31 22:57:01.569 | INFO     | app.services.audit_log:42 - [USER_OP] user=19 action=register detail={"username": "libtest1785509821", "school_id": 1, "verification_status": "verified"} ip=127.0.0.1
+2026-07-31 22:57:01.757 | INFO     | app.services.connection_manager:48 - [WS] user=19 connected client=e169bf3cf6604e4ebf3281885d6c3785
+2026-07-31 22:57:16.809 | INFO     | app.services.connection_manager:61 - [WS] user=19 disconnected client=e169bf3cf6604e4ebf3281885d6c3785
+2026-07-31 22:57:33.886 | INFO     | app.services.audit_log:42 - [USER_OP] user=20 action=register detail={"username": "libtest1785509853", "school_id": 1, "verification_status": "verified"} ip=127.0.0.1
+2026-07-31 22:57:34.062 | INFO     | app.services.connection_manager:48 - [WS] user=20 connected client=79b1eab150ba469b9e8b1e81f89de56e
+2026-07-31 22:57:36.121 | INFO     | app.services.connection_manager:61 - [WS] user=20 disconnected client=79b1eab150ba469b9e8b1e81f89de56e
+2026-07-31 22:57:36.178 | INFO     | app.services.connection_manager:48 - [WS] user=20 connected client=7cef75921e6940a1812a31d066957b4a
+2026-07-31 22:57:38.723 | INFO     | app.services.connection_manager:61 - [WS] user=20 disconnected client=7cef75921e6940a1812a31d066957b4a
+2026-07-31 22:57:38.798 | INFO     | app.services.connection_manager:48 - [WS] user=20 connected client=21c8653e7dfc483a87abf68a0599a558
+2026-07-31 22:57:39.120 | INFO     | app.services.connection_manager:61 - [WS] user=20 disconnected client=21c8653e7dfc483a87abf68a0599a558
+2026-07-31 22:57:47.856 | WARNING  | app.main:84 - [HTTP_EXC] status=400 code=-303 msg=邀请码无效或已被使用
+2026-07-31 22:58:08.320 | INFO     | app.services.audit_log:42 - [USER_OP] user=21 action=register detail={"username": "libtest1785509888", "school_id": 1, "verification_status": "verified"} ip=127.0.0.1
+2026-07-31 22:58:08.498 | INFO     | app.services.connection_manager:48 - [WS] user=21 connected client=3bfb81a1d77e4526b4e5305c892f9d72
+2026-07-31 22:58:10.551 | INFO     | app.services.connection_manager:61 - [WS] user=21 disconnected client=3bfb81a1d77e4526b4e5305c892f9d72
+2026-07-31 22:58:10.610 | INFO     | app.services.connection_manager:48 - [WS] user=21 connected client=d6a9ce16a32d4b5f91e5a9fb10d05317
+2026-07-31 22:58:13.123 | INFO     | app.services.connection_manager:61 - [WS] user=21 disconnected client=d6a9ce16a32d4b5f91e5a9fb10d05317
+2026-07-31 22:58:13.174 | INFO     | app.services.connection_manager:48 - [WS] user=21 connected client=d21c809162f2405fa646d654e241e885
+2026-07-31 22:58:22.763 | WARNING  | app.services.storage_service:47 - MinIO 不可用，本次会话将使用本地存储: TimeoutError
+2026-07-31 22:58:22.781 | WARNING  | app.main:117 - [VALIDATION_ERR] code=-1000 msg=图片 URL 必须以 http(s):// 或 /uploads/ 开头：__uploading__ errors=[{'loc': ('body', 'image_urls'), 'msg': 'Value error, 图片 URL 必须以 http(s):// 或 /uploads/ 开头：__uploading__', 'type': 'value_error', 'ctx': {'error': '图片 URL 必须以 http(s):// 或 /uploads/ 开头：__uploading__'}}]
+2026-07-31 22:58:25.684 | INFO     | app.services.audit_log:42 - [USER_OP] user=21 action=save_draft detail={"post_id": 31, "category": "校园圈", "anonymous": false} ip=127.0.0.1
+2026-07-31 22:58:27.150 | INFO     | app.services.audit_log:42 - [USER_OP] user=21 action=save_draft detail={"post_id": 32, "category": "校园圈", "anonymous": false} ip=127.0.0.1
+2026-07-31 22:58:28.131 | INFO     | app.services.connection_manager:61 - [WS] user=21 disconnected client=d21c809162f2405fa646d654e241e885
+2026-07-31 22:58:42.118 | WARNING  | app.main:84 - [HTTP_EXC] status=400 code=-303 msg=邀请码无效或已被使用
+2026-07-31 22:58:53.097 | INFO     | app.services.audit_log:42 - [USER_OP] user=22 action=register detail={"username": "libtest1785509932", "school_id": 1, "verification_status": "verified"} ip=127.0.0.1
+2026-07-31 22:58:53.305 | INFO     | app.services.connection_manager:48 - [WS] user=22 connected client=eab9675882dd4146b6b9f35ff8d90d98
+2026-07-31 22:58:55.366 | INFO     | app.services.connection_manager:61 - [WS] user=22 disconnected client=eab9675882dd4146b6b9f35ff8d90d98
+2026-07-31 22:58:55.421 | INFO     | app.services.connection_manager:48 - [WS] user=22 connected client=07966c7f4a6946c0beee5f15b649619f
+2026-07-31 22:58:57.419 | INFO     | app.services.connection_manager:61 - [WS] user=22 disconnected client=07966c7f4a6946c0beee5f15b649619f
+2026-07-31 22:58:57.477 | INFO     | app.services.connection_manager:48 - [WS] user=22 connected client=94ff24d9a028481e8cfa9e7e195168ad
+2026-07-31 22:59:00.823 | INFO     | app.services.connection_manager:61 - [WS] user=22 disconnected client=94ff24d9a028481e8cfa9e7e195168ad
+2026-07-31 22:59:09.003 | WARNING  | app.main:84 - [HTTP_EXC] status=400 code=-303 msg=邀请码无效或已被使用
+2026-07-31 22:59:20.370 | INFO     | app.services.audit_log:42 - [USER_OP] user=23 action=register detail={"username": "libtest1785509960", "school_id": 1, "verification_status": "verified"} ip=127.0.0.1
+2026-07-31 22:59:20.572 | INFO     | app.services.connection_manager:48 - [WS] user=23 connected client=649ff825604e440ea57b246c4c56eca6
+2026-07-31 22:59:22.632 | INFO     | app.services.connection_manager:61 - [WS] user=23 disconnected client=649ff825604e440ea57b246c4c56eca6
+2026-07-31 22:59:22.690 | INFO     | app.services.connection_manager:48 - [WS] user=23 connected client=5c24bbae1f424f92a0e23669ce80c211
+2026-07-31 22:59:24.686 | INFO     | app.services.connection_manager:61 - [WS] user=23 disconnected client=5c24bbae1f424f92a0e23669ce80c211
+2026-07-31 22:59:24.756 | INFO     | app.services.connection_manager:48 - [WS] user=23 connected client=fe39807b144f472eb28c158dfbdae6e8
+2026-07-31 22:59:27.430 | INFO     | app.services.audit_log:42 - [USER_OP] user=23 action=create_post detail={"post_id": 33, "category": "lost", "anonymous": false} ip=127.0.0.1
+2026-07-31 22:59:29.058 | INFO     | app.services.deepseek_service:154 - DeepSeek 审核完成 model=deepseek-v4-flash len=68
+2026-07-31 22:59:31.704 | INFO     | app.services.connection_manager:61 - [WS] user=23 disconnected client=fe39807b144f472eb28c158dfbdae6e8
+2026-07-31 23:00:05.412 | INFO     | app.services.audit_log:42 - [USER_OP] user=1 action=update_post detail={"post_id": 30, "fields": ["content", "image_urls", "is_anonymous", "school_id", "category", "is_draft", "title", "is_original", "has_ai_content", "topic_name", "location", "mention_user_ids", "poll"] ip=120.217.144.110
+2026-07-31 23:00:10.549 | INFO     | app.services.audit_log:42 - [USER_OP] user=1 action=update_post detail={"post_id": 30, "fields": ["content", "image_urls", "is_anonymous", "school_id", "category", "is_draft", "title", "is_original", "has_ai_content", "topic_name", "location", "mention_user_ids", "poll"] ip=120.217.144.110
+2026-07-31 23:00:12.623 | INFO     | app.services.audit_log:42 - [USER_OP] user=1 action=create_post detail={"post_id": 31, "category": "confess", "anonymous": true} ip=120.217.144.110
+2026-07-31 23:00:14.538 | INFO     | app.services.deepseek_service:154 - DeepSeek 审核完成 model=deepseek-v4-flash len=68
+2026-07-31 23:00:16.250 | INFO     | app.services.connection_manager:61 - [WS] user=1 disconnected client=a3ae1d33436344bc916a0c578e8c8429
+2026-07-31 23:00:17.249 | INFO     | app.services.connection_manager:48 - [WS] user=1 connected client=843ad727da0c491a9978bdc2ecf3a710
+2026-07-31 23:01:46.215 | INFO     | app.services.connection_manager:48 - [WS] user=1 connected client=2b7db831d63c4e81a0d3d85acfabaf16
+2026-07-31 23:02:17.358 | INFO     | app.core.alembic_helper:94 - [ALEMBIC] upgrade head 完成（已有版本表）
+2026-07-31 23:02:17.398 | INFO     | app.main:157 - 立洋校园社区 started (env=dev)
+2026-07-31 23:02:27.987 | INFO     | app.services.connection_manager:48 - [WS] user=1 connected client=c366c350d81d46f6a3f241caedbbdf02
+2026-07-31 23:03:09.737 | INFO     | app.services.connection_manager:48 - [WS] user=1 connected client=5dacaf97a97e4fcca77f0a80e3407fcf
+2026-07-31 23:03:14.652 | INFO     | app.services.connection_manager:61 - [WS] user=1 disconnected client=5dacaf97a97e4fcca77f0a80e3407fcf
+2026-07-31 23:03:15.168 | INFO     | app.services.connection_manager:48 - [WS] user=1 connected client=d2075dfafdb8437b932ff1486507980e
+2026-07-31 23:03:17.753 | INFO     | app.services.audit_log:70 - [ADMIN_OP] admin=2 action=admin_login detail={"username": "大司命"} ip=120.217.144.110
+2026-07-31 23:03:27.674 | INFO     | app.services.connection_manager:61 - [WS] user=1 disconnected client=d2075dfafdb8437b932ff1486507980e
+2026-07-31 23:03:28.177 | INFO     | app.services.connection_manager:48 - [WS] user=1 connected client=626c90917a3e4ccc8341763e5f06edf3
+2026-07-31 23:03:33.147 | INFO     | app.services.connection_manager:61 - [WS] user=1 disconnected client=626c90917a3e4ccc8341763e5f06edf3
+2026-07-31 23:03:33.652 | INFO     | app.services.connection_manager:48 - [WS] user=1 connected client=49cb7ed0906e4955a96257f030a887aa
+2026-07-31 23:03:49.292 | INFO     | app.services.connection_manager:61 - [WS] user=1 disconnected client=49cb7ed0906e4955a96257f030a887aa
+2026-07-31 23:03:49.798 | INFO     | app.services.connection_manager:48 - [WS] user=1 connected client=00aa7f866b7446899f9cadee8cfb00a4
+2026-07-31 23:06:18.058 | INFO     | app.services.connection_manager:48 - [WS] user=1 connected client=1917c22958454797839f18673a7d3a31
+2026-07-31 23:06:35.696 | INFO     | app.services.connection_manager:61 - [WS] user=1 disconnected client=1917c22958454797839f18673a7d3a31
+2026-07-31 23:06:35.949 | INFO     | app.services.connection_manager:48 - [WS] user=1 connected client=90d1ed8871a443eb996b5f11aba3d2bb
+2026-07-31 23:07:43.044 | INFO     | app.services.connection_manager:61 - [WS] user=1 disconnected client=00aa7f866b7446899f9cadee8cfb00a4
+2026-07-31 23:07:51.989 | INFO     | app.services.connection_manager:48 - [WS] user=1 connected client=ef53a9505222440f9447498fbe91ba96
+2026-07-31 23:08:03.651 | INFO     | app.services.connection_manager:61 - [WS] user=1 disconnected client=90d1ed8871a443eb996b5f11aba3d2bb
+2026-07-31 23:08:11.288 | INFO     | app.services.connection_manager:48 - [WS] user=1 connected client=3fef80bbf48e4be786374e2a3d3c6496
+2026-07-31 23:08:14.875 | INFO     | app.services.connection_manager:61 - [WS] user=1 disconnected client=3fef80bbf48e4be786374e2a3d3c6496
+2026-07-31 23:08:20.049 | INFO     | app.services.connection_manager:48 - [WS] user=1 connected client=0d8cc858f9734a238146cc78337887c6
+2026-07-31 23:08:27.279 | INFO     | app.services.connection_manager:48 - [WS] user=1 connected client=cd42e6bcfe6848d39482077446566eb6
+2026-07-31 23:08:49.912 | INFO     | app.services.connection_manager:48 - [WS] user=1 connected client=25bd094e42414cd5ac5062322c1cca37
+2026-07-31 23:08:50.689 | INFO     | app.services.connection_manager:61 - [WS] user=1 disconnected client=25bd094e42414cd5ac5062322c1cca37
+2026-07-31 23:08:55.057 | INFO     | app.services.connection_manager:48 - [WS] user=1 connected client=733040c0593843df84bff83dac398a09
+2026-07-31 23:08:56.524 | INFO     | app.services.connection_manager:61 - [WS] user=1 disconnected client=733040c0593843df84bff83dac398a09
+2026-07-31 23:09:01.485 | INFO     | app.services.connection_manager:48 - [WS] user=1 connected client=6186759b0f414618a3370f7f99d58d22
+2026-07-31 23:09:05.438 | INFO     | app.services.connection_manager:61 - [WS] user=1 disconnected client=6186759b0f414618a3370f7f99d58d22
+2026-07-31 23:10:28.758 | WARNING  | app.main:84 - [HTTP_EXC] status=404 code=-9999 msg=海里暂时没有瓶子了，过会儿再来看看吧
+2026-07-31 23:10:34.696 | INFO     | app.services.connection_manager:61 - [WS] user=1 disconnected client=843ad727da0c491a9978bdc2ecf3a710
+2026-07-31 23:10:36.628 | INFO     | app.services.connection_manager:48 - [WS] user=1 connected client=64ef3f02bd6c48ff8177aacdf00ccffe
+2026-07-31 23:10:42.573 | WARNING  | app.main:84 - [HTTP_EXC] status=404 code=-9999 msg=海里暂时没有瓶子了，过会儿再来看看吧
+2026-07-31 23:10:52.747 | INFO     | app.services.connection_manager:61 - [WS] user=1 disconnected client=cd42e6bcfe6848d39482077446566eb6
+2026-07-31 23:10:55.046 | INFO     | app.services.connection_manager:48 - [WS] user=1 connected client=7cff6f145d0542689df3d028ed503ba5
+2026-07-31 23:11:37.941 | INFO     | app.services.connection_manager:61 - [WS] user=1 disconnected client=ef53a9505222440f9447498fbe91ba96
+2026-07-31 23:11:40.917 | INFO     | app.services.connection_manager:48 - [WS] user=1 connected client=14ef9d2cd1aa4b5588b917921fd62e1d
+2026-07-31 23:11:43.915 | INFO     | app.services.connection_manager:61 - [WS] user=1 disconnected client=14ef9d2cd1aa4b5588b917921fd62e1d
+2026-07-31 23:11:46.996 | INFO     | app.services.connection_manager:48 - [WS] user=1 connected client=ca30ce464384433e8f6b5f277b18158d
+2026-07-31 23:11:47.993 | INFO     | app.services.connection_manager:61 - [WS] user=1 disconnected client=ca30ce464384433e8f6b5f277b18158d
+2026-07-31 23:11:49.035 | INFO     | app.services.connection_manager:48 - [WS] user=1 connected client=b3cf884206524cafbc335417165a1cef
+2026-07-31 23:11:50.708 | INFO     | app.services.connection_manager:61 - [WS] user=1 disconnected client=2b7db831d63c4e81a0d3d85acfabaf16
+2026-07-31 23:11:51.800 | INFO     | app.services.connection_manager:61 - [WS] user=1 disconnected client=b3cf884206524cafbc335417165a1cef
+2026-07-31 23:11:52.309 | INFO     | app.services.connection_manager:48 - [WS] user=1 connected client=79e60ad53b0245768a0cc43a8072bf0a
+2026-07-31 23:11:52.544 | INFO     | app.services.connection_manager:48 - [WS] user=1 connected client=9d4cd47711834aa4b212124a22796344
+2026-07-31 23:14:07.699 | INFO     | app.services.connection_manager:61 - [WS] user=1 disconnected client=c366c350d81d46f6a3f241caedbbdf02
+2026-07-31 23:14:08.560 | INFO     | app.services.connection_manager:48 - [WS] user=1 connected client=5189984665cf49a3a1ce826cb646d0a0
+2026-07-31 23:16:16.109 | INFO     | app.services.connection_manager:48 - [WS] user=0 connected client=1197c02e75094f8d8b22db2198364c66
+2026-07-31 23:16:18.341 | INFO     | app.services.connection_manager:61 - [WS] user=0 disconnected client=1197c02e75094f8d8b22db2198364c66
+2026-07-31 23:16:37.385 | INFO     | app.services.connection_manager:48 - [WS] user=0 connected client=974d756388c44585a80d8bb219e0ace0
+2026-07-31 23:16:42.026 | INFO     | app.services.connection_manager:61 - [WS] user=0 disconnected client=974d756388c44585a80d8bb219e0ace0
+2026-07-31 23:16:42.701 | INFO     | app.services.connection_manager:48 - [WS] user=0 connected client=2c6c461a5ef04e50a4520e3d9ba45993
+2026-07-31 23:16:44.565 | INFO     | app.services.connection_manager:61 - [WS] user=0 disconnected client=2c6c461a5ef04e50a4520e3d9ba45993
+2026-07-31 23:18:52.699 | INFO     | app.services.connection_manager:61 - [WS] user=1 disconnected client=0d8cc858f9734a238146cc78337887c6
+2026-07-31 23:18:54.570 | INFO     | app.services.connection_manager:48 - [WS] user=1 connected client=be9c328f695648e5a826d8e5541f2752
+2026-07-31 23:21:32.690 | INFO     | app.services.connection_manager:61 - [WS] user=1 disconnected client=64ef3f02bd6c48ff8177aacdf00ccffe
+2026-07-31 23:21:33.560 | INFO     | app.services.connection_manager:48 - [WS] user=1 connected client=04affc5107294655996db1649159ab74
+2026-07-31 23:21:33.703 | INFO     | app.services.connection_manager:61 - [WS] user=1 disconnected client=7cff6f145d0542689df3d028ed503ba5
+2026-07-31 23:21:34.156 | INFO     | app.services.connection_manager:48 - [WS] user=1 connected client=e40aed19a95545268429e63a2c2c0e72
+2026-07-31 23:22:04.084 | INFO     | app.services.connection_manager:48 - [WS] user=1 connected client=54755c33426e417ba8e9bb896c7de31d
+2026-07-31 23:22:38.716 | INFO     | app.services.connection_manager:61 - [WS] user=1 disconnected client=9d4cd47711834aa4b212124a22796344
+2026-07-31 23:22:39.496 | INFO     | app.services.connection_manager:48 - [WS] user=1 connected client=36d47a0f09a14c7f899a5fbe76213018
+2026-07-31 23:22:39.713 | INFO     | app.services.connection_manager:61 - [WS] user=1 disconnected client=79e60ad53b0245768a0cc43a8072bf0a
+2026-07-31 23:22:40.511 | INFO     | app.services.connection_manager:48 - [WS] user=1 connected client=06aa9c4510384d48897162d82074062b
+2026-07-31 23:24:18.699 | INFO     | app.services.connection_manager:61 - [WS] user=1 disconnected client=5189984665cf49a3a1ce826cb646d0a0
+2026-07-31 23:24:19.491 | INFO     | app.services.connection_manager:48 - [WS] user=1 connected client=5172c8315afe40709ccdfc7bf7e35f0e
+2026-07-31 23:27:55.753 | INFO     | app.services.connection_manager:48 - [WS] user=0 connected client=500517a8a04b48a49abe2977aaada2d0
+2026-07-31 23:28:01.249 | INFO     | app.services.connection_manager:61 - [WS] user=0 disconnected client=500517a8a04b48a49abe2977aaada2d0
+2026-07-31 23:30:11.713 | INFO     | app.services.connection_manager:61 - [WS] user=1 disconnected client=be9c328f695648e5a826d8e5541f2752
+2026-07-31 23:30:12.500 | INFO     | app.services.connection_manager:48 - [WS] user=1 connected client=ee89c91ff63b4f968d495e3404ac48f5

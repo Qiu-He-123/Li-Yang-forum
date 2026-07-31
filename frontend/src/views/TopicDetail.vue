@@ -148,9 +148,9 @@ function goBack() {
 }
 
 onMounted(async () => {
-  await session.validateSession()
-  await loadTopic()
-  await loadPosts(true)
+  // 性能优化：validateSession / loadTopic / loadPosts 全部并行，不阻塞
+  void session.validateSession()
+  await Promise.all([loadTopic(), loadPosts(true)])
 })
 
 // 路由参数变化时重新加载

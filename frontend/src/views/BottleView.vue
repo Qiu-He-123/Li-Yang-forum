@@ -16,6 +16,7 @@
 import { onMounted, onUnmounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 
+import BottleSkeleton from '../components/common/BottleSkeleton.vue'
 import { Icon } from '../components/native'
 import { toast } from '../components/native/Toast'
 import { useSessionStore } from '../stores/session'
@@ -45,6 +46,8 @@ const uiStore = useUIStore()
 // ============ 顶部统计 ============
 const stats = ref<BottleStats>({ online_count: 0, matching_count: 0, total_bottles: 0, today_picks: 0 })
 let statsTimer: ReturnType<typeof setInterval> | null = null
+// 首页骨架屏：初始数据加载完成前显示
+const pageLoading = ref(true)
 
 async function loadStats() {
   try {
@@ -438,8 +441,8 @@ function ageLabel(age: number | null | undefined): string {
 
 // ============ 生命周期 ============
 onMounted(async () => {
-  const valid = await session.validateSession()
-  if (!valid) return
+  // 性能优化：validateSession 后台并行，不阻塞（邀请码检查基于 localStorage 缓存的 verificationStatus）
+  void session.validateSession()
   // 邀请码系统：未认证用户进入漂流瓶页时直接弹邀请码框并返回
   if (session.isLoggedIn() && !session.isVerified()) {
     // 先返回再弹窗，避免路由 watcher 立即关闭弹窗
@@ -455,7 +458,10 @@ onMounted(async () => {
       throwForm.value.school_id = userStore.profile.school_id
     }
   }
-  await Promise.all([loadStats(), loadTags(), loadPickStatus(), loadMine()])
+  // 最小骨架显示 200ms，避免本地加载太快骨架屏一闪而过
+  const minDelay = new Promise(resolve => setTimeout(resolve, 200))
+  await Promise.all([loadStats(), loadTags(), loadPickStatus(), loadMine(), minDelay])
+  pageLoading.value = false
   // 统计数据每 30 秒刷新一次
   statsTimer = setInterval(loadStats, 30_000)
 })
@@ -469,7 +475,9 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <main class="page-bottle">
+  <!-- 骨架屏：初始数据加载完成前显示 -->
+  <BottleSkeleton v-if="pageLoading" />
+  <main v-else class="page-bottle">
     <!-- ====== 顶部固定栏 ====== -->
     <header class="site-header" role="banner">
       <div class="header-inner">

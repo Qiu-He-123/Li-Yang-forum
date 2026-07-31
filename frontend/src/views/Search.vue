@@ -155,8 +155,8 @@ watch(
 )
 
 onMounted(async () => {
-  const valid = await session.validateSession()
-  if (!valid) return
+  // 性能优化：validateSession 与业务请求并行，不阻塞
+  void session.validateSession()
   await Promise.all([
     searchStore.loadHistory(),
     searchStore.loadHot(),

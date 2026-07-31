@@ -20,6 +20,11 @@ export default defineConfig({
       dts: 'src/types/components.d.ts',
     }),
   ],
+  // esbuild 转译选项：生产环境移除 console.log/debugger（保留 error/warn/info）
+  // 减少 bundle 体积 + 避免线上日志泄露内部逻辑
+  esbuild: {
+    drop: process.env.NODE_ENV === 'production' ? ['console', 'debugger'] : [],
+  },
   server: {
     host: '0.0.0.0',
     port: 5173,
@@ -53,12 +58,21 @@ export default defineConfig({
           'vue-vendor': ['vue', 'vue-router', 'pinia'],
           // axios 网络库
           'axios': ['axios'],
+          // 注意：element-plus 不在此处声明 → 走 unplugin-vue-components 按需引入，
+          // 仅打包实际使用的 EP 组件到对应 admin 页面 chunk；用户端页面 0 KB EP 代码
         },
       },
     },
     // 提高块大小警告阈值
     chunkSizeWarningLimit: 600,
-    // 生产环境删除 console.log（保留 console.error/warn）
+    // 生产环境：esbuild 比 terser 快 5-10 倍，压缩率略低但可接受
     minify: 'esbuild',
+    // 现代浏览器目标：ES2020 已支持 95%+ 用户，省去大量 polyfill
+    target: 'es2020',
+    // Vite 默认开启 modulePreload：首屏加载时并行 preload 路由依赖 chunk，
+    // 切换路由时立即下载并执行（无需等点击才发起），减少"点击→加载"延迟
+    modulePreload: { polyfill: true },
+    // 不输出 gzip 大小报告（构建加速，不影响产物）
+    reportCompressedSize: false,
   },
 })

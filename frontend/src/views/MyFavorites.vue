@@ -21,7 +21,9 @@ async function load() {
   loading.value = true
   try {
     const { data } = await fetchMyFavoritePosts()
-    posts.value = data.data
+    // 兼容分页结构 {items, total} 和旧版数组结构
+    const payload = data.data as any
+    posts.value = Array.isArray(payload) ? payload : (payload.items || [])
   } catch (error) {
     ElMessage.error((error as Error).message)
   } finally {

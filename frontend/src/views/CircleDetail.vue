@@ -17,6 +17,9 @@ import { useRoute, useRouter } from 'vue-router'
 import { Dialog, Icon } from '../components/native'
 import { toast } from '../components/native/Toast'
 import EmptyState from '../components/common/EmptyState.vue'
+import CircleDetailSkeleton from '../components/common/CircleDetailSkeleton.vue'
+import InfiniteScrollFooter from '../components/common/InfiniteScrollFooter.vue'
+import { useInfiniteScroll } from '../composables/useInfiniteScroll'
 import { useCircleStore } from '../stores/circle'
 import { useSessionStore } from '../stores/session'
 import { listCirclePosts } from '../api/circle'
@@ -40,6 +43,8 @@ const total = ref(0)
 const page = ref(1)
 const pageSize = 20
 const loading = ref(false)
+// 全页骨架屏：首次 onMounted 期间为 true，circle 就绪后永远 false
+const pageLoading = ref(true)
 const loadingMore = ref(false)
 const followLoading = ref(false)
 const activeTab = ref<'all' | 'essence' | 'image' | 'video'>('all')
@@ -101,7 +106,11 @@ function timeAgo(iso?: string | null): string {
 async function loadCircle() {
   if (!slug.value) return
   try {
-    circle.value = await circleStore.loadCircle(slug.value)
+    const data = await circleStore.loadCircle(slug.value)
+    circle.value = data
+    // 乐观更新足迹：loadCircle 成功（后端已记录浏览）后立即把圈子加到 store 足迹最前面，
+    // 这样返回 CircleDiscover 时足迹已同步，避免"延迟一步"问题
+    circleStore.recordView(data as any)
   } catch (err) {
     toast.error((err as Error).message)
   }
@@ -138,6 +147,12 @@ async function loadMore() {
   page.value += 1
   await loadPosts(false)
 }
+
+// 无限滚动：复用已有的 hasMore 计算属性与 loadMore 函数
+const { loading: scrollLoading, error: scrollError, retry: scrollRetry } = useInfiniteScroll({
+  hasMore,
+  onLoadMore: loadMore,
+})
 
 function onTabChange(key: typeof activeTab.value) {
   if (activeTab.value === key) return
@@ -250,18 +265,24 @@ async function onDeletePost(post: Post, e: Event) {
 }
 
 onMounted(async () => {
-  await loadCircle()
-  await loadPosts(true)
+  // 性能优化：loadCircle 与 loadPosts 相互独立（都只依赖 slug 路由参数），
+  // 改为并行，避免"加载两次"的全屏 loading 闪烁
+  // 最小骨架显示 200ms，避免本地加载太快骨架屏一闪而过
+  const minDelay = new Promise(resolve => setTimeout(resolve, 200))
+  await Promise.allSettled([loadCircle(), loadPosts(true), minDelay])
+  pageLoading.value = false
 })
 
-watch(slug, async () => {
-  await loadCircle()
-  await loadPosts(true)
+watch(slug, () => {
+  // 路由切换圈子时同样并行加载
+  void Promise.allSettled([loadCircle(), loadPosts(true)])
 })
 </script>
 
 <template>
-  <main class="page-circle">
+  <!-- 首次加载骨架屏：circle 未就绪时展示全页骨架，避免空白闪烁 -->
+  <CircleDetailSkeleton v-if="pageLoading" />
+  <main v-else class="page-circle">
     <!-- 顶部固定栏：返回 + 圈子名 + 关注 + 吧主管理 -->
     <header class="site-header" role="banner">
       <div class="header-inner">
@@ -457,13 +478,14 @@ watch(slug, async () => {
             />
           </article>
 
-          <!-- 加载更多 -->
-          <div v-if="hasMore" class="post-list-more">
-            <button class="btn-text" type="button" :disabled="loadingMore" @click="loadMore">
-              {{ loadingMore ? '加载中…' : '加载更多' }}
-            </button>
-          </div>
-          <div v-else class="post-list-end">没有更多了，下拉刷新试试</div>
+          <!-- 无限滚动底部状态 -->
+          <InfiniteScrollFooter
+            :loading="scrollLoading"
+            :error="scrollError"
+            :has-more="hasMore"
+            :has-items="posts.length > 0"
+            @retry="scrollRetry"
+          />
         </template>
 
         <EmptyState v-else text="这个圈子还没人发帖，来做第一个吧" />

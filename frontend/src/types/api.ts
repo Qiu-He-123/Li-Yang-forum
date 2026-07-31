@@ -142,6 +142,14 @@ export interface ImageUploadResult {
   thumb_url?: string
 }
 
+/** 个人素材库图片（发帖时可复用历史上传） */
+export interface MyImage {
+  id: number
+  url: string
+  mime_type?: string
+  created_at?: string | null
+}
+
 // ============ 新增类型（圈子/搜索/关注/通知分类） ============
 
 /** 圈子（分类） */
