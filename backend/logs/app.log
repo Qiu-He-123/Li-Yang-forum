@@ -27882,3 +27882,5 @@ AttributeError: Neither 'BinaryExpression' object nor 'Comparator' object has an
 2026-07-31 15:30:31.704 | INFO     | app.services.connection_manager:61 - [WS] user=9 disconnected client=b74d1ec64eb54deb89a54980e344beca
 2026-07-31 15:40:45.703 | INFO     | app.services.connection_manager:61 - [WS] user=9 disconnected client=251e9841867540438642aaf7a14032a7
 2026-07-31 15:40:46.911 | INFO     | app.services.connection_manager:48 - [WS] user=9 connected client=377e58f742ab4a8986e6757c40344910
+2026-07-31 15:51:31.692 | INFO     | app.services.connection_manager:61 - [WS] user=9 disconnected client=377e58f742ab4a8986e6757c40344910
+2026-07-31 15:51:32.117 | INFO     | app.services.connection_manager:48 - [WS] user=9 connected client=101fe43a979344858c4d442f430ae0a9
