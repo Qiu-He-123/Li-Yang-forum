@@ -152,7 +152,7 @@ function resolveCircleSlug(post: Post): string {
 onMounted(async () => {
   // 性能优化：validateSession 后台并行，不阻塞第一波加载
   // 基于 localStorage 中的 session.userId 决定第二波请求
-  const validPromise = session.validateSession()
+  const valid = await session.validateSession()
   // 第一波：公告 + 圈子列表 + 首页统计（与 session 校验并行）
   await Promise.all([
     announcementStore.loadAnnouncements(),
@@ -173,7 +173,6 @@ onMounted(async () => {
     ])
   } else {
     // 匿名用户：等 validateSession 结果确认是否真的未登录
-    const valid = await validPromise
     if (valid) {
       await Promise.all([
         userStore.loadProfile(),
@@ -189,6 +188,12 @@ onMounted(async () => {
 
 async function onViewChange(view: 'hot' | 'latest') {
   postStore.setView(view)
+  postStore.setPage(1)
+  await postStore.loadPosts()
+}
+
+/** Feed 首次加载失败后的手动重试 */
+async function retryFeed() {
   postStore.setPage(1)
   await postStore.loadPosts()
 }
@@ -526,6 +531,10 @@ onUnmounted(() => {
           />
         </div>
 
+        <div v-else-if="postStore.error" class="feed-error">
+          <p class="feed-error-text">加载失败，请检查网络后重试</p>
+          <button class="feed-error-btn" type="button" @click="retryFeed">重新加载</button>
+        </div>
         <EmptyState v-else text="暂无帖子，发布第一条校园动态。" />
       </section>
     </div>
@@ -807,6 +816,35 @@ onUnmounted(() => {
   column-count: 2;
   column-gap: 14px;
   column-fill: balance;
+}
+
+/* Feed 加载失败提示 */
+.feed-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 40px 16px;
+  color: var(--text-500);
+  font-size: 13px;
+}
+.feed-error-btn {
+  padding: 8px 22px;
+  border-radius: 999px;
+  border: none;
+  background: var(--brand-500);
+  color: #fff;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 150ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+.feed-error-btn:hover {
+  background: var(--brand-600);
+}
+.feed-error-btn:active {
+  transform: scale(0.96);
 }
 
 /* 骨架屏与 2 列大卡片保持一致，避免加载完成时布局跳动 */

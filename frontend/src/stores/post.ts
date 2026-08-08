@@ -64,7 +64,7 @@ export const usePostStore = defineStore('post', () => {
   /** 是否还有更多数据可加载（用于无限滚动判定） */
   const hasMore = computed(() => posts.value.length < total.value)
 
-  async function loadPosts(config: LoadingAxiosRequestConfig = {}) {
+  async function loadPosts(config: LoadingAxiosRequestConfig = {}, _isRetry = false) {
     loading.value = true
     error.value = ''
     try {
@@ -96,6 +96,12 @@ export const usePostStore = defineStore('post', () => {
       }
       return true
     } catch (err) {
+      // 首次失败自动重试一次：吸收冷启动 / token 刷新竞态等瞬时故障，
+      // 避免「打开首页 Feed 空白，刷新才恢复」的偶发问题
+      if (!_isRetry) {
+        await new Promise((r) => setTimeout(r, 800))
+        return loadPosts(config, true)
+      }
       error.value = (err as Error).message || '帖子加载失败'
       return false
     } finally {
