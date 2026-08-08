@@ -99,18 +99,39 @@ def client():
 
 # ============ 通用辅助 ============
 
-def register(client: TestClient, phone: str, nickname: str = "测试员", password: str = "Pwd@2026") -> dict:
-    """注册并返回 {school_id, user_id}。"""
+def register(
+    client: TestClient,
+    username: str,
+    nickname: str = "测试员",
+    password: str = "Pwd@2026",
+    invite_code: str | None = "__seed__",
+) -> dict:
+    """注册并返回 {school_id, user_id}（当前契约为 用户名+密码，邀请码选填）。
+
+    默认 invite_code="__seed__"：自动消耗一个种子邀请码，注册即 verified，
+    保证发帖/评论等测试可执行；需要测 unverified 场景时显式传 invite_code=None。
+    """
+    if invite_code == "__seed__":
+        from sqlalchemy import select
+        from app.core.database import SessionLocal
+        from app.models import SeedInviteCode
+
+        with SessionLocal() as db:
+            seed = db.scalar(
+                select(SeedInviteCode).where(SeedInviteCode.used_by.is_(None))
+            )
+            assert seed is not None, "测试环境应存在种子邀请码"
+            invite_code = seed.code
     schools = client.get("/schools").json()["data"]
     school_id = schools[0]["id"]
     body = {
         "nickname": nickname,
-        "phone": phone,
-        "code": "123456",
+        "username": username,
         "password": password,
         "confirm_password": password,
         "school_id": school_id,
         "agreed": True,
+        "invite_code": invite_code,
     }
     resp = client.post("/auth/register", json=body).json()
     assert resp["code"] == 0, f"register failed: {resp}"

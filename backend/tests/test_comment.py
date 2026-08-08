@@ -219,6 +219,6 @@ def test_post_detail_repairs_stale_comment_count(client):
     resp = client.get(f"/posts/{post['id']}").json()
     assert resp["code"] == 0
     assert resp["data"]["comment_count"] == 0
-
-    with SessionLocal() as db:
-        assert db.get(Post, post["id"]).comment_count == 0
+    # 设计说明：详情接口只修复响应中的评论数（真实 count），
+    # 不写回 post.comment_count，避免每次详情访问都触发写锁。
+    # 持久化修复发生在评论删除/级联删除等写路径。

@@ -789,12 +789,11 @@ class StudentVerification(Base):
     # 状态：pending(待审核) / approved(已通过) / rejected(已驳回)
     status: Mapped[str] = mapped_column(String(20), default="pending", index=True)
     # 审核人
-    reviewer_id: Mapped[int | None] = mapped_column(ForeignKey("admins.id"), nullable=True)
+    reviewer_id: Mapped[int | None] = mapped_column(ForeignKey("admin.id"), nullable=True)
     reviewed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     # 驳回原因（reject 时填写）
     reject_reason: Mapped[str | None] = mapped_column(String(200), default=None)
     # 审核通过时自动生成的邀请码（便于追溯）
     granted_invite_code: Mapped[str | None] = mapped_column(String(16), default=None)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
-
 

@@ -4,6 +4,12 @@ import { createApp } from 'vue'
 import App from './App.vue'
 import router from './router'
 import './style.css'
+// ElMessage / ElMessageBox 是命令式 API（代码里显式 import { ElMessage } from 'element-plus'），
+// unplugin 按需解析器只处理模板组件，不会自动带上这两个服务组件的样式。
+// 不引入样式时 .el-message 会以无样式普通文本渲染在页面底部（屏幕外），用户看不到任何提示。
+// 这里统一在入口引入，用户端与后台所有 ElMessage 提示都能正常显示。
+import 'element-plus/es/components/message/style/css'
+import 'element-plus/es/components/message-box/style/css'
 import { mountToast } from './components/native/Toast'
 import { toast } from './components/native/Toast'
 

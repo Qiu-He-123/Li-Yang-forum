@@ -85,7 +85,8 @@ def test_admin_posts_list(client):
     _admin_login(client)
     resp = client.get("/admin/posts").json()
     assert resp["code"] == 0
-    assert isinstance(resp["data"], list)
+    assert isinstance(resp["data"]["items"], list)
+    assert "total" in resp["data"]
 
 
 def test_admin_users_list(client):
@@ -93,7 +94,8 @@ def test_admin_users_list(client):
     _admin_login(client)
     resp = client.get("/admin/users").json()
     assert resp["code"] == 0
-    assert isinstance(resp["data"], list)
+    assert isinstance(resp["data"]["items"], list)
+    assert "total" in resp["data"]
 
 
 def test_admin_reports_list(client):
@@ -101,7 +103,8 @@ def test_admin_reports_list(client):
     _admin_login(client)
     resp = client.get("/admin/reports").json()
     assert resp["code"] == 0
-    assert isinstance(resp["data"], list)
+    assert isinstance(resp["data"]["items"], list)
+    assert "total" in resp["data"]
 
 
 def test_admin_logs_list(client):
@@ -109,7 +112,8 @@ def test_admin_logs_list(client):
     _admin_login(client)
     resp = client.get("/admin/logs").json()
     assert resp["code"] == 0
-    assert isinstance(resp["data"], list)
+    assert isinstance(resp["data"]["items"], list)
+    assert "total" in resp["data"]
 
 
 def test_admin_user_logs_query(client):
@@ -125,10 +129,10 @@ def test_admin_user_logs_query(client):
         params={"user_id": info["user_id"]},
     ).json()
     assert resp["code"] == 0
-    assert isinstance(resp["data"], list)
+    assert isinstance(resp["data"]["items"], list)
     # 应含该用户的日志
-    if resp["data"]:
-        for log in resp["data"]:
+    if resp["data"]["items"]:
+        for log in resp["data"]["items"]:
             assert log.get("user_id") == info["user_id"], f"日志 user_id 不匹配: {log}"
 
 
@@ -159,8 +163,8 @@ def test_admin_logs_contain_admin_id(client):
     resp = client.get("/admin/logs").json()
     assert resp["code"] == 0
     # 应至少有一条日志含 admin_id
-    if resp["data"]:
-        admin_logs = [log for log in resp["data"] if log.get("admin_id")]
+    if resp["data"]["items"]:
+        admin_logs = [log for log in resp["data"]["items"] if log.get("admin_id")]
         assert len(admin_logs) > 0, "T7-6: 日志应含 admin_id"
 
 

@@ -113,7 +113,7 @@ def test_my_favorites_list(client):
     # /users/me/favorites/posts 返回完整帖子列表（T5-4 我的收藏页用）
     resp = client.get("/users/me/favorites/posts").json()
     assert resp["code"] == 0
-    ids = [p["id"] for p in resp["data"]]
+    ids = [p["id"] for p in resp["data"]["items"]]
     assert post["id"] in ids
 
 
@@ -124,7 +124,7 @@ def test_my_favorites_excludes_unfavorited(client):
     client.post(f"/favorites/{post['id']}")
     client.delete(f"/favorites/{post['id']}")
     resp = client.get("/users/me/favorites/posts").json()
-    ids = [p["id"] for p in resp["data"]]
+    ids = [p["id"] for p in resp["data"]["items"]]
     assert post["id"] not in ids
 
 
@@ -136,7 +136,7 @@ def test_my_liked_posts_list(client):
     # /users/me/likes/posts 返回完整帖子列表（T5-1 点赞 Tab 用）
     resp = client.get("/users/me/likes/posts").json()
     assert resp["code"] == 0
-    ids = [p["id"] for p in resp["data"]]
+    ids = [p["id"] for p in resp["data"]["items"]]
     assert post["id"] in ids
 
 

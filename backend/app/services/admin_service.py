@@ -52,6 +52,7 @@ def admin_login(payload, request: Request, response: Response, db: Session) -> d
         token,
         httponly=True,
         samesite="lax",
+        secure=settings.env != "dev",
         max_age=480 * 60,
         path="/",
     )

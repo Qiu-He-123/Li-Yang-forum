@@ -72,7 +72,7 @@ def test_get_user_posts(client):
     p2 = create_post(client, info["school_id"], "帖子 2")
     resp = client.get(f"/users/{info['user_id']}/posts").json()
     assert resp["code"] == 0
-    ids = [p["id"] for p in resp["data"]]
+    ids = [p["id"] for p in resp["data"]["items"]]
     assert p1["id"] in ids
     assert p2["id"] in ids
 
@@ -100,7 +100,7 @@ def test_my_favorites_list(client):
     # /users/me/favorites/posts 返回完整帖子列表（T5-4 我的收藏页用）
     resp = client.get("/users/me/favorites/posts").json()
     assert resp["code"] == 0
-    ids = [p["id"] for p in resp["data"]]
+    ids = [p["id"] for p in resp["data"]["items"]]
     assert post["id"] in ids
 
 
@@ -111,7 +111,7 @@ def test_my_likes_list(client):
     client.post(f"/likes/post/{post['id']}")
     resp = client.get("/users/me/likes/posts").json()
     assert resp["code"] == 0
-    ids = [p["id"] for p in resp["data"]]
+    ids = [p["id"] for p in resp["data"]["items"]]
     assert post["id"] in ids
 
 
@@ -140,6 +140,6 @@ def test_profile_like_count_aggregates(client):
     client.post(f"/likes/post/{post['id']}")
     # 登出 B，A 重新登录
     client.post("/auth/logout")
-    client.post("/auth/login", json={"phone": "13704000010", "password": "Pwd@2026"})
+    client.post("/auth/login", json={"username": "13704000010", "password": "Pwd@2026"})
     me = client.get("/users/me").json()["data"]
     assert me["like_count"] >= 1, f"A 应至少有 1 个获赞，实际 {me['like_count']}"

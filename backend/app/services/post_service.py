@@ -307,6 +307,7 @@ async def update_post(post_id: int, payload: PostUpdate, request: Request, db: S
     if "school_id" in changes and not db.get(School, changes["school_id"]):
         raise HTTPException(status_code=400, detail=ErrorCode.SCHOOL_NOT_FOUND)
     if "content" in changes:
+        post.content = changes.pop("content")
         # 内容变更需重新审核：标记 pending，后台异步审核（与发帖一致）
         from app.services import audit_service
         if audit_service.is_ai_audit_available(db):

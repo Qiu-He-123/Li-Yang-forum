@@ -2,43 +2,54 @@ services:
   mysql:
     image: mysql:8.4
     environment:
-      MYSQL_ROOT_PASSWORD: lycommunity
-      MYSQL_DATABASE: ly_community
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-lycommunity}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-ly_community}
     ports:
       - "3306:3306"
     volumes:
       - mysql_data:/var/lib/mysql
+    restart: unless-stopped
 
   redis:
     image: redis:7-alpine
     ports:
       - "6379:6379"
+    restart: unless-stopped
 
   minio:
     image: minio/minio:latest
     command: server /data --console-address ":9001"
     environment:
-      MINIO_ROOT_USER: minioadmin
-      MINIO_ROOT_PASSWORD: minioadmin
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:-minioadmin}
     ports:
       - "9000:9000"
       - "9001:9001"
     volumes:
       - minio_data:/data
+    restart: unless-stopped
 
   backend:
     build: ../backend
     env_file:
       - ../backend/.env
     environment:
-      DATABASE_URL: mysql+pymysql://root:lycommunity@mysql:3306/ly_community
+      DATABASE_URL: mysql+pymysql://root:${MYSQL_ROOT_PASSWORD:-lycommunity}@mysql:3306/${MYSQL_DATABASE:-ly_community}
       REDIS_URL: redis://redis:6379/0
+      MINIO_ENDPOINT: minio:9000
+      MINIO_SECURE: "false"
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-minioadmin}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-minioadmin}
+      MINIO_BUCKET: ${MINIO_BUCKET:-ly-community}
     depends_on:
       - mysql
       - redis
       - minio
     ports:
       - "8000:8000"
+    volumes:
+      - uploads_data:/app/uploads
+    restart: unless-stopped
 
   frontend:
     build: ../frontend
@@ -46,8 +57,9 @@ services:
       - backend
     ports:
       - "5173:80"
+    restart: unless-stopped
 
 volumes:
   mysql_data:
   minio_data:
-
+  uploads_data:

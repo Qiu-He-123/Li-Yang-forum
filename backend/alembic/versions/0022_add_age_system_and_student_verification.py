@@ -85,7 +85,7 @@ def upgrade() -> None:
         sa.Column("image_url", sa.String(500), nullable=False),
         sa.Column("note", sa.String(200), nullable=True, server_default=None),
         sa.Column("status", sa.String(20), nullable=False, server_default="pending", index=True),
-        sa.Column("reviewer_id", sa.Integer(), sa.ForeignKey("admins.id"), nullable=True),
+        sa.Column("reviewer_id", sa.Integer(), sa.ForeignKey("admin.id"), nullable=True),
         sa.Column("reviewed_at", sa.DateTime(), nullable=True),
         sa.Column("reject_reason", sa.String(200), nullable=True, server_default=None),
         sa.Column("granted_invite_code", sa.String(16), nullable=True, server_default=None),

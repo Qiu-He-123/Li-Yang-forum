@@ -207,8 +207,7 @@ def test_school_view_filters_by_user_school(client):
     other_school_id = schools[1]["id"]
     body = {
         "nickname": "校区B员",
-        "phone": "13701000019",
-        "code": "123456",
+        "username": "13701000019",
         "password": "Pwd@2026",
         "confirm_password": "Pwd@2026",
         "school_id": other_school_id,
