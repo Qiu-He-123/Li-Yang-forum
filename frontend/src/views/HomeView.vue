@@ -855,15 +855,18 @@ onUnmounted(() => {
 .card--text {
   display: flex;
   flex-direction: column;
-  min-height: 240px;
+  /* text card height ~ half of image card; max-height caps long text */
+  min-height: 176px;
+  max-height: 208px;
 }
-.card--text:nth-of-type(3n+1) { min-height: 260px; }
-.card--text:nth-of-type(3n)   { min-height: 220px; }
+.card--text:nth-of-type(3n+1) { min-height: 192px; }
+.card--text:nth-of-type(3n)   { min-height: 168px; }
 .card--text .card-body {
   display: flex;
   flex-direction: column;
   justify-content: space-between;
   flex: 1;
+  overflow: hidden;
 }
 .card-body {
   padding: 16px 18px 18px;
@@ -886,10 +889,11 @@ onUnmounted(() => {
   .card:nth-of-type(4n+3) .card-img { height: 390px; }
   .card:nth-of-type(4n)   .card-img { height: 355px; }
   .card--text {
-    min-height: 340px;
+    min-height: 248px;
+    max-height: 296px;
   }
-  .card--text:nth-of-type(3n+1) { min-height: 370px; }
-  .card--text:nth-of-type(3n)   { min-height: 320px; }
+  .card--text:nth-of-type(3n+1) { min-height: 268px; }
+  .card--text:nth-of-type(3n)   { min-height: 232px; }
 }
 .card-top {
   display: flex;
