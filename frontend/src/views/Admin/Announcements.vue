@@ -188,15 +188,15 @@ onMounted(() => load())
         </el-table-column>
         <el-table-column label="操作" width="220" fixed="right">
           <template #default="{ row }">
-            <el-button size="small" type="primary" plain @click="openEdit(row)">编辑</el-button>
+            <el-button size="small" type="primary" plain @click="openEdit(row as AdminAnnouncement)">编辑</el-button>
             <el-button
               size="small"
               :type="row.is_active ? 'warning' : 'success'"
-              @click="toggleActive(row)"
+              @click="toggleActive(row as AdminAnnouncement)"
             >
               {{ row.is_active ? '停用' : '启用' }}
             </el-button>
-            <el-button size="small" type="danger" plain @click="remove(row)">删除</el-button>
+            <el-button size="small" type="danger" plain @click="remove(row as AdminAnnouncement)">删除</el-button>
           </template>
         </el-table-column>
       </el-table>

@@ -344,6 +344,8 @@ class Image(Base, TimestampMixin):
     url: Mapped[str] = mapped_column(String(500))
     mime_type: Mapped[str] = mapped_column(String(50))
     size_bytes: Mapped[int] = mapped_column(Integer)
+    # P0-1：私密图片（学生证等敏感照片）与公开图片分离，禁止走公开静态目录
+    is_private: Mapped[bool] = mapped_column(Boolean, default=False)
 
 
 class Announcement(Base, TimestampMixin):
@@ -796,4 +798,3 @@ class StudentVerification(Base):
     # 审核通过时自动生成的邀请码（便于追溯）
     granted_invite_code: Mapped[str | None] = mapped_column(String(16), default=None)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
-

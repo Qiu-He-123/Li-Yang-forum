@@ -27,6 +27,28 @@ export function uploadImage(file: File, onProgress?: (percent: number) => void) 
   )
 }
 
+/** 学生认证照片私密上传（P0-1：走隔离存储，只能本人/管理员读取） */
+export function uploadVerificationImage(file: File, onProgress?: (percent: number) => void) {
+  const formData = new FormData()
+  formData.append('file', file)
+  const config: LoadingAxiosRequestConfig = {
+    onUploadProgress: (progressEvent) => {
+      if (progressEvent.total && onProgress) {
+        const percent = Math.round((progressEvent.loaded * 100) / progressEvent.total)
+        onProgress(percent)
+      }
+    },
+    showGlobalLoading: false,
+    showGlobalError: true,
+    timeout: 120_000,
+  }
+  return http.post<unknown, { data: { code: number; msg: string; data: ImageUploadResult } }>(
+    '/images/verification',
+    formData,
+    config,
+  )
+}
+
 /** 个人素材库：当前用户历史上传的图片（最新在前） */
 export function listMyImages(page = 1, pageSize = 60) {
   const config: LoadingAxiosRequestConfig = {

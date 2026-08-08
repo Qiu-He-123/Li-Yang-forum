@@ -4,16 +4,12 @@ services:
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-lycommunity}
       MYSQL_DATABASE: ${MYSQL_DATABASE:-ly_community}
-    ports:
-      - "3306:3306"
     volumes:
       - mysql_data:/var/lib/mysql
     restart: unless-stopped
 
   redis:
     image: redis:7-alpine
-    ports:
-      - "6379:6379"
     restart: unless-stopped
 
   minio:
@@ -22,9 +18,6 @@ services:
     environment:
       MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-minioadmin}
       MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:-minioadmin}
-    ports:
-      - "9000:9000"
-      - "9001:9001"
     volumes:
       - minio_data:/data
     restart: unless-stopped
@@ -34,6 +27,8 @@ services:
     env_file:
       - ../backend/.env
     environment:
+      # P0-2：生产必须显式 prod 模式，否则 Secure Cookie / 强校验全部失效
+      ENV: ${APP_ENV:-prod}
       DATABASE_URL: mysql+pymysql://root:${MYSQL_ROOT_PASSWORD:-lycommunity}@mysql:3306/${MYSQL_DATABASE:-ly_community}
       REDIS_URL: redis://redis:6379/0
       MINIO_ENDPOINT: minio:9000
@@ -41,25 +36,27 @@ services:
       MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-minioadmin}
       MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-minioadmin}
       MINIO_BUCKET: ${MINIO_BUCKET:-ly-community}
+      MINIO_PRIVATE_BUCKET: ${MINIO_PRIVATE_BUCKET:-ly-community-private}
     depends_on:
       - mysql
       - redis
       - minio
-    ports:
-      - "8000:8000"
     volumes:
       - uploads_data:/app/uploads
+      - uploads_private_data:/app/uploads_private
     restart: unless-stopped
 
   frontend:
     build: ../frontend
     depends_on:
       - backend
+      - minio
     ports:
-      - "5173:80"
+      - "80:80"
     restart: unless-stopped
 
 volumes:
   mysql_data:
   minio_data:
   uploads_data:
+  uploads_private_data:

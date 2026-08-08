@@ -93,8 +93,8 @@ def _issue_tokens(response: Response, db: Session, user: User) -> dict[str, str]
     # 关键：设置 max_age 让 Cookie 跨浏览器会话持久化，否则浏览器关闭即丢失登录态
     access_max_age = settings.access_token_expire_minutes * 60
     refresh_max_age = settings.refresh_token_expire_days * 86400
-    response.set_cookie("access_token", access, httponly=True, samesite="lax", secure=settings.env != "dev", max_age=access_max_age, path="/")
-    response.set_cookie("refresh_token", refresh, httponly=True, samesite="lax", secure=settings.env != "dev", max_age=refresh_max_age, path="/")
+    response.set_cookie("access_token", access, httponly=True, samesite="strict", secure=settings.env != "dev", max_age=access_max_age, path="/")
+    response.set_cookie("refresh_token", refresh, httponly=True, samesite="strict", secure=settings.env != "dev", max_age=refresh_max_age, path="/")
     return {"access_token": access, "refresh_token": refresh}
 
 
@@ -298,8 +298,8 @@ def refresh_session(refresh_token: str | None, request: Request, response: Respo
 
     access_max_age = settings.access_token_expire_minutes * 60
     refresh_max_age = settings.refresh_token_expire_days * 86400
-    response.set_cookie("access_token", new_access, httponly=True, samesite="lax", secure=settings.env != "dev", max_age=access_max_age, path="/")
-    response.set_cookie("refresh_token", new_refresh, httponly=True, samesite="lax", secure=settings.env != "dev", max_age=refresh_max_age, path="/")
+    response.set_cookie("access_token", new_access, httponly=True, samesite="strict", secure=settings.env != "dev", max_age=access_max_age, path="/")
+    response.set_cookie("refresh_token", new_refresh, httponly=True, samesite="strict", secure=settings.env != "dev", max_age=refresh_max_age, path="/")
 
     log_user_action(
         db,

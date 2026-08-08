@@ -21,8 +21,9 @@
 import asyncio
 
 from fastapi import APIRouter, Query, WebSocket, WebSocketDisconnect
-from jose import JWTError
+import jwt
 
+from app.core.config import get_settings
 from app.core.database import SessionLocal
 from app.core.security import decode_token
 from app.models import User
@@ -50,7 +51,7 @@ def _authenticate(token: str | None) -> int | None:
         return None
     try:
         return int(decode_token(token))
-    except (JWTError, ValueError):
+    except (jwt.InvalidTokenError, ValueError):
         return None
 
 
@@ -87,6 +88,18 @@ async def websocket_endpoint(
     未登录用户以游客身份连接（user_id=0），仅参与在线人数统计和心跳，
     不能使用匹配相关功能。
     """
+    # P2：Origin 校验，禁止跨站 WebSocket 连接（配合 SameSite=Strict 双保险）
+    settings = get_settings()
+    allowed_origins = {settings.frontend_origin}
+    if settings.extra_origins:
+        allowed_origins.update(
+            o.strip() for o in settings.extra_origins.split(",") if o.strip()
+        )
+    origin = websocket.headers.get("origin")
+    if origin and origin not in allowed_origins:
+        await websocket.close(code=4403)
+        return
+
     user_id = _authenticate(_extract_token(websocket, token))
     is_visitor = False
     if not user_id:

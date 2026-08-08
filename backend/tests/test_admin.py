@@ -190,3 +190,41 @@ def test_admin_delete_post(client):
     # admin 删除帖子
     resp = client.delete(f"/admin/posts/{post_id}").json()
     assert resp["code"] == 0
+
+
+def test_admin_login_lockout_after_failures(client, monkeypatch):
+    """P0-3：连续失败达到阈值后，管理员账号被锁定。"""
+    from app.services import rate_limit_service
+
+    monkeypatch.setattr(rate_limit_service, "LOGIN_FAIL_THRESHOLD", 3)
+    monkeypatch.setattr(rate_limit_service, "LOGIN_LOCK_MINUTES", 30)
+    _ensure_admin()
+
+    for i in range(3):
+        resp = client.post(
+            "/admin/login",
+            json={"username": ADMIN_USER, "password": "WrongPwd"},
+        ).json()
+        assert resp["code"] == -103, f"第 {i+1} 次应返回 -103, 实际 {resp['code']}"
+
+    resp = client.post(
+        "/admin/login",
+        json={"username": ADMIN_USER, "password": "WrongPwd"},
+    ).json()
+    assert resp["code"] == -104, f"第 4 次应被锁定 -104, 实际 {resp['code']}"
+
+
+def test_create_admin_password_policy():
+    """P0-3：create_admin 强密码校验（≥12 位，含大小写/数字/符号）。"""
+    import importlib.util
+    from pathlib import Path
+
+    script = Path(__file__).resolve().parents[1] / "scripts" / "create_admin.py"
+    spec = importlib.util.spec_from_file_location("create_admin", script)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+
+    assert mod._validate_password("short") is not None
+    assert mod._validate_password("Abcdef12345") is not None  # 无特殊符号
+    assert mod._validate_password("abcdefghijkl!") is not None  # 无大写/数字
+    assert mod._validate_password("Abcdef12345!@#") is None  # 强密码通过

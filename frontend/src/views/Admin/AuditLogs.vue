@@ -211,7 +211,7 @@ onMounted(() => load())
         </el-table-column>
         <el-table-column label="内容快照" width="100">
           <template #default="{ row }">
-            <el-button size="small" link type="primary" @click="viewSnapshot(row)">查看</el-button>
+            <el-button size="small" link type="primary" @click="viewSnapshot(row as AuditLog)">查看</el-button>
           </template>
         </el-table-column>
         <el-table-column label="审核时间" width="160">

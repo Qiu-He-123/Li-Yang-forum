@@ -67,3 +67,10 @@ class UpdateQQIn(BaseModel):
     """修改 QQ 号入参（设置页）。"""
 
     qq: str | None = Field(default=None, max_length=20)
+
+
+class VerificationSubmitIn(BaseModel):
+    """学生认证申请入参（P0-1/P1-3：必须传本人私密上传的图片 id）。"""
+
+    image_id: int
+    note: str | None = Field(default=None, max_length=200)

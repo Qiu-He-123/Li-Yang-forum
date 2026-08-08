@@ -1,6 +1,6 @@
 """意见反馈路由。"""
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from jose import JWTError
+import jwt
 from sqlalchemy.orm import Session
 
 from app.api.deps import admin_user, current_user
@@ -22,7 +22,7 @@ def _is_admin_request(db: Session, request: Request) -> bool:
         return False
     try:
         admin_id = int(decode_token(admin_token))
-    except (JWTError, ValueError):
+    except (jwt.InvalidTokenError, ValueError):
         return False
     return db.get(Admin, admin_id) is not None
 

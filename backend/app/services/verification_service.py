@@ -28,6 +28,7 @@ from app.core.errors import ErrorCode
 from app.core.time_utils import to_iso_zh
 from app.models import (
     Admin,
+    Image,
     SeedInviteCode,
     StudentVerification,
     User,
@@ -82,7 +83,7 @@ def get_my_verification_status(db: Session, user: User) -> dict[str, Any]:
 def submit_verification(
     db: Session,
     user: User,
-    image_url: str,
+    image_id: int,
     note: str | None,
     request: Request | None = None,
 ) -> dict[str, Any]:
@@ -97,11 +98,13 @@ def submit_verification(
     if user.verification_status == "verified":
         raise HTTPException(status_code=400, detail="你已通过认证，无需再次申请")
 
-    image_url = (image_url or "").strip()
-    if not image_url:
-        raise HTTPException(status_code=400, detail=ErrorCode.PARAM_ERROR)
-    if len(image_url) > 500:
-        raise HTTPException(status_code=400, detail=ErrorCode.PARAM_ERROR)
+    # P0-1/P1-3：必须引用本人私密上传的图片，拒绝任意 URL 与引用他人图片
+    image = db.get(Image, image_id)
+    if not image or image.user_id != user.id:
+        raise HTTPException(status_code=400, detail="请使用本人上传的学生证照片")
+    if not image.is_private:
+        raise HTTPException(status_code=400, detail="请通过私密上传通道提交学生证照片")
+    image_url = image.url
     note = (note or "").strip()
     if len(note) > 200:
         raise HTTPException(status_code=400, detail=ErrorCode.PARAM_ERROR)

@@ -33,6 +33,12 @@ from app.models import (
 )
 from app.schemas.interactions import AnnouncementCreate
 from app.services.audit_log import log_admin_action
+from app.services.auth_service import check_ip_rate_limit
+from app.services.rate_limit_service import (
+    check_login_locked,
+    clear_login_failures,
+    record_login_failure,
+)
 
 
 def admin_dict(admin: Admin) -> dict:
@@ -40,10 +46,18 @@ def admin_dict(admin: Admin) -> dict:
 
 
 def admin_login(payload, request: Request, response: Response, db: Session) -> dict:
-    """管理员登录。"""
+    """管理员登录（P0-3：IP 限流 + 失败锁定，防暴力破解）。"""
+    ip = _extract_ip(request)
+    lock_key = f"admin:{payload.username}"
+    if check_login_locked(db, lock_key):
+        raise HTTPException(status_code=429, detail=ErrorCode.LOGIN_LOCKED)
+    check_ip_rate_limit(db, ip, "admin_login")
+
     admin = db.scalar(select(Admin).where(Admin.username == payload.username))
     if not admin or not verify_password(payload.password, admin.password_hash):
+        record_login_failure(db, lock_key)
         raise HTTPException(status_code=403, detail=ErrorCode.LOGIN_FAILED)
+    clear_login_failures(db, lock_key)
 
     settings = get_settings()
     token = create_token(str(admin.id), minutes=480)
@@ -51,7 +65,7 @@ def admin_login(payload, request: Request, response: Response, db: Session) -> d
         "admin_token",
         token,
         httponly=True,
-        samesite="lax",
+        samesite="strict",
         secure=settings.env != "dev",
         max_age=480 * 60,
         path="/",

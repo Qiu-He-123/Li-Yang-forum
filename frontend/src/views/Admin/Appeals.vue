@@ -204,7 +204,7 @@ onMounted(() => load())
               v-if="row.status === 'pending'"
               size="small"
               type="primary"
-              @click="openReview(row)"
+              @click="openReview(row as AdminAppeal)"
             >
               审核
             </el-button>

@@ -277,7 +277,7 @@ onMounted(() => load())
               size="small"
               type="danger"
               plain
-              @click="deleteCode(row)"
+              @click="deleteCode(row as SeedCode)"
             >
               删除
             </el-button>

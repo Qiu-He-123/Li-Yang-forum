@@ -2,14 +2,17 @@ import io
 import asyncio as aio
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
+import jwt
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, Response, UploadFile
 from loguru import logger
 from PIL import Image as PILImage
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.api.deps import current_user
 from app.core.database import get_db
-from app.models import Image, User
+from app.core.security import decode_token
+from app.models import Admin, Image, User
 from app.schemas.common import ok
 from app.services.storage_service import storage_service
 
@@ -20,6 +23,38 @@ ALLOWED_TYPES = {"image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp
 TYPE_ALIASES = {"image/jpg": "image/jpeg"}
 MAX_BYTES = 5 * 1024 * 1024
 THUMB_MAX_SIZE = (400, 400)  # 缩略图最大尺寸
+
+
+async def _read_limited(file: UploadFile, max_bytes: int = MAX_BYTES) -> bytes:
+    """分块读取上传文件，超过 max_bytes 立即拒绝（P1-2：防内存/磁盘耗尽）。"""
+    content = bytearray()
+    while True:
+        chunk = await file.read(64 * 1024)
+        if not chunk:
+            break
+        content.extend(chunk)
+        if len(content) > max_bytes:
+            raise HTTPException(status_code=413, detail="图片大小不能超过 5MB")
+    return bytes(content)
+
+
+def _check_content_length(request: Request) -> None:
+    """根据 Content-Length 提前拒绝超大上传（含 multipart 封装开销）。"""
+    cl = request.headers.get("content-length")
+    if cl and cl.isdigit() and int(cl) > MAX_BYTES + 1024 * 1024:
+        raise HTTPException(status_code=413, detail="图片大小不能超过 5MB")
+
+
+def _is_admin_request(db: Session, request: Request) -> bool:
+    """校验 admin_token Cookie 是否有效（私密图片允许管理员查看）。"""
+    token = request.cookies.get("admin_token")
+    if not token:
+        return False
+    try:
+        admin_id = int(decode_token(token))
+    except (jwt.InvalidTokenError, ValueError):
+        return False
+    return db.get(Admin, admin_id) is not None
 
 
 def _detect_image_type(content: bytes) -> str | None:
@@ -66,15 +101,19 @@ def _make_thumbnail(content: bytes, mime_type: str) -> bytes | None:
 
 
 @router.post("")
-async def upload_image(file: UploadFile = File(...), db: Session = Depends(get_db), user: User = Depends(current_user)) -> dict:
+async def upload_image(
+    file: UploadFile = File(...),
+    request: Request = None,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+) -> dict:
+    _check_content_length(request)
     # 统一 content_type：image/jpg → image/jpeg
     raw_content_type = file.content_type or ""
     content_type = TYPE_ALIASES.get(raw_content_type, raw_content_type)
     if content_type not in ALLOWED_TYPES:
         raise HTTPException(status_code=400, detail="图片格式仅支持 jpg、png、webp、gif")
-    content = await file.read()
-    if len(content) > MAX_BYTES:
-        raise HTTPException(status_code=400, detail="图片大小不能超过 5MB")
+    content = await _read_limited(file)
 
     # T7-10：用 magic bytes 校验真实文件类型，防止伪装 content_type 上传可执行文件（S9）
     real_type = _detect_image_type(content)
@@ -124,6 +163,85 @@ async def upload_image(file: UploadFile = File(...), db: Session = Depends(get_d
     return ok({"id": image.id, "url": url, "thumb_url": thumb_url or url})
 
 
+@router.post("/verification")
+async def upload_verification_image(
+    file: UploadFile = File(...),
+    request: Request = None,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+) -> dict:
+    """学生认证照片专用私密上传（P0-1）。
+
+    与公开 /images 不同：存入隔离目录，URL 为 /images/private/*，
+    只能由本人或管理员通过鉴权接口读取。
+    """
+    _check_content_length(request)
+    raw_content_type = file.content_type or ""
+    content_type = TYPE_ALIASES.get(raw_content_type, raw_content_type)
+    if content_type not in ALLOWED_TYPES:
+        raise HTTPException(status_code=400, detail="图片格式仅支持 jpg、png、webp、gif")
+    content = await _read_limited(file)
+
+    real_type = _detect_image_type(content)
+    if not real_type:
+        logger.warning("[IMAGE_UPLOAD] magic bytes 无法识别图片类型, user={}", user.id)
+        raise HTTPException(status_code=400, detail="无法识别的图片格式，请重新选择文件")
+    if real_type != content_type:
+        raise HTTPException(status_code=400, detail="图片内容与声明格式不符，疑似伪装文件")
+
+    ext = ALLOWED_TYPES[content_type]
+    filename = f"{uuid4().hex}{ext}"
+    url = await storage_service.upload_private_image_async(filename, content, content_type)
+
+    image = Image(
+        user_id=user.id,
+        url=url,
+        mime_type=content_type,
+        size_bytes=len(content),
+        is_private=True,
+    )
+    db.add(image)
+    db.commit()
+    db.refresh(image)
+    return ok({"id": image.id, "url": url})
+
+
+@router.get("/private/{filename}")
+async def get_private_image(
+    filename: str,
+    request: Request,
+    db: Session = Depends(get_db),
+) -> Response:
+    """鉴权读取私密图片：仅图片所有者或管理员可见（P0-1）。"""
+    image = db.scalar(
+        select(Image).where(
+            Image.url == f"/images/private/{filename}",
+            Image.is_private.is_(True),
+        )
+    )
+    if not image:
+        raise HTTPException(status_code=404, detail="图片不存在")
+
+    user_id: int | None = None
+    token = request.cookies.get("access_token")
+    if token:
+        try:
+            user_id = int(decode_token(token))
+        except (jwt.InvalidTokenError, ValueError):
+            user_id = None
+
+    if not (user_id == image.user_id or _is_admin_request(db, request)):
+        raise HTTPException(status_code=403, detail="无权查看该图片")
+
+    data = await storage_service.read_private(filename)
+    if data is None:
+        raise HTTPException(status_code=404, detail="图片不存在")
+    return Response(
+        content=data,
+        media_type=image.mime_type or "application/octet-stream",
+        headers={"Cache-Control": "private, no-store"},
+    )
+
 @router.get("")
 async def list_my_images(
     page: int = Query(default=1, ge=1),
@@ -142,6 +260,7 @@ async def list_my_images(
                     "id": img.id,
                     "url": img.url,
                     "mime_type": img.mime_type,
+                    "is_private": img.is_private,
                     "created_at": img.created_at.isoformat() if img.created_at else None,
                 }
                 for img in items

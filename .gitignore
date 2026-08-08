@@ -13,6 +13,7 @@ dist/
 *.sqlite3.*
 *.db
 uploads/
+uploads_private/
 cookies.txt
 cookies.csv
 logs/

@@ -276,7 +276,7 @@ onMounted(() => load())
               size="small"
               type="success"
               plain
-              @click="unban(row)"
+              @click="unban(row as BanRecord)"
             >
               解封
             </el-button>

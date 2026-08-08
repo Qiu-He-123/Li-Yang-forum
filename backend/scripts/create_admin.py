@@ -27,7 +27,7 @@ from app.models import Admin  # noqa: E402
 def main() -> int:
     parser = argparse.ArgumentParser(description="创建立洋社区管理员账号")
     parser.add_argument("username", help="管理员用户名（1-32 字符）")
-    parser.add_argument("password", help="管理员密码（建议 ≥ 12 位，包含大小写+数字+符号）")
+    parser.add_argument("password", help="管理员密码（至少 12 位，含大小写+数字+符号）")
     parser.add_argument(
         "--role",
         default="super",
@@ -39,8 +39,9 @@ def main() -> int:
     if len(args.username) < 1 or len(args.username) > 32:
         print("[ERROR] 用户名长度需在 1-32 之间", file=sys.stderr)
         return 2
-    if len(args.password) < 8:
-        print("[ERROR] 密码长度至少 8 位", file=sys.stderr)
+    pwd_error = _validate_password(args.password)
+    if pwd_error:
+        print(f"[ERROR] {pwd_error}", file=sys.stderr)
         return 2
 
     with SessionLocal() as db:
@@ -59,6 +60,21 @@ def main() -> int:
         print(f"[OK] 管理员 '{args.username}' (role={args.role}) 创建成功，id={admin.id}")
         print("现在可以用此账号通过 /admin/login 接口登录。")
     return 0
+
+
+def _validate_password(pwd: str) -> str | None:
+    """强密码校验（P0-3）：≥12 位，含大小写字母、数字、特殊符号。"""
+    if len(pwd) < 12:
+        return "密码至少 12 位"
+    if not any(c.islower() for c in pwd):
+        return "密码需包含小写字母"
+    if not any(c.isupper() for c in pwd):
+        return "密码需包含大写字母"
+    if not any(c.isdigit() for c in pwd):
+        return "密码需包含数字"
+    if not any(not c.isalnum() for c in pwd):
+        return "密码需包含特殊符号"
+    return None
 
 
 if __name__ == "__main__":

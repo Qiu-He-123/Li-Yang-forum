@@ -1,4 +1,5 @@
 import asyncio
+import json
 from io import BytesIO
 from pathlib import Path
 
@@ -11,8 +12,38 @@ from app.core.config import get_settings
 _minio_checked: bool = False
 _minio_available: bool = False
 
+# P0-1：私密图片（学生证等）本地存储目录，与公开 uploads/ 完全隔离
+PRIVATE_DIR = "uploads_private"
+
+
+def _public_bucket_policy(bucket: str) -> str:
+    """公开图片桶的只读策略（帖子图片本身需要公开展示）。"""
+    return json.dumps(
+        {
+            "Version": "2012-10-17",
+            "Statement": [
+                {
+                    "Effect": "Allow",
+                    "Principal": {"AWS": ["*"]},
+                    "Action": ["s3:GetObject"],
+                    "Resource": [f"arn:aws:s3:::{bucket}/*"],
+                }
+            ],
+        }
+    )
+
 
 class StorageService:
+    def _new_client(self, settings):
+        from minio import Minio
+
+        return Minio(
+            settings.minio_endpoint,
+            access_key=settings.minio_access_key,
+            secret_key=settings.minio_secret_key,
+            secure=settings.minio_secure,
+        )
+
     def _check_minio(self) -> bool:
         """检查 MinIO 是否可用，结果缓存避免重复连接。"""
         global _minio_checked, _minio_available
@@ -21,18 +52,9 @@ class StorageService:
 
         settings = get_settings()
         try:
-            from minio import Minio
+            client = self._new_client(settings)
 
-            client = Minio(
-                settings.minio_endpoint,
-                access_key=settings.minio_access_key,
-                secret_key=settings.minio_secret_key,
-                secure=settings.minio_secure,
-            )
             # 用短超时检查 bucket 是否存在（3秒超时，避免长时间阻塞）
-            import signal
-
-            # MinIO SDK 不直接支持超时参数，使用线程 + 超时控制
             def _check():
                 client.bucket_exists(settings.minio_bucket)
 
@@ -51,21 +73,13 @@ class StorageService:
         return _minio_available
 
     async def upload_image_async(self, filename: str, content: bytes, content_type: str) -> str:
-        """异步上传图片：本地存储使用 aiofiles 避免阻塞事件循环。
-
-        性能优化：
-        - 本地存储使用 aiofiles 异步写入（非阻塞）
-        - MinIO 上传使用 run_in_executor 放到线程池（避免阻塞事件循环）
-        - MinIO 连接检查已有缓存 + 超时保护
-        """
+        """上传公开图片：本地 uploads/ 或 MinIO 公开桶（同源 /minio/* 可访问）。"""
         settings = get_settings()
 
-        # T8-1：如果 MinIO 之前已检查且不可用，直接走本地存储，不再重复连接
         if not self._check_minio():
             root = Path("uploads")
             root.mkdir(exist_ok=True)
             path = root / filename
-            # 使用 aiofiles 异步写入，避免阻塞事件循环
             async with aiofiles.open(str(path), "wb") as f:
                 await f.write(content)
             return f"/uploads/{filename}"
@@ -73,7 +87,7 @@ class StorageService:
         # MinIO 上传放到线程池中执行（MinIO SDK 是同步的）
         loop = asyncio.get_running_loop()
         try:
-            result = await loop.run_in_executor(
+            return await loop.run_in_executor(
                 None,
                 self._upload_to_minio,
                 filename,
@@ -81,10 +95,8 @@ class StorageService:
                 content_type,
                 settings,
             )
-            return result
         except Exception as exc:
             logger.warning("MinIO upload failed, fallback to local: {}", type(exc).__name__)
-            # 标记 MinIO 不可用，后续不再尝试
             global _minio_available
             _minio_available = False
             root = Path("uploads")
@@ -94,27 +106,90 @@ class StorageService:
                 await f.write(content)
             return f"/uploads/{filename}"
 
-    def _upload_to_minio(self, filename: str, content: bytes, content_type: str, settings) -> str:
-        """同步上传到 MinIO（在 run_in_executor 中调用）。"""
-        from minio import Minio
+    async def upload_private_image_async(self, filename: str, content: bytes, content_type: str) -> str:
+        """上传私密图片（学生证等敏感照片）。
 
-        client = Minio(
-            settings.minio_endpoint,
-            access_key=settings.minio_access_key,
-            secret_key=settings.minio_secret_key,
-            secure=settings.minio_secure,
-        )
-        if not client.bucket_exists(settings.minio_bucket):
-            client.make_bucket(settings.minio_bucket)
+        - 本地存 uploads_private/（不挂载公开静态目录）
+        - MinIO 存私有桶（默认私有策略），URL 统一走 /images/private/* 鉴权转发
+        """
+        settings = get_settings()
+        if not self._check_minio():
+            root = Path(PRIVATE_DIR)
+            root.mkdir(exist_ok=True)
+            path = root / filename
+            async with aiofiles.open(str(path), "wb") as f:
+                await f.write(content)
+            return f"/images/private/{filename}"
+
+        try:
+            await asyncio.to_thread(
+                self._upload_private_to_minio,
+                filename,
+                content,
+                content_type,
+                settings,
+            )
+        except Exception as exc:
+            logger.warning("MinIO private upload failed, fallback to local: {}", type(exc).__name__)
+            global _minio_available
+            _minio_available = False
+            root = Path(PRIVATE_DIR)
+            root.mkdir(exist_ok=True)
+            path = root / filename
+            async with aiofiles.open(str(path), "wb") as f:
+                await f.write(content)
+        return f"/images/private/{filename}"
+
+    async def read_private(self, filename: str) -> bytes | None:
+        """读取私密图片字节（本地文件或 MinIO 私有桶），不存在返回 None。"""
+        if self._check_minio():
+            try:
+                settings = get_settings()
+                client = self._new_client(settings)
+                resp = client.get_object(settings.minio_private_bucket, filename)
+                try:
+                    return resp.read()
+                finally:
+                    resp.close()
+                    resp.release_conn()
+            except Exception as exc:
+                logger.warning("MinIO private read failed, fallback to local: {}", type(exc).__name__)
+
+        path = Path(PRIVATE_DIR) / filename
+        if not path.exists():
+            return None
+        return path.read_bytes()
+
+    def _upload_to_minio(self, filename: str, content: bytes, content_type: str, settings) -> str:
+        """同步上传公开图片到 MinIO（公开桶 + 只读策略），返回同源相对 URL。"""
+        client = self._new_client(settings)
+        bucket = settings.minio_bucket
+        if not client.bucket_exists(bucket):
+            client.make_bucket(bucket)
+        client.set_bucket_policy(bucket, _public_bucket_policy(bucket))
         client.put_object(
-            settings.minio_bucket,
+            bucket,
             filename,
             BytesIO(content),
             length=len(content),
             content_type=content_type,
         )
-        scheme = "https" if settings.minio_secure else "http"
-        return f"{scheme}://{settings.minio_endpoint}/{settings.minio_bucket}/{filename}"
+        # 同源相对路径：由 Nginx /minio/ 反代到 MinIO，避免浏览器无法解析容器主机名
+        return f"/minio/{bucket}/{filename}"
+
+    def _upload_private_to_minio(self, filename: str, content: bytes, content_type: str, settings) -> None:
+        """同步上传私密图片到 MinIO 私有桶（默认私有策略，不设置公开读）。"""
+        client = self._new_client(settings)
+        bucket = settings.minio_private_bucket
+        if not client.bucket_exists(bucket):
+            client.make_bucket(bucket)
+        client.put_object(
+            bucket,
+            filename,
+            BytesIO(content),
+            length=len(content),
+            content_type=content_type,
+        )
 
     # 保留同步接口（兼容旧代码）
     def upload_image(self, filename: str, content: bytes, content_type: str) -> str:

@@ -20,6 +20,7 @@ class Settings(BaseSettings):
     minio_access_key: str = "minioadmin"
     minio_secret_key: str = "minioadmin"
     minio_bucket: str = "ly-community"
+    minio_private_bucket: str = "ly-community-private"
     minio_secure: bool = False
     openai_api_key: str = ""
     openai_base_url: str = "https://api.openai.com/v1"

@@ -203,10 +203,10 @@ onMounted(() => load())
         <el-table-column label="操作" width="200" fixed="right">
           <template #default="{ row }">
             <template v-if="row.status === 'pending'">
-              <el-button size="small" type="success" :disabled="operating" @click="onApprove(row)">
+              <el-button size="small" type="success" :disabled="operating" @click="onApprove(row as CircleApply)">
                 通过
               </el-button>
-              <el-button size="small" type="danger" plain :disabled="operating" @click="openRejectDialog(row)">
+              <el-button size="small" type="danger" plain :disabled="operating" @click="openRejectDialog(row as CircleApply)">
                 拒绝
               </el-button>
             </template>

@@ -202,7 +202,7 @@ onMounted(() => load())
         <el-table-column prop="id" label="ID" width="80" fixed />
         <el-table-column label="内容（点击查看详情）" min-width="320">
           <template #default="{ row }">
-            <div class="post-content-cell clickable" @click="viewDetail(row)">
+            <div class="post-content-cell clickable" @click="viewDetail(row as AdminPost)">
               <div class="post-content-text">{{ fmtContent(row.content) }}</div>
               <div class="post-content-meta">
                 <span class="meta-item">分类: {{ row.category || '-' }}</span>
@@ -233,11 +233,11 @@ onMounted(() => load())
         </el-table-column>
         <el-table-column label="操作" width="380" fixed="right">
           <template #default="{ row }">
-            <el-button size="small" @click="viewDetail(row)">查看详情</el-button>
-            <el-button size="small" type="primary" plain @click="reAuditByAI(row)">AI 复审</el-button>
-            <el-button size="small" type="success" @click="audit(row, 'approved')">通过</el-button>
-            <el-button size="small" type="warning" @click="audit(row, 'manual_review')">复审</el-button>
-            <el-button size="small" type="danger" plain @click="remove(row)">删除</el-button>
+            <el-button size="small" @click="viewDetail(row as AdminPost)">查看详情</el-button>
+            <el-button size="small" type="primary" plain @click="reAuditByAI(row as AdminPost)">AI 复审</el-button>
+            <el-button size="small" type="success" @click="audit(row as AdminPost, 'approved')">通过</el-button>
+            <el-button size="small" type="warning" @click="audit(row as AdminPost, 'manual_review')">复审</el-button>
+            <el-button size="small" type="danger" plain @click="remove(row as AdminPost)">删除</el-button>
           </template>
         </el-table-column>
       </el-table>

@@ -151,7 +151,7 @@ onMounted(() => load())
         </el-table-column>
         <el-table-column label="详情" min-width="280">
           <template #default="{ row }">
-            <div class="detail-cell" @click="showDetail(row)">
+            <div class="detail-cell" @click="showDetail(row as AdminLog)">
               <span class="detail-text">{{ row.detail || '-' }}</span>
               <span v-if="row.detail" class="detail-link">查看</span>
             </div>

@@ -191,11 +191,11 @@ onMounted(() => load())
         </el-table-column>
         <el-table-column label="操作" width="180" fixed="right">
           <template #default="{ row }">
-            <el-button size="small" type="primary" plain @click="openEdit(row)">编辑</el-button>
+            <el-button size="small" type="primary" plain @click="openEdit(row as AdminUser)">编辑</el-button>
             <el-button
               size="small"
               :type="row.is_active ? 'danger' : 'success'"
-              @click="toggleActive(row)"
+              @click="toggleActive(row as AdminUser)"
             >
               {{ row.is_active ? '封禁' : '解封' }}
             </el-button>

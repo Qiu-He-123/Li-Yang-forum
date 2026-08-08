@@ -196,7 +196,7 @@ onMounted(() => load())
               size="small"
               type="primary"
               plain
-              @click="viewPostDetail(row)"
+              @click="viewPostDetail(row as AdminReport)"
             >
               查看详情
             </el-button>
@@ -204,7 +204,7 @@ onMounted(() => load())
               v-if="row.status !== 'resolved'"
               size="small"
               type="success"
-              @click="handle(row, 'resolved')"
+              @click="handle(row as AdminReport, 'resolved')"
             >
               标记已处理
             </el-button>
@@ -212,7 +212,7 @@ onMounted(() => load())
               v-if="row.status !== 'dismissed'"
               size="small"
               type="info"
-              @click="handle(row, 'dismissed')"
+              @click="handle(row as AdminReport, 'dismissed')"
             >
               驳回
             </el-button>
@@ -221,7 +221,7 @@ onMounted(() => load())
               size="small"
               type="warning"
               plain
-              @click="handle(row, 'pending')"
+              @click="handle(row as AdminReport, 'pending')"
             >
               重置
             </el-button>

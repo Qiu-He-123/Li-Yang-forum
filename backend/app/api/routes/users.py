@@ -5,6 +5,7 @@ from app.api.deps import current_user, current_user_allow_banned
 from app.core.database import get_db
 from app.models import User
 from app.schemas.common import ok
+from app.schemas.auth import VerificationSubmitIn
 from app.schemas.interactions import ProfileUpdate
 from app.services import user_service
 
@@ -160,7 +161,7 @@ def my_verification_status(
 
 @router.post("/me/verification")
 def submit_verification(
-    payload: dict,
+    payload: VerificationSubmitIn,
     request: Request,
     db: Session = Depends(get_db),
     user: User = Depends(current_user),
@@ -177,7 +178,7 @@ def submit_verification(
     return ok(verification_service.submit_verification(
         db,
         user,
-        image_url=payload.get("image_url", ""),
-        note=payload.get("note"),
+        image_id=payload.image_id,
+        note=payload.note,
         request=request,
     ))

@@ -2,7 +2,7 @@ import ipaddress
 from datetime import datetime
 
 from fastapi import Cookie, Depends, HTTPException, Request
-from jose import JWTError
+import jwt
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -40,7 +40,7 @@ def _resolve_user(access_token: str | None, refresh_token: str | None, db: Sessi
         raise HTTPException(status_code=401, detail=ErrorCode.NOT_LOGGED_IN)
     try:
         user_id = int(decode_token(access_token))
-    except (JWTError, ValueError):
+    except (jwt.InvalidTokenError, ValueError):
         raise HTTPException(status_code=401, detail=ErrorCode.TOKEN_INVALID) from None
     user = db.get(User, user_id)
     if not user:
@@ -73,7 +73,7 @@ def current_user(
         raise HTTPException(status_code=401, detail=ErrorCode.NOT_LOGGED_IN)
     try:
         user_id = int(decode_token(access_token))
-    except (JWTError, ValueError):
+    except (jwt.InvalidTokenError, ValueError):
         raise HTTPException(status_code=401, detail=ErrorCode.TOKEN_INVALID) from None
     user = db.get(User, user_id)
     if not user:
@@ -102,7 +102,7 @@ def current_user_allow_banned(
         raise HTTPException(status_code=401, detail=ErrorCode.NOT_LOGGED_IN)
     try:
         user_id = int(decode_token(access_token))
-    except (JWTError, ValueError):
+    except (jwt.InvalidTokenError, ValueError):
         raise HTTPException(status_code=401, detail=ErrorCode.TOKEN_INVALID) from None
     user = db.get(User, user_id)
     if not user:
@@ -121,7 +121,7 @@ def optional_user(access_token: str | None = Cookie(default=None), db: Session =
         return None
     try:
         user_id = int(decode_token(access_token))
-    except (JWTError, ValueError):
+    except (jwt.InvalidTokenError, ValueError):
         return None
     user = db.get(User, user_id)
     if not user:
@@ -142,7 +142,7 @@ def admin_user(admin_token: str | None = Cookie(default=None, alias="admin_token
         raise HTTPException(status_code=401, detail=ErrorCode.NOT_LOGGED_IN)
     try:
         admin_id = int(decode_token(admin_token))
-    except (JWTError, ValueError):
+    except (jwt.InvalidTokenError, ValueError):
         raise HTTPException(status_code=401, detail=ErrorCode.TOKEN_INVALID) from None
     admin = db.get(Admin, admin_id)
     if not admin:

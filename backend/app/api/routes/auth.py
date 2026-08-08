@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Cookie, Depends, Request, Response
 from sqlalchemy.orm import Session
 
-from app.api.deps import current_user, current_user_allow_banned
+from app.api.deps import current_user, current_user_allow_banned, extract_ip
 from app.core.database import get_db
 from app.models import User
 from app.schemas.auth import (
@@ -13,6 +13,7 @@ from app.schemas.auth import (
 )
 from app.schemas.common import ok
 from app.services import auth_service, user_service
+from app.services.auth_service import check_ip_rate_limit
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -87,6 +88,7 @@ def change_password(
     user: User = Depends(current_user),
 ) -> dict:
     """修改密码：校验旧密码 → 更新密码哈希 → 重发 token。"""
+    check_ip_rate_limit(db, extract_ip(request), "change_password")
     return ok(auth_service.change_password(payload, request, response, db, user))
 
 
@@ -105,6 +107,7 @@ def apply_invite_code(
     - 其他 verified 用户的邀请码（受 3 天冷却 + 连坐冻结约束）
     - 管理员预生成的种子码（一次性，无邀请人）
     """
+    check_ip_rate_limit(db, extract_ip(request), "apply_invite_code")
     return ok(auth_service.apply_invite_code(payload, request, db, user))
 
 

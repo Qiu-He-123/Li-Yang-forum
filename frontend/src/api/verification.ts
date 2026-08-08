@@ -38,7 +38,7 @@ export function getMyVerificationStatus() {
   return http.get<unknown, { data: { code: number; msg: string; data: MyVerificationStatus } }>('/users/me/verification')
 }
 
-export function submitVerification(payload: { image_url: string; note?: string | null }) {
+export function submitVerification(payload: { image_id: number; note?: string | null }) {
   return http.post<unknown, { data: { code: number; msg: string; data: VerificationApplication } }>('/users/me/verification', payload)
 }
 

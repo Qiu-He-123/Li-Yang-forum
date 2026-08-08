@@ -81,17 +81,29 @@ cd backend
 - 回归测试从 111 个错误恢复为 105 个全绿（同步到新的注册/邀请码契约，顺带修复编辑帖子不生效的 bug）
 - `cookies.txt`、开发数据库、日志等敏感文件已移出版本控制（历史提交中的内容需在公开前清理）
 
+第二轮安全加固（P0–P2）：
+
+- **私密图片隔离**：学生证等敏感照片改走 `/images/verification` 私密上传 + `/images/private/*` 鉴权读取（仅本人/管理员），不再落公开静态目录；认证提交改为必须传本人私密图片 id，拒绝任意 URL
+- **管理员登录防爆破**：IP 限流 + 失败锁定（复用登录锁定机制），`create_admin.py` 强制强密码（≥12 位，含大小写/数字/符号）
+- **部署模式修正**：compose 强制 `ENV=prod`（Secure Cookie / 强校验生效），后端/MinIO/MySQL/Redis 端口不再映射公网，仅暴露 Nginx 80
+- **上传防 DoS**：图片上传分块读取 + Content-Length 预检，Nginx `client_max_body_size 6m`
+- **依赖升级**：fastapi 0.141 / starlette 1.5 / python-multipart 0.0.32 / Pillow 12.3 / PyJWT 2.13（替换已停维护的 python-jose），npm 侧 nanoid 升级后 audit 清零
+- **Cookie SameSite=Strict** + WebSocket Origin 校验；Nginx 增加 CSP / X-Frame-Options / nosniff / Referrer-Policy
+- **MinIO 双桶**：公开图片桶只读策略 + 同源 `/minio/` 反代；私密图片独立私有桶；新增 `MINIO_PRIVATE_BUCKET` 配置
+- **前端可构建**：修复 Admin 页面 38 处历史遗留 TS 类型错误，`npm run build` 通过
+
 正式运营前仍需完成：
 
-- 正式域名 + 备案 + TLS + HSTS，清掉内网穿透域名
-- 生产 MySQL / Redis / MinIO 密钥与多 worker 部署（限流当前为 SQLite 持久化，多 worker 建议切 Redis）
+- 正式域名 + 备案 + TLS + HSTS（`deploy/nginx.conf` 已预留注释），清掉内网穿透域名
+- 生产 MySQL / Redis / MinIO 强密钥；多 worker 部署时限流建议切 Redis（当前 SQLite 持久化，单 worker 正确）
 - 内容治理：AI 图片审核当前直接放行，文本审核降级时无敏感词兜底，需管理员值班与举报 SLA
 - 学生证照片等敏感个人信息的隐私政策、用户协议正式文本
-- 备份恢复演练、监控告警（磁盘 / 内存 / 进程 / 外网可达性）
+- 备份恢复演练、监控告警（磁盘 / 内存 / 进程 / 外网可达性）；git 历史中的旧敏感文件需用 filter-repo 清理并确认远端仓库为 private
 
 ## 安全说明
 
-- Cookie：HttpOnly + SameSite=Lax，生产环境 Secure
-- 登录失败锁定（SQLite 持久化）与 IP 限流
-- 图片上传 magic bytes 校验、帖子图片 URL 协议白名单
+- Cookie：HttpOnly + SameSite=Strict，生产环境 Secure
+- 登录失败锁定（SQLite 持久化，可选 Redis）与 IP 限流（登录/注册/改密/填邀请码/管理员登录）
+- 私密图片与公开图片隔离存储，私密图片仅本人/管理员可读
+- 图片上传 magic bytes 校验 + 分块限流、帖子图片 URL 协议白名单
 - 用户/管理员操作审计日志（`operation_logs`），管理员操作记录 `admin_id`

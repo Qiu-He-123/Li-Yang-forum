@@ -200,13 +200,13 @@ onMounted(() => load())
         </el-table-column>
         <el-table-column label="操作" width="200" fixed="right">
           <template #default="{ row }">
-            <el-button size="small" type="primary" plain @click="openDetail(row)">查看 / 回复</el-button>
+            <el-button size="small" type="primary" plain @click="openDetail(row as Feedback)">查看 / 回复</el-button>
             <el-button
               v-if="row.status !== 'closed'"
               size="small"
               type="danger"
               plain
-              @click="onClose(row)"
+              @click="onClose(row as Feedback)"
             >
               关闭
             </el-button>

@@ -220,10 +220,10 @@ onMounted(() => load())
         <el-table-column label="操作" width="380" fixed="right">
           <template #default="{ row }">
             <el-button size="small" @click="viewPost(row.post_id)">查看帖子</el-button>
-            <el-button size="small" type="primary" plain @click="reAuditByAI(row)">AI 复审</el-button>
-            <el-button size="small" type="success" @click="audit(row, 'approved')">通过</el-button>
-            <el-button size="small" type="warning" @click="audit(row, 'manual_review')">复审</el-button>
-            <el-button size="small" type="danger" plain @click="remove(row)">删除</el-button>
+            <el-button size="small" type="primary" plain @click="reAuditByAI(row as AdminComment)">AI 复审</el-button>
+            <el-button size="small" type="success" @click="audit(row as AdminComment, 'approved')">通过</el-button>
+            <el-button size="small" type="warning" @click="audit(row as AdminComment, 'manual_review')">复审</el-button>
+            <el-button size="small" type="danger" plain @click="remove(row as AdminComment)">删除</el-button>
           </template>
         </el-table-column>
       </el-table>
