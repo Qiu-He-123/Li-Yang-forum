@@ -155,7 +155,7 @@ async function onDelete() {
   try {
     await deletePost(props.post.id)
     toast.success('已删除')
-    await postStore.loadPosts()
+    postStore.removePost(props.post.id)
     emit('deleted', props.post.id)
   } catch (error) {
     toast.error((error as Error).message)

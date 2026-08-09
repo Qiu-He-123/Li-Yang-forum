@@ -218,5 +218,16 @@ export const usePostStore = defineStore('post', () => {
     page.value = p
   }
 
-  return { activeView, activeCategory, posts, total, page, pageSize, loading, error, hasPendingAudit, hasMore, loadPosts, loadMore, silentRefresh, ensureFresh, restoreFromCache, setView, setCategory, setPage }
+  /** 删除帖子后立即从当前列表 + 所有 SWR 视图缓存中移除，避免返回首页时残留 */
+  function removePost(postId: number) {
+    posts.value = posts.value.filter((p) => p.id !== postId)
+    total.value = Math.max(0, total.value - 1)
+    for (const key of Object.keys(viewCache.value)) {
+      const cached = viewCache.value[key]
+      cached.posts = cached.posts.filter((p) => p.id !== postId)
+      cached.total = Math.max(0, cached.total - 1)
+    }
+  }
+
+  return { activeView, activeCategory, posts, total, page, pageSize, loading, error, hasPendingAudit, hasMore, loadPosts, loadMore, silentRefresh, ensureFresh, restoreFromCache, setView, setCategory, setPage, removePost }
 })

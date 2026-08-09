@@ -24,6 +24,10 @@ export interface Bottle extends BottleAuthor {
   image_urls: string[]
   tags: string[]
   status: 'active' | 'picked' | 'recalled' | 'expired'
+  /** 内容审核状态：pending(AI审核中) / approved / rejected / manual_review(人工审核中) */
+  audit_status?: 'pending' | 'approved' | 'rejected' | 'manual_review'
+  /** 未通过原因（rejected 时返回） */
+  reject_reason?: string | null
   /** 联系方式（仅拾取者/作者可见，其他场景为 null） */
   contact: string | null
   created_at: string | null

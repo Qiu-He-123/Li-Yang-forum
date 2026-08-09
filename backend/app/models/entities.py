@@ -727,6 +727,10 @@ class Bottle(Base):
     tags: Mapped[str] = mapped_column(Text, default="[]")
     # 状态：active(可拾取) / picked(旧字段，已弃用，保留向后兼容) / recalled(作者收回) / expired(过期)
     status: Mapped[str] = mapped_column(String(20), default="active", index=True)
+    # 内容审核状态：pending(AI审核中) / approved(已通过) / rejected(未通过) / manual_review(人工审核中)
+    # AI 不可用时不直接放行，转人工审核；只有 approved 的瓶子才会进入拾取池
+    audit_status: Mapped[str] = mapped_column(String(20), default="pending", index=True)
+    reject_reason: Mapped[str | None] = mapped_column(String(200), default=None)
     picked_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)  # 旧字段，保留兼容
     picked_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)  # 旧字段，保留兼容
     # 联系方式（QQ/微信/手机等，拾取成功后对拾取者可见）

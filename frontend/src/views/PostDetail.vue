@@ -416,6 +416,8 @@ async function onDeletePost() {
   try {
     await deletePost(post.value.id)
     toast.success('已删除')
+    // 立即从帖子流 store 与 SWR 缓存移除，返回首页/圈子页不再残留已删除帖子
+    postStore.removePost(post.value.id)
     setTimeout(() => onBack(), 600)
   } catch (err) {
     toast.error((err as Error).message)

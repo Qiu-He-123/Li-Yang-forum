@@ -257,6 +257,11 @@ const routes = [
         component: () => import('../views/Admin/ImagesAudit.vue'),
       },
       {
+        path: 'bottles-audit',
+        name: 'admin-bottles-audit',
+        component: () => import('../views/Admin/BottlesAudit.vue'),
+      },
+      {
         path: 'seed-codes',
         name: 'admin-seed-codes',
         component: () => import('../views/Admin/SeedCodesManage.vue'),

@@ -305,6 +305,39 @@ def admin_review_image(
         reject_reason=payload.get("reject_reason"),
     ))
 
+# ============ 漂流瓶审核（AI 审核 + 人工兜底） ============
+
+@router.get("/bottles")
+def admin_bottles(
+    status: str | None = Query(default=None, pattern="^(pending|approved|rejected|manual_review)$"),
+    keyword: str | None = Query(default=None),
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=100),
+    db: Session = Depends(get_db),
+    _: Admin = Depends(admin_user),
+) -> dict:
+    """漂流瓶审核列表（分页 + 审核状态过滤）。"""
+    from app.services import bottle_service
+    return ok(bottle_service.admin_list_bottles(db, status, page, page_size, keyword))
+
+
+@router.post("/bottles/{bottle_id}/review")
+def admin_review_bottle(
+    bottle_id: int,
+    payload: dict = Body(...),
+    db: Session = Depends(get_db),
+    admin: Admin = Depends(admin_user),
+) -> dict:
+    """人工审核漂流瓶。payload: action(approve/reject) + reject_reason。"""
+    from app.services import bottle_service
+    return ok(bottle_service.admin_review_bottle(
+        db,
+        admin,
+        bottle_id,
+        payload.get("action", "approve"),
+        reject_reason=payload.get("reject_reason"),
+    ))
+
 @router.get("/settings")
 def admin_list_settings(
     db: Session = Depends(get_db),

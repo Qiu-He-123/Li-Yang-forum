@@ -518,3 +518,52 @@ export function adminReviewImage(
     }
   >(`/admin/images/${imageId}/review`, payload)
 }
+
+// ============ 漂流瓶审核（AI 审核 + 人工兜底） ============
+
+export interface AdminBottle {
+  id: number
+  author_id: number
+  author_nickname: string | null
+  author_age: number | null
+  author_gender: string
+  school_id: number
+  school_name: string | null
+  content: string | null
+  image_urls: string[]
+  tags: string[]
+  status: string
+  audit_status: 'pending' | 'approved' | 'rejected' | 'manual_review'
+  reject_reason: string | null
+  created_at: string | null
+}
+
+export interface AdminBottleListPage {
+  items: AdminBottle[]
+  total: number
+  counts: { pending: number; approved: number; rejected: number; manual_review: number }
+  page: number
+  page_size: number
+}
+
+export function adminListBottles(params: {
+  status?: 'pending' | 'approved' | 'rejected' | 'manual_review'
+  keyword?: string
+  page?: number
+  page_size?: number
+} = {}) {
+  return http.get<unknown, { data: { code: number; msg: string; data: AdminBottleListPage } }>(
+    '/admin/bottles',
+    { params },
+  )
+}
+
+export function adminReviewBottle(
+  bottleId: number,
+  payload: { action: 'approve' | 'reject'; reject_reason?: string },
+) {
+  return http.post<
+    unknown,
+    { data: { code: number; msg: string; data: AdminBottle } }
+  >(`/admin/bottles/${bottleId}/review`, payload)
+}

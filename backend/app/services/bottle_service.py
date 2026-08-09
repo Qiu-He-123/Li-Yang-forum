@@ -17,6 +17,7 @@
 from __future__ import annotations
 
 import json
+import asyncio
 from datetime import datetime, timedelta
 from typing import Any
 
@@ -27,7 +28,9 @@ from sqlalchemy.orm import Session, selectinload
 from app.core.errors import ErrorCode
 from app.core.time_utils import calculate_age, to_iso_zh
 from app.models import Bottle, BottlePick, School, User
+from app.services.audit_log import log_admin_action
 from app.services.connection_manager import manager
+from app.services.notification_service import create_notification
 
 # 每日拾取上限
 DAILY_PICK_LIMIT = 3
@@ -89,6 +92,8 @@ def _bottle_dict(
         "image_urls": _parse_json(b.image_urls, []),
         "tags": _parse_json(b.tags, []),
         "status": b.status,
+        "audit_status": b.audit_status or "pending",
+        "reject_reason": b.reject_reason,
         "contact": b.contact if show_contact else None,
         "created_at": to_iso_zh(b.created_at),
         "picked_at": to_iso_zh(b.picked_at) if b.picked_at else None,
@@ -145,6 +150,11 @@ def create_bottle(
     if bottle_gender not in ("male", "female", "unknown"):
         bottle_gender = "unknown"
 
+    # 审核策略：AI 可用 → 后台异步 AI 审核；AI 不可用 → 转人工审核（不直接放行）
+    from app.services import audit_service
+    ai_available = audit_service.is_ai_audit_available(db)
+    initial_audit_status = "pending" if ai_available else "manual_review"
+
     bottle = Bottle(
         author_id=user.id,
         content=content or None,
@@ -156,10 +166,26 @@ def create_bottle(
         tags=json.dumps(tags, ensure_ascii=False),
         contact=contact,
         status="active",
+        audit_status=initial_audit_status,
     )
     db.add(bottle)
+    if initial_audit_status == "manual_review":
+        bottle.reject_reason = "AI 审核服务暂不可用，已转人工审核"
+        create_notification(
+            db,
+            user.id,
+            "漂流瓶已进入人工审核",
+            "您的漂流瓶已提交，当前进入人工审核（AI 审核服务暂不可用）。审核可能较慢，请耐心等待。",
+            ntype="system",
+            reference_type="bottle",
+            reference_id=bottle.id,
+        )
     db.commit()
     db.refresh(bottle)
+
+    # 后台异步 AI 审核（仅 pending 状态）
+    if initial_audit_status == "pending":
+        asyncio.create_task(audit_bottle_background(bottle.id))
 
     school = db.get(School, bottle.school_id)
     return _bottle_dict(bottle, author=user, school_name=school.name if school else None, show_contact=True)
@@ -240,6 +266,7 @@ def pick_bottle(
     # 4. 按优先级匹配
     base_filter = [
         Bottle.status == "active",
+        Bottle.audit_status == "approved",
         Bottle.author_id != user.id,
     ]
     if picked_author_ids:
@@ -492,3 +519,179 @@ def recall_bottle(db: Session, user: User, bottle_id: int) -> dict:
 
     school = db.get(School, bottle.school_id)
     return _bottle_dict(bottle, author=user, school_name=school.name if school else None, show_contact=True)
+
+
+# ============ 漂流瓶 AI 审核 ============
+
+async def audit_bottle_background(bottle_id: int) -> None:
+    """后台异步 AI 审核漂流瓶内容。
+
+    状态流转：
+    - AI 通过     → audit_status=approved（进入拾取池）
+    - AI 违规     → audit_status=rejected + reject_reason + 累计警告值（通知作者）
+    - AI 不可用   → audit_status=manual_review（不直接放行，转人工审核）
+    """
+    from app.core.database import SessionLocal
+    from app.services import audit_service
+    from app.services import warning_service
+
+    try:
+        with SessionLocal() as db:
+            bottle = db.get(Bottle, bottle_id)
+            if not bottle:
+                return
+            audit = await audit_service.run_audit_async(
+                f"内容：{bottle.content or ''}"
+                + (f"\n图片数量：{len(_parse_json(bottle.image_urls, []))} 张" if _parse_json(bottle.image_urls, []) else "")
+            )
+
+            if audit.get("skipped"):
+                bottle.audit_status = "manual_review"
+                bottle.reject_reason = "AI 审核服务不可用，已转人工审核"
+                create_notification(
+                    db,
+                    bottle.author_id,
+                    "漂流瓶已进入人工审核",
+                    "您的漂流瓶当前进入人工审核（AI 审核服务暂不可用，未开启/无余额/调用失败）。审核可能较慢，请耐心等待。",
+                    ntype="system",
+                    reference_type="bottle",
+                    reference_id=bottle.id,
+                )
+            elif audit.get("pass", True):
+                bottle.audit_status = "approved"
+                bottle.reject_reason = None
+            else:
+                reason = audit.get("reason", "内容违反社区规范")
+                bottle.audit_status = "rejected"
+                bottle.reject_reason = reason
+                # 违规：累计警告值（灌水等轻微违规 severity=low 扣分少）
+                author = db.get(User, bottle.author_id)
+                if author:
+                    warning_service.handle_violation(
+                        db, author, reason=reason,
+                        content_preview=(bottle.content or "")[:30],
+                        target_type="bottle", target_id=bottle.id,
+                        severity=audit.get("severity", "medium"),
+                    )
+            db.commit()
+    except Exception as exc:
+        from loguru import logger
+        logger.warning("[BOTTLE_AUDIT] bottle {} audit failed: {}", bottle_id, exc)
+        try:
+            with SessionLocal() as db:
+                bottle = db.get(Bottle, bottle_id)
+                if bottle:
+                    bottle.audit_status = "manual_review"
+                    bottle.reject_reason = "AI 审核服务不可用，已转人工审核"
+                    db.commit()
+        except Exception:
+            pass
+
+
+def admin_list_bottles(
+    db: Session,
+    status: str | None = None,
+    page: int = 1,
+    page_size: int = 20,
+    keyword: str | None = None,
+) -> dict:
+    """管理员查看漂流瓶审核列表（分页 + 审核状态过滤）。"""
+    from sqlalchemy import desc
+
+    query = select(Bottle).order_by(desc(Bottle.created_at))
+    if status in ("pending", "approved", "rejected", "manual_review"):
+        query = query.where(Bottle.audit_status == status)
+    if keyword:
+        query = query.where(Bottle.content.contains(keyword))
+
+    total = db.scalar(select(func.count()).select_from(query.subquery())) or 0
+    rows = db.scalars(query.offset((page - 1) * page_size).limit(page_size)).all()
+    author_ids = list({b.author_id for b in rows if b.author_id})
+    authors = {u.id: u for u in db.scalars(select(User).where(User.id.in_(author_ids))).all()} if author_ids else {}
+    school_ids = list({b.school_id for b in rows})
+    schools = {s.id: s.name for s in db.scalars(select(School).where(School.id.in_(school_ids))).all()} if school_ids else {}
+
+    counts = {s: 0 for s in ("pending", "approved", "rejected", "manual_review")}
+    for row in db.execute(
+        select(Bottle.audit_status, func.count(Bottle.id)).group_by(Bottle.audit_status)
+    ).all():
+        if row[0] in counts:
+            counts[row[0]] = int(row[1])
+
+    items = []
+    for b in rows:
+        author = authors.get(b.author_id)
+        d = _bottle_dict(
+            b,
+            author=author,
+            school_name=schools.get(b.school_id),
+            show_contact=False,
+        )
+        d["author_nickname"] = author.nickname if author else f"用户#{b.author_id}"
+        items.append(d)
+    return {
+        "items": items,
+        "total": int(total),
+        "counts": counts,
+        "page": page,
+        "page_size": page_size,
+    }
+
+
+def admin_review_bottle(
+    db: Session,
+    admin: Admin,
+    bottle_id: int,
+    action: str,
+    reject_reason: str | None = None,
+) -> dict:
+    """管理员人工审核漂流瓶（approve / reject）。"""
+    bottle = db.get(Bottle, bottle_id)
+    if not bottle:
+        raise HTTPException(status_code=404, detail=ErrorCode.TARGET_NOT_FOUND)
+    if action not in ("approve", "reject"):
+        raise HTTPException(status_code=400, detail="审核动作仅支持 approve / reject")
+
+    old = bottle.audit_status
+    if action == "approve":
+        bottle.audit_status = "approved"
+        bottle.reject_reason = None
+        create_notification(
+            db,
+            bottle.author_id,
+            "漂流瓶已通过审核",
+            "您的漂流瓶已通过审核，已投入大海等待有缘人拾取。",
+            ntype="system",
+            reference_type="bottle",
+            reference_id=bottle.id,
+        )
+    else:
+        bottle.audit_status = "rejected"
+        reason = (reject_reason or "内容违反社区规范").strip()
+        bottle.reject_reason = reason[:200]
+        create_notification(
+            db,
+            bottle.author_id,
+            "漂流瓶未通过审核",
+            f"您的漂流瓶未通过审核：{reason}。请修改后重新投放。",
+            ntype="system",
+            reference_type="bottle",
+            reference_id=bottle.id,
+        )
+
+    log_admin_action(
+        db,
+        admin.id,
+        "review_bottle",
+        json.dumps({
+            "bottle_id": bottle_id,
+            "old": old,
+            "new": bottle.audit_status,
+            "reject_reason": reject_reason or "",
+        }, ensure_ascii=False),
+        None,
+    )
+    db.commit()
+    db.refresh(bottle)
+    school = db.get(School, bottle.school_id)
+    return _bottle_dict(bottle, author=db.get(User, bottle.author_id), school_name=school.name if school else None)

@@ -18,7 +18,7 @@ import { useRouter } from 'vue-router'
 
 import BottleSkeleton from '../components/common/BottleSkeleton.vue'
 import BadgeIcon from '../components/common/BadgeIcon.vue'
-import { Icon } from '../components/native'
+import { Dialog as NativeDialog, Icon } from '../components/native'
 import { toast } from '../components/native/Toast'
 import { useSessionStore } from '../stores/session'
 import { useUserStore } from '../stores/user'
@@ -105,6 +105,17 @@ const throwForm = ref({
   contact: '',
 })
 const throwLoading = ref(false)
+
+// 漂流瓶人工审核提示（AI 不可用时不直接放行）
+const auditDialogVisible = ref(false)
+const auditDialogMessage = ref('')
+
+function showAuditNotice(status: string | undefined) {
+  if (status === 'manual_review') {
+    auditDialogMessage.value = '瓶子已投出，AI 审核服务暂不可用（未开启/无余额/调用失败），已转人工审核。审核可能较慢，通过后才会进入大海等待拾取。'
+    auditDialogVisible.value = true
+  }
+}
 const throwAnim = ref(false) // 投放动效
 
 function ensureLogin(): boolean {
@@ -184,7 +195,7 @@ async function onThrow() {
   throwLoading.value = true
   try {
     const contact = f.contact.trim()
-    await createBottle({
+    const { data } = await createBottle({
       content: content || null,
       image_urls: f.image_urls,
       school_id: f.school_id,
@@ -194,7 +205,15 @@ async function onThrow() {
     // 投放动效
     throwAnim.value = true
     setTimeout(() => { throwAnim.value = false }, 1200)
-    toast.success('瓶子已投出，等待有缘人拾取')
+    const auditStatus = data.data.audit_status
+    if (auditStatus === 'pending') {
+      toast.success('瓶子已投出，内容审核中，通过后等待有缘人拾取')
+    } else if (auditStatus === 'manual_review') {
+      toast.success('瓶子已投出，进入人工审核')
+      showAuditNotice(auditStatus)
+    } else {
+      toast.success('瓶子已投出，等待有缘人拾取')
+    }
     // 重置表单（保留校区）
     f.content = ''
     f.image_urls = []
@@ -897,8 +916,19 @@ onUnmounted(() => {
                   <span class="mine-item-status" :class="`status-${b.status}`">
                     {{ b.status === 'active' ? '漂流中' : b.status === 'recalled' ? '已收回' : b.status === 'picked' ? '已拾取' : '已过期' }}
                   </span>
+                  <span
+                    v-if="b.audit_status && b.audit_status !== 'approved'"
+                    class="mine-item-audit"
+                    :class="`audit-${b.audit_status}`"
+                  >
+                    {{ b.audit_status === 'pending' ? '审核中' : b.audit_status === 'manual_review' ? '人工审核中' : '未通过' }}
+                  </span>
                   <span class="mine-item-time">{{ formatRelative(b.created_at || '') }}</span>
                 </div>
+                <p v-if="b.audit_status === 'rejected' && b.reject_reason" class="mine-item-reject">
+                  <Icon name="circle-alert" :size="12" />
+                  未通过原因：{{ b.reject_reason }}
+                </p>
                 <p v-if="b.content" class="mine-item-content">{{ b.content }}</p>
                 <div v-if="b.image_urls?.length" class="mine-item-images">
                   <img
@@ -924,7 +954,7 @@ onUnmounted(() => {
                   <Icon name="phone" :size="12" />
                   <span>联系方式：{{ b.contact }}</span>
                 </div>
-                <div v-if="b.status === 'active'" class="mine-item-actions">
+                <div v-if="b.status === 'active' && (!b.audit_status || b.audit_status === 'approved')" class="mine-item-actions">
                   <button
                     type="button"
                     class="recall-btn"
@@ -1002,6 +1032,14 @@ onUnmounted(() => {
         </template>
       </section>
     </div>
+
+    <!-- 漂流瓶人工审核提示 -->
+    <NativeDialog v-model="auditDialogVisible" title="已进入人工审核" width="420px">
+      <p class="audit-dialog-text">{{ auditDialogMessage }}</p>
+      <template #footer>
+        <button class="btn btn-primary" type="button" @click="auditDialogVisible = false">我知道了</button>
+      </template>
+    </NativeDialog>
   </main>
 </template>
 
@@ -1872,6 +1910,62 @@ onUnmounted(() => {
   padding: 2px 8px;
   border-radius: 999px;
   font-weight: 600;
+}
+.mine-item-audit {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-weight: 600;
+}
+.audit-pending {
+  color: #b45309;
+  background: #fff4e0;
+}
+.audit-manual_review {
+  color: #1d4ed8;
+  background: #e8f2ff;
+}
+.audit-rejected {
+  color: #dc2626;
+  background: #ffece8;
+}
+.mine-item-reject {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: #dc2626;
+  background: #fff5f4;
+  border: 1px solid #ffd6d2;
+  border-radius: 8px;
+  padding: 6px 10px;
+}
+.audit-dialog-text {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--text-700);
+}
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 8px 16px;
+  border-radius: var(--radius-sm);
+  border: none;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.btn-primary {
+  background: var(--brand-500);
+  color: #fff;
+}
+.btn-primary:hover:not(:disabled) {
+  background: var(--brand-600);
 }
 .status-active {
   color: #34c759;

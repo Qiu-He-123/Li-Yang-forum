@@ -46,6 +46,8 @@ const menuGroups = computed<MenuGroup[]>(() => [
       { index: '/admin/reports', label: '举报处理', icon: '🚩' },
       { index: '/admin/announcements', label: '公告管理', icon: '📢' },
       { index: '/admin/badges', label: '徽章管理', icon: '🏅' },
+      { index: '/admin/images-audit', label: '图片审核', icon: '🖼️' },
+      { index: '/admin/bottles-audit', label: '漂流瓶审核', icon: '🍾' },
     ],
   },
   {
@@ -53,7 +55,6 @@ const menuGroups = computed<MenuGroup[]>(() => [
     items: [
       { index: '/admin/users', label: '用户管理', icon: '👤' },
       { index: '/admin/verifications-audit', label: '学生认证审核', icon: '🎓' },
-      { index: '/admin/images-audit', label: '图片审核', icon: '🖼️' },
       { index: '/admin/seed-codes', label: '种子邀请码', icon: '🎫' },
       { index: '/admin/ban-records', label: '封号管理', icon: '🔨' },
       { index: '/admin/appeals', label: '申诉管理', icon: '✊' },
