@@ -1367,10 +1367,21 @@ const manualReviewMessage = ref('')
 function showManualReviewNotice(reason?: string | null) {
   const hasImage = imageUrls.value.some((u) => u !== '__uploading__') || /图片/.test(reason || '')
   manualReviewMessage.value = hasImage
-    ? '内容已提交，图片内容需要人工审核，审核可能较慢，请耐心等待。审核结果会第一时间通知你。'
+    ? '内容已提交。带图帖子需要人工审核：审核通过前其他人看不到，通过后自动发布；文字内容不受影响。审核可能较慢，请耐心等待，结果会第一时间通知你。'
     : '内容已提交，AI 审核服务暂不可用（未开启/无余额/调用失败），已转人工审核。审核可能较慢，请耐心等待，审核结果会第一时间通知你。'
   manualReviewDialogVisible.value = true
 }
+
+/** 发帖字数统计（标题 + 正文，不含空白） */
+const effectiveCharCount = computed(() =>
+  (title.value + ' ' + content.value).replace(/\s+/g, '').length,
+)
+const minCharsHint = computed(() => {
+  if (effectiveCharCount.value < MIN_POST_CHARS) {
+    return `最少 ${MIN_POST_CHARS} 字（标题+正文合计），当前 ${effectiveCharCount.value} 字`
+  }
+  return `字数达标（${effectiveCharCount.value}/${MIN_POST_CHARS} 字）`
+})
 
 const canSubmit = computed(
   () => !!content.value.trim() && !!schoolId.value && !submitting.value,
@@ -1913,7 +1924,7 @@ defineExpose({
             <Icon name="image-plus" :size="14" />
             我的图片
           </button>
-          <span class="images-hint">已选 {{ imageUrls.length }} 张 · 最多 9 张 · 图片需人工审核</span>
+          <span class="images-hint">已选 {{ imageUrls.length }} 张 · 最多 9 张 · 带图需人工审核</span>
         </div>
       </div>
       <div class="image-grid">
@@ -2078,6 +2089,12 @@ defineExpose({
         <NativeSwitch v-model="hasAiContent" />
       </div>
     </section>
+
+    <!-- 发帖字数提示 -->
+    <div class="min-chars-hint" :class="{ 'is-ok': effectiveCharCount >= MIN_POST_CHARS }">
+      <Icon name="edit" :size="13" />
+      <span>{{ minCharsHint }}</span>
+    </div>
 
     <!-- 提交按钮（不在编辑器卡片内，由父页面顶部触发；此处保留底部草稿入口） -->
     <div v-if="!isEditMode()" class="draft-row">
@@ -3220,6 +3237,18 @@ defineExpose({
   display: flex;
   justify-content: center;
   padding: 8px 0;
+}
+.min-chars-hint {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 10px 0 0;
+  font-size: 12px;
+  color: var(--text-400);
+}
+.min-chars-hint.is-ok {
+  color: var(--success, #34c759);
 }
 
 /* 投票表单 */

@@ -51,6 +51,12 @@ def follow_user(db: Session, follower: User, followee_id: int) -> dict:
         db.commit()
         db.refresh(follower)
         db.refresh(followee)
+        # 徽章自动发放：粉丝数达到规则阈值自动发徽章
+        try:
+            from app.services.badge_service import auto_grant_by_action
+            auto_grant_by_action(db, followee, "followers_count", followee.followers_count or 0)
+        except Exception:
+            pass
     return {
         "user_id": followee_id,
         "is_following": True,

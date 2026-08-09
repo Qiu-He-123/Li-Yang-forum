@@ -278,6 +278,21 @@ async def audit_post_background(post_id: int) -> None:
             elif audit.get("pass", True):
                 post.ai_status = "approved"
                 post.reject_reason = None
+                # 徽章自动发放：审核通过帖子数达到阈值自动发徽章
+                try:
+                    from sqlalchemy import func as _func
+                    from app.services.badge_service import auto_grant_by_action
+                    author = db.get(User, post.author_id)
+                    if author:
+                        approved_count = db.scalar(
+                            select(_func.count(Post.id)).where(
+                                Post.author_id == post.author_id,
+                                Post.ai_status == "approved",
+                            )
+                        ) or 0
+                        auto_grant_by_action(db, author, "approved_posts", int(approved_count))
+                except Exception:
+                    pass
                 # 生成标签（仅 OpenAI 路径有标签生成能力）
                 if audit.get("provider") == "openai":
                     try:
@@ -345,6 +360,21 @@ async def audit_comment_background(comment_id: int) -> None:
             elif audit.get("pass", True):
                 comment.ai_status = "approved"
                 comment.reject_reason = None
+                # 徽章自动发放：审核通过评论数达到阈值自动发徽章
+                try:
+                    from sqlalchemy import func as _func
+                    from app.services.badge_service import auto_grant_by_action
+                    author = db.get(User, comment.user_id)
+                    if author:
+                        approved_count = db.scalar(
+                            select(_func.count(Comment.id)).where(
+                                Comment.user_id == comment.user_id,
+                                Comment.ai_status == "approved",
+                            )
+                        ) or 0
+                        auto_grant_by_action(db, author, "approved_comments", int(approved_count))
+                except Exception:
+                    pass
                 # 评论审核通过：减少作者警告值（积极行为奖励）
                 try:
                     from app.services import warning_service

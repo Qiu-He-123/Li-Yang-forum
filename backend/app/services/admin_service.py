@@ -315,6 +315,22 @@ def admin_audit_post(post_id: int, ai_status: str, request: Request, db: Session
         db.add(notif)
     db.commit()
     db.refresh(post)
+    # 徽章自动发放：审核通过帖子数达到阈值自动发徽章（含人工审核通过场景）
+    if ai_status == "approved":
+        try:
+            from sqlalchemy import func as _func
+            from app.services.badge_service import auto_grant_by_action
+            author = db.get(User, post.author_id) if post.author_id else None
+            if author:
+                approved_count = db.scalar(
+                    select(_func.count(Post.id)).where(
+                        Post.author_id == post.author_id,
+                        Post.ai_status == "approved",
+                    )
+                ) or 0
+                auto_grant_by_action(db, author, "approved_posts", int(approved_count))
+        except Exception:
+            pass
     return _post_dict(post)
 
 
@@ -397,6 +413,22 @@ def admin_audit_comment(comment_id: int, ai_status: str, request: Request, db: S
         db.add(notif)
     db.commit()
     db.refresh(c)
+    # 徽章自动发放：审核通过评论数达到阈值自动发徽章（含人工审核通过场景）
+    if ai_status == "approved":
+        try:
+            from sqlalchemy import func as _func
+            from app.services.badge_service import auto_grant_by_action
+            author = db.get(User, c.user_id) if c.user_id else None
+            if author:
+                approved_count = db.scalar(
+                    select(_func.count(Comment.id)).where(
+                        Comment.user_id == c.user_id,
+                        Comment.ai_status == "approved",
+                    )
+                ) or 0
+                auto_grant_by_action(db, author, "approved_comments", int(approved_count))
+        except Exception:
+            pass
     return _comment_dict(c, db)
 
 

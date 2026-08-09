@@ -205,7 +205,7 @@ async function onAvatarFileChange(e: Event) {
   if (!file) return
   avatarUploading.value = true
   try {
-    const { data } = await uploadImage(file)
+    const { data } = await uploadImage(file, undefined, 'avatar')
     await updateMe({ avatar_url: data.data.url })
     await userStore.loadProfile()
     profile.value = userStore.profile
@@ -638,7 +638,6 @@ onMounted(async () => {
           </span>
         </button>
         <h2 class="hero-name" :class="{ 'is-editable': isMe }" @click="onNameClick">
-          <BadgeIcon :badge="profile?.wearing_badge" :size="20" />
           <span>{{ displayName }}</span>
           <span v-if="isMe" class="name-edit-hint">
             <Icon name="edit" :size="12" />
@@ -1060,7 +1059,6 @@ onMounted(async () => {
   font-weight: 700;
   box-shadow: var(--shadow-md);
   position: relative;
-  overflow: hidden;
 }
 .hero-avatar.is-editable {
   cursor: pointer;
@@ -1075,8 +1073,9 @@ onMounted(async () => {
 }
 .avatar-camera {
   position: absolute;
-  right: 0;
-  bottom: 0;
+  right: -3px;
+  bottom: -3px;
+  z-index: 5;
   width: 26px;
   height: 26px;
   border-radius: 50%;
@@ -1085,6 +1084,7 @@ onMounted(async () => {
   display: grid;
   place-items: center;
   border: 2px solid #fff;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
 }
 .hero-name {
   margin: 12px 0 6px;

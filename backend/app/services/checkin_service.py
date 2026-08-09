@@ -79,6 +79,12 @@ def check_in_today(db: Session, user: User) -> dict:
         pass
     db.commit()
     db.refresh(record)
+    # 徽章自动发放：连续签到天数达到规则阈值自动发徽章
+    try:
+        from app.services.badge_service import auto_grant_by_action
+        auto_grant_by_action(db, user, "checkin_consecutive", record.consecutive_days)
+    except Exception:
+        pass
 
     return {
         "id": record.id,

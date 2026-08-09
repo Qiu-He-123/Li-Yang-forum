@@ -11,10 +11,8 @@ import { useRouter } from 'vue-router'
 
 import EmptyState from '../components/common/EmptyState.vue'
 import BadgeIcon from '../components/common/BadgeIcon.vue'
-import { Dialog as NativeDialog, Icon } from '../components/native'
-import { toast } from '../components/native/Toast'
+import { Icon } from '../components/native'
 import { listConversations } from '../api/friend'
-import { claimBadge, fetchMyBadges } from '../api/badge'
 import { useSessionStore } from '../stores/session'
 import { useNotificationStore } from '../stores/notification'
 import { wsClient } from '../utils/ws'
@@ -44,11 +42,6 @@ interface Conversation {
 
 const conversations = ref<Conversation[]>([])
 const loading = ref(false)
-const badgeCount = ref(0)
-const wearingBadge = ref<Badge | null>(null)
-const claimDialogVisible = ref(false)
-const claimCode = ref('')
-const claiming = ref(false)
 
 let pollTimer: ReturnType<typeof setInterval> | null = null
 // 上一次会话列表的指纹，用于避免无变化时的重渲染（防闪烁）
@@ -95,43 +88,6 @@ async function loadConversations(force = false) {
     /* ignore */
   } finally {
     loading.value = false
-  }
-}
-
-async function loadBadgeSummary() {
-  try {
-    const { data } = await fetchMyBadges({
-      showGlobalLoading: false,
-      showGlobalError: false,
-    })
-    badgeCount.value = data.data.total || 0
-    wearingBadge.value = data.data.wearing_badge || null
-  } catch {
-    /* 徽章加载失败不阻塞消息页 */
-  }
-}
-
-function openClaim() {
-  claimCode.value = ''
-  claimDialogVisible.value = true
-}
-
-async function submitClaim() {
-  const code = claimCode.value.trim()
-  if (!code) {
-    toast.error('请输入激活码')
-    return
-  }
-  claiming.value = true
-  try {
-    const { data } = await claimBadge(code)
-    toast.success(`已获得「${data.data.icon} ${data.data.name}」徽章！`)
-    claimDialogVisible.value = false
-    await loadBadgeSummary()
-  } catch (err) {
-    toast.error((err as Error).message)
-  } finally {
-    claiming.value = false
   }
 }
 
@@ -210,7 +166,6 @@ onMounted(async () => {
   // 性能优化：validateSession 与业务请求并行，不阻塞
   void session.validateSession()
   await loadConversations(true)
-  await loadBadgeSummary()
   startPolling()
   // WebSocket 实时推送监听（替代高频轮询）
   setupWsListener()
@@ -232,7 +187,6 @@ onActivated(() => {
     return // 首次由 onMounted 处理
   }
   loadConversations()
-  loadBadgeSummary()
   notificationStore.refreshUnread()
 })
 
@@ -274,21 +228,6 @@ onUnmounted(() => {
           </div>
           <span class="notif-cat-label">{{ cat.label }}</span>
         </button>
-      </div>
-
-      <!-- 徽章中心入口（消息 → 系统 领取徽章） -->
-      <div class="badge-entry">
-        <div class="badge-entry-icon">
-          <BadgeIcon :badge="wearingBadge" :size="24" />
-        </div>
-        <div class="badge-entry-info">
-          <span class="badge-entry-title">我的徽章（{{ badgeCount }}）</span>
-          <span class="badge-entry-desc">
-            {{ wearingBadge ? `佩戴中：${wearingBadge.name}` : '佩戴徽章展示在名字前' }}
-          </span>
-        </div>
-        <button class="badge-entry-btn" type="button" @click="openClaim">领取</button>
-        <button class="badge-entry-btn badge-entry-btn--ghost" type="button" @click="router.push('/my/badges')">管理</button>
       </div>
 
       <!-- 私信标题 -->
@@ -344,27 +283,6 @@ onUnmounted(() => {
       <EmptyState v-else icon="message-circle" text="还没有消息，去认识新朋友吧" />
     </div>
 
-    <!-- 领取徽章弹窗 -->
-    <NativeDialog v-model="claimDialogVisible" title="领取徽章" width="420px">
-      <p class="claim-tip">
-        输入管理员发放的激活码领取徽章。领取后可在「我的徽章」中选择佩戴，
-        佩戴的徽章会展示在名字前（如 [🏅] 昵称）。
-      </p>
-      <input
-        v-model="claimCode"
-        class="claim-input"
-        type="text"
-        maxlength="32"
-        placeholder="请输入激活码"
-        @keydown.enter="submitClaim"
-      />
-      <template #footer>
-        <button class="btn btn-outline" type="button" @click="claimDialogVisible = false">取消</button>
-        <button class="btn btn-primary" type="button" :disabled="claiming" @click="submitClaim">
-          {{ claiming ? '领取中…' : '领取' }}
-        </button>
-      </template>
-    </NativeDialog>
   </main>
 </template>
 
@@ -439,117 +357,6 @@ onUnmounted(() => {
   box-shadow: var(--shadow-xs);
 }
 
-/* 徽章入口 */
-.badge-entry {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin: 10px 16px 0;
-  padding: 12px 14px;
-  background: linear-gradient(135deg, #fffbea, #fff);
-  border: 1px solid #ffe1a6;
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-xs);
-}
-.badge-entry-icon {
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  background: #fff;
-  border: 1px dashed #f0c14b;
-  display: grid;
-  place-items: center;
-  flex-shrink: 0;
-}
-.badge-entry-info {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-.badge-entry-title {
-  font-size: 14px;
-  font-weight: 700;
-  color: var(--text-800);
-}
-.badge-entry-desc {
-  font-size: 11px;
-  color: var(--text-500);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.badge-entry-btn {
-  padding: 6px 14px;
-  border-radius: 999px;
-  border: none;
-  background: linear-gradient(135deg, #ffd60a, #f7b500);
-  color: #fff;
-  font-size: 12px;
-  font-weight: 700;
-  cursor: pointer;
-  flex-shrink: 0;
-  font-family: inherit;
-}
-.badge-entry-btn--ghost {
-  background: #fff;
-  color: var(--text-600);
-  border: 1px solid var(--bg-300);
-}
-.claim-tip {
-  margin: 0 0 12px;
-  font-size: 13px;
-  color: var(--text-500);
-  line-height: 1.6;
-}
-.claim-input {
-  width: 100%;
-  padding: 12px 14px;
-  border-radius: 12px;
-  border: 1px solid var(--color-border, #e5e5ea);
-  font-size: 15px;
-  font-family: inherit;
-  color: var(--text-800);
-  outline: none;
-  text-transform: uppercase;
-  letter-spacing: 1px;
-  transition: border-color 0.15s, box-shadow 0.15s;
-}
-.claim-input:focus {
-  border-color: var(--brand-500);
-  box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.15);
-}
-.btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 5px;
-  padding: 8px 18px;
-  border-radius: 999px;
-  font-size: 13px;
-  font-weight: 600;
-  font-family: inherit;
-  border: none;
-  cursor: pointer;
-  transition: transform 0.15s, opacity 0.15s;
-}
-.btn:active {
-  transform: scale(0.98);
-}
-.btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-.btn-outline {
-  background: transparent;
-  color: var(--text-700);
-  border: 1px solid var(--bg-300);
-}
-.btn-primary {
-  background: var(--brand-500);
-  color: #fff;
-}
 .notif-cat-item {
   display: flex;
   flex-direction: column;
@@ -765,9 +572,6 @@ onUnmounted(() => {
     margin: 8px 12px 0;
     padding: 10px 8px;
     gap: 4px;
-  }
-  .badge-entry {
-    margin: 8px 12px 0;
   }
   .notif-cat-icon {
     width: 44px;

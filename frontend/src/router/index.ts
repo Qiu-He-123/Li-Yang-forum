@@ -297,6 +297,11 @@ const routes = [
         component: () => import('../views/Admin/Badges.vue'),
       },
       {
+        path: 'badge-rules',
+        name: 'admin-badge-rules',
+        component: () => import('../views/Admin/BadgeRules.vue'),
+      },
+      {
         path: 'circles-audit',
         name: 'admin-circles-audit',
         component: () => import('../views/Admin/CircleAudit.vue'),

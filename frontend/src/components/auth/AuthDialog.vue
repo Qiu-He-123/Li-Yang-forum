@@ -68,12 +68,12 @@ async function submit() {
     }
     // 用户名格式校验
     if (!/^[A-Za-z0-9_]{3,32}$/.test(authForm.username)) {
-      ElMessage.error('用户名只能包含字母、数字和下划线，3-32 字符')
+      ElMessage.error('账号只能包含字母、数字和下划线，3-32 位')
       return
     }
   } else {
     if (!authForm.username || !authForm.password) {
-      ElMessage.error('请输入用户名和密码')
+      ElMessage.error('请输入账号和密码')
       return
     }
   }
@@ -131,12 +131,15 @@ async function submit() {
       <el-form-item v-if="authMode === 'register'" label="昵称">
         <el-input v-model="authForm.nickname" placeholder="展示给其他用户的名称" />
       </el-form-item>
-      <el-form-item label="用户名">
+      <el-form-item :label="authMode === 'login' ? '账号' : '账号（登录用的，不是昵称）'">
         <el-input
           v-model="authForm.username"
-          placeholder="登录账号，3-32 位字母/数字/下划线"
+          :placeholder="authMode === 'login' ? '请输入注册时的账号（不是昵称）' : '设置登录账号，3-32 位字母/数字/下划线'"
         />
       </el-form-item>
+      <p v-if="authMode === 'login'" class="m-0 -mt-1 mb-1 text-xs text-slate-400">
+        登录用「账号」，不是昵称：账号是你注册时自己设置的登录名
+      </p>
       <el-form-item label="密码">
         <el-input v-model="authForm.password" type="password" show-password placeholder="至少 8 位" />
       </el-form-item>

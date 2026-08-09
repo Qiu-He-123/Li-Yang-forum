@@ -129,6 +129,33 @@ class UserBadge(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
 
+class BadgeRule(Base, TimestampMixin):
+    """徽章自动发放规则表。
+
+    将「用户行为动作 + 阈值」绑定到指定徽章：当用户在某个动作上达到阈值时，
+    系统自动发放徽章并通知用户。扩展方式：新增动作时在 badge_service 注册
+    对应的触发点即可，无需改动规则表结构。
+
+    action 支持（当前已注册）：
+    - checkin_consecutive  连续签到天数
+    - approved_posts       审核通过的帖子数
+    - approved_comments    审核通过的评论数
+    - followers_count      粉丝数
+    - likes_received       获赞总数
+    """
+
+    __tablename__ = "badge_rules"
+    __table_args__ = (UniqueConstraint("action", "threshold", name="uq_badge_rule_action_threshold"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    action: Mapped[str] = mapped_column(String(40), index=True)
+    badge_id: Mapped[int] = mapped_column(ForeignKey("badges.id"), index=True)
+    # 达到该阈值即自动发放（>= threshold）
+    threshold: Mapped[int] = mapped_column(Integer, default=1)
+    description: Mapped[str | None] = mapped_column(String(200), default=None)
+    is_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+
+
 class Post(Base, TimestampMixin):
     __tablename__ = "posts"
 
@@ -835,6 +862,8 @@ class SeedInviteCode(Base):
     note: Mapped[str | None] = mapped_column(String(100), default=None)
     # 批次号（管理员批量生成时分配，便于按批次查询）
     batch_no: Mapped[str | None] = mapped_column(String(32), index=True, default=None)
+    # 创建管理员（启动自动生成/学生认证发放时为 None → 系统）
+    created_by: Mapped[int | None] = mapped_column(ForeignKey("admin.id"), default=None)
     # 状态：unused / reserved / used
     status: Mapped[str] = mapped_column(String(20), default="unused", index=True)
     # 待使用状态：由哪位管理员复制带走（其他管理员据此避免重复分发）

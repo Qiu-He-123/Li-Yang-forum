@@ -10,13 +10,14 @@ import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 import EmptyState from '../components/common/EmptyState.vue'
-import { Icon } from '../components/native'
+import { Dialog as NativeDialog, Icon } from '../components/native'
 import { toast } from '../components/native/Toast'
 import {
   fetchNotificationDetail,
   markNotificationRead,
   type NotificationDetail,
 } from '../api/notification'
+import { claimBadge } from '../api/badge'
 import { useNotificationStore } from '../stores/notification'
 
 const route = useRoute()
@@ -25,6 +26,34 @@ const notificationStore = useNotificationStore()
 
 const detail = ref<NotificationDetail | null>(null)
 const loading = ref(false)
+
+// 徽章领取（系统消息详情内）
+const claimDialogVisible = ref(false)
+const claimCode = ref('')
+const claiming = ref(false)
+
+function openClaim() {
+  claimCode.value = ''
+  claimDialogVisible.value = true
+}
+
+async function submitClaim() {
+  const code = claimCode.value.trim()
+  if (!code) {
+    toast.error('请输入激活码')
+    return
+  }
+  claiming.value = true
+  try {
+    const { data } = await claimBadge(code)
+    toast.success(`已获得「${data.data.icon} ${data.data.name}」徽章！`)
+    claimDialogVisible.value = false
+  } catch (err) {
+    toast.error((err as Error).message)
+  } finally {
+    claiming.value = false
+  }
+}
 
 const typeMeta: Record<string, { label: string; icon: string; color: string }> = {
   comment: { label: '评论', icon: 'message-circle', color: '#007aff' },
@@ -120,10 +149,36 @@ onMounted(load)
             跳到原帖
           </button>
         </div>
+        <div v-if="detail.type === 'system'" class="detail-action">
+          <button class="btn btn-primary btn-pill btn-gold" type="button" @click="openClaim">
+            <Icon name="gift" :size="14" />
+            领取徽章
+          </button>
+          <p class="claim-hint">输入管理员发放的激活码即可领取徽章</p>
+        </div>
       </article>
 
       <EmptyState v-else icon="bell" text="通知不存在或已被删除" />
     </div>
+
+    <!-- 领取徽章弹窗 -->
+    <NativeDialog v-model="claimDialogVisible" title="领取徽章" width="420px">
+      <p class="claim-tip">请输入管理员发放的激活码，领取后可前往「我的 → 我的徽章」选择佩戴。</p>
+      <input
+        v-model="claimCode"
+        class="claim-input"
+        type="text"
+        maxlength="32"
+        placeholder="请输入激活码"
+        @keydown.enter="submitClaim"
+      />
+      <template #footer>
+        <button class="btn btn-outline" type="button" @click="claimDialogVisible = false">取消</button>
+        <button class="btn btn-primary" type="button" :disabled="claiming" @click="submitClaim">
+          {{ claiming ? '领取中…' : '领取' }}
+        </button>
+      </template>
+    </NativeDialog>
   </main>
 </template>
 
@@ -267,6 +322,45 @@ onMounted(load)
 .btn-primary {
   background: var(--brand-500, #007aff);
   color: #fff;
+}
+.btn-gold {
+  background: linear-gradient(135deg, #ffd60a, #f7b500);
+  color: #fff;
+}
+.btn-outline {
+  background: transparent;
+  border: 1px solid var(--bg-300);
+  color: var(--text-700);
+}
+.claim-hint {
+  margin: 0;
+  width: 100%;
+  text-align: right;
+  font-size: 12px;
+  color: var(--text-400);
+}
+.claim-tip {
+  margin: 0 0 12px;
+  font-size: 13px;
+  color: var(--text-500);
+  line-height: 1.6;
+}
+.claim-input {
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--color-border, #e5e5ea);
+  font-size: 15px;
+  font-family: inherit;
+  color: var(--text-800);
+  outline: none;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.claim-input:focus {
+  border-color: var(--brand-500);
+  box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.15);
 }
 
 @media (max-width: 768px) {

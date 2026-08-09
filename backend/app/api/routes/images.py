@@ -103,6 +103,7 @@ def _make_thumbnail(content: bytes, mime_type: str) -> bytes | None:
 @router.post("")
 async def upload_image(
     file: UploadFile = File(...),
+    purpose: str = Query(default="post", pattern="^(post|avatar)$"),
     request: Request = None,
     db: Session = Depends(get_db),
     user: User = Depends(current_user),
@@ -150,25 +151,26 @@ async def upload_image(
         except Exception:
             thumb_url = None  # 缩略图失败不影响主流程
 
-    # 记录入库
+    # 记录入库；头像不参与内容审核（直接 approved），帖子图片一律 pending 人工审核
     image = Image(
         user_id=user.id,
         url=url,
         mime_type=content_type,
         size_bytes=len(content),
-        # 图片不走 AI 审核，默认进入人工审核队列（后台「图片审核」页处理）
-        audit_status="pending",
+        audit_status="approved" if purpose == "avatar" else "pending",
     )
     db.add(image)
     db.commit()
     db.refresh(image)
-    return ok({
+    result = {
         "id": image.id,
         "url": url,
         "thumb_url": thumb_url or url,
         "audit_status": image.audit_status,
-        "audit_note": "图片内容需人工审核",
-    })
+    }
+    if image.audit_status == "pending":
+        result["audit_note"] = "图片内容需人工审核"
+    return ok(result)
 
 
 @router.post("/verification")

@@ -46,6 +46,21 @@ def like_target(target_type: str, target_id: int, request: Request, db: Session,
                 reference_id=target_id,
             )
         db.commit()
+        # 徽章自动发放：帖子获赞总数达到规则阈值自动发徽章
+        if target_type == "post":
+            try:
+                from sqlalchemy import func as _func
+                from app.services.badge_service import auto_grant_by_action
+                author = db.get(User, target.author_id)
+                if author:
+                    likes = db.scalar(
+                        select(_func.count(Like.id))
+                        .join(Post, Post.id == Like.target_id)
+                        .where(Post.author_id == target.author_id, Like.target_type == "post")
+                    ) or 0
+                    auto_grant_by_action(db, author, "likes_received", int(likes))
+            except Exception:
+                pass
     except IntegrityError:
         # 重复点赞：回滚 Like.add，但 target.like_count 已 +1 需还原
         db.rollback()

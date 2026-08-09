@@ -155,3 +155,60 @@ export function adminGrantBadge(userId: number, badgeId: number) {
     { user_id: userId, badge_id: badgeId },
   )
 }
+
+// ============ 徽章自动发放规则 ============
+
+/** 支持的自动发放动作（与后端 badge_service.SUPPORTED_ACTIONS 一致） */
+export const BADGE_ACTIONS: { value: string; label: string }[] = [
+  { value: 'checkin_consecutive', label: '连续签到天数' },
+  { value: 'approved_posts', label: '审核通过的帖子数' },
+  { value: 'approved_comments', label: '审核通过的评论数' },
+  { value: 'followers_count', label: '粉丝数' },
+  { value: 'likes_received', label: '获赞总数' },
+]
+
+export interface BadgeRule {
+  id: number
+  action: string
+  action_label: string
+  badge_id: number
+  badge_name: string | null
+  badge_icon: string | null
+  threshold: number
+  description: string | null
+  is_enabled: boolean
+  created_at: string | null
+}
+
+export function adminListBadgeRules() {
+  return http.get<unknown, { data: { code: number; msg: string; data: BadgeRule[] } }>(
+    '/admin/badge-rules',
+  )
+}
+
+export function adminCreateBadgeRule(payload: {
+  action: string
+  badge_id: number
+  threshold: number
+  description?: string
+  is_enabled?: boolean
+}) {
+  return http.post<unknown, { data: { code: number; msg: string; data: BadgeRule } }>(
+    '/admin/badge-rules',
+    payload,
+  )
+}
+
+export function adminUpdateBadgeRule(
+  ruleId: number,
+  payload: Partial<{ badge_id: number; threshold: number; description: string; is_enabled: boolean }>,
+) {
+  return http.patch<unknown, { data: { code: number; msg: string; data: BadgeRule } }>(
+    `/admin/badge-rules/${ruleId}`,
+    payload,
+  )
+}
+
+export function adminDeleteBadgeRule(ruleId: number) {
+  return http.delete(`/admin/badge-rules/${ruleId}`)
+}

@@ -86,7 +86,7 @@ _ERROR_MESSAGES: dict[int, str] = {
     ErrorCode.NOT_LOGGED_IN: "未登录，请先登录",
     ErrorCode.TOKEN_INVALID: "登录已过期，请重新登录",
     ErrorCode.USER_NOT_FOUND: "用户不存在",
-    ErrorCode.LOGIN_FAILED: "手机号或密码错误",
+    ErrorCode.LOGIN_FAILED: "账号或密码错误，请使用注册时的账号登录（不是昵称）",
     ErrorCode.LOGIN_LOCKED: "连续登录失败过多，请 30 分钟后再试",
     ErrorCode.NOT_AGREED: "请先阅读并同意协议",
     ErrorCode.PASSWORD_MISMATCH: "两次密码不一致",
@@ -110,7 +110,7 @@ _ERROR_MESSAGES: dict[int, str] = {
     ErrorCode.INVITE_CODE_INVALID: "邀请码无效或已被使用",
     ErrorCode.INVITE_CODE_COOLDOWN: "邀请码分享冷却中，3 天仅可分享一次",
     ErrorCode.INVITE_PRIVILEGE_FROZEN: "邀请资格已被冻结（被邀请人违规连坐）",
-    ErrorCode.USERNAME_EXISTS: "用户名已被注册",
+    ErrorCode.USERNAME_EXISTS: "账号已被注册，请换个账号试试",
     ErrorCode.PARAM_ERROR: "参数错误",
     ErrorCode.UNKNOWN_ERROR: "未知错误",
 }

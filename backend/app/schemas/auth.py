@@ -22,7 +22,7 @@ class RegisterIn(BaseModel):
     def username_format(cls, v: str) -> str:
         """用户名仅允许字母/数字/下划线，3-32 字符。"""
         if not v or not all(c.isalnum() or c == "_" for c in v):
-            raise ValueError("用户名只能包含字母、数字和下划线")
+            raise ValueError("账号只能包含字母、数字和下划线（3-32 位）")
         return v
 
 

@@ -17,6 +17,7 @@ import { useRoute, useRouter } from 'vue-router'
 
 import EmptyState from '../components/common/EmptyState.vue'
 import AiStatusBadge from '../components/common/AiStatusBadge.vue'
+import BadgeIcon from '../components/common/BadgeIcon.vue'
 import PostListSkeleton from '../components/post/PostListSkeleton.vue'
 import InfiniteScrollFooter from '../components/common/InfiniteScrollFooter.vue'
 import { useInfiniteScroll } from '../composables/useInfiniteScroll'
@@ -509,6 +510,7 @@ onUnmounted(() => {
                     :class="`av-${(post.author_id || 0) % 5 + 1}`"
                     aria-hidden="true"
                   >{{ post.is_anonymous ? '匿' : (post.author || 'U').charAt(0).toUpperCase() }}</span>
+                  <BadgeIcon v-if="!post.is_anonymous" :badge="post.author_badge" :size="13" />
                   <span class="author-name">{{ post.is_anonymous ? '匿名同学' : post.author }}</span>
                 </div>
                 <div class="card-stats">

@@ -226,7 +226,7 @@ onMounted(load)
         class="claim-input"
         type="text"
         maxlength="32"
-        placeholder="请输入激活码（如 B1A2C3D4）"
+        placeholder="请输入激活码"
         @keydown.enter="submitClaim"
       />
       <template #footer>

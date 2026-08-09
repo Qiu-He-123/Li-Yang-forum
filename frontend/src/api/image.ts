@@ -1,7 +1,11 @@
 import { http, type LoadingAxiosRequestConfig } from './http'
 import type { ImageUploadResult, MyImage } from '../types/api'
 
-export function uploadImage(file: File, onProgress?: (percent: number) => void) {
+export function uploadImage(
+  file: File,
+  onProgress?: (percent: number) => void,
+  purpose: 'post' | 'avatar' = 'post',
+) {
   const formData = new FormData()
   formData.append('file', file)
   // 注意：不要手动设置 Content-Type，axios 会自动设置 multipart/form-data 并附带 boundary。
@@ -23,7 +27,7 @@ export function uploadImage(file: File, onProgress?: (percent: number) => void) 
   return http.post<unknown, { data: { code: number; msg: string; data: ImageUploadResult } }>(
     '/images',
     formData,
-    config,
+    { ...config, params: purpose === 'avatar' ? { purpose: 'avatar' } : undefined },
   )
 }
 

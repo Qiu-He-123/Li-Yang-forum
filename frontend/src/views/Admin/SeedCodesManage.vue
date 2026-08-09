@@ -361,6 +361,12 @@ onMounted(() => load())
             <span v-else class="text-muted">—</span>
           </template>
         </el-table-column>
+        <el-table-column label="创建管理员" width="130">
+          <template #default="{ row }">
+            <span v-if="row.created_by" class="creator-text">{{ row.created_by_username || '管理员#' + row.created_by }}</span>
+            <span v-else class="text-muted">系统自动生成</span>
+          </template>
+        </el-table-column>
         <el-table-column label="备注" min-width="180" show-overflow-tooltip>
           <template #default="{ row }">
             <span v-if="row.note" class="reason-text">{{ row.note }}</span>
@@ -764,6 +770,11 @@ onMounted(() => load())
   font-family: 'Courier New', monospace;
   font-size: 12px;
   color: #595959;
+}
+.creator-text {
+  font-size: 12px;
+  color: #1d4ed8;
+  font-weight: 500;
 }
 
 /* 生成结果 */

@@ -330,6 +330,7 @@ def admin_generate_seed_codes(
             note=note,
             batch_no=batch_no,
             status="unused",
+            created_by=admin.id,
         ))
         codes.append(code)
 
@@ -377,6 +378,9 @@ def admin_list_seed_codes(
     # 批量加载预留管理员
     admin_ids = list({r.reserved_by for r in rows if r.reserved_by})
     admins = {a.id: a for a in db.scalars(select(Admin).where(Admin.id.in_(admin_ids))).all()} if admin_ids else {}
+    # 批量加载创建管理员（系统自动生成时为 None）
+    creator_ids = list({r.created_by for r in rows if r.created_by})
+    creators = {a.id: a for a in db.scalars(select(Admin).where(Admin.id.in_(creator_ids))).all()} if creator_ids else {}
     # 各状态统计（未使用 / 待使用 / 已使用）
     counts = {s: 0 for s in ("unused", "reserved", "used")}
     for row in db.execute(
@@ -390,6 +394,7 @@ def admin_list_seed_codes(
                 r,
                 used_by_user=users.get(r.used_by) if r.used_by else None,
                 reserved_by_admin=admins.get(r.reserved_by) if r.reserved_by else None,
+                created_by_admin=creators.get(r.created_by) if r.created_by else None,
             )
             for r in rows
         ],
@@ -404,6 +409,7 @@ def _seed_code_dict(
     s: SeedInviteCode,
     used_by_user: User | None = None,
     reserved_by_admin: Admin | None = None,
+    created_by_admin: Admin | None = None,
 ) -> dict[str, Any]:
     return {
         "id": s.id,
@@ -414,6 +420,8 @@ def _seed_code_dict(
         "reserved_by": s.reserved_by,
         "reserved_by_username": reserved_by_admin.username if reserved_by_admin else None,
         "reserved_at": to_iso_zh(s.reserved_at) if s.reserved_at else None,
+        "created_by": s.created_by,
+        "created_by_username": created_by_admin.username if created_by_admin else None,
         "used_by": s.used_by,
         "used_by_username": used_by_user.username if used_by_user else None,
         "used_at": to_iso_zh(s.used_at) if s.used_at else None,

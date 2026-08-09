@@ -357,7 +357,7 @@ async function load() {
 
 async function uploadAvatar(file: File) {
   try {
-    const { data } = await uploadImage(file)
+    const { data } = await uploadImage(file, undefined, 'avatar')
     form.value.avatar_url = data.data.url
   } catch (error) {
     ElMessage.error((error as Error).message)

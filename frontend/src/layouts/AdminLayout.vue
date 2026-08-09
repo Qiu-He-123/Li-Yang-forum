@@ -46,6 +46,7 @@ const menuGroups = computed<MenuGroup[]>(() => [
       { index: '/admin/reports', label: '举报处理', icon: '🚩' },
       { index: '/admin/announcements', label: '公告管理', icon: '📢' },
       { index: '/admin/badges', label: '徽章管理', icon: '🏅' },
+      { index: '/admin/badge-rules', label: '徽章自动发放', icon: '🤖' },
       { index: '/admin/images-audit', label: '图片审核', icon: '🖼️' },
       { index: '/admin/bottles-audit', label: '漂流瓶审核', icon: '🍾' },
     ],

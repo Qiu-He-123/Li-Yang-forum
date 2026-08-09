@@ -50,6 +50,9 @@ export interface SeedCode {
   code: string
   note: string | null
   batch_no: string | null
+  /** 创建管理员（系统自动生成为 null） */
+  created_by: number | null
+  created_by_username?: string | null
   /** unused(未使用) / reserved(待使用) / used(已使用) */
   status: 'unused' | 'reserved' | 'used'
   /** 待使用状态：由哪位管理员复制带走 */

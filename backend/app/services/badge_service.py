@@ -18,7 +18,7 @@ from sqlalchemy.orm import Session
 
 from app.core.errors import ErrorCode
 from app.core.time_utils import to_iso_zh
-from app.models import Admin, Badge, BadgeCode, User, UserBadge
+from app.models import Admin, Badge, BadgeCode, BadgeRule, User, UserBadge
 from app.services.audit_log import log_admin_action, log_user_action
 from app.services.notification_service import create_notification
 
@@ -53,6 +53,17 @@ DEFAULT_BADGES: list[dict] = [
     {"name": "自律达人", "code": "self_discipline", "icon": "⏰", "description": "时间管理大师，自律即自由。", "sort_order": 21},
     {"name": "元老用户", "code": "veteran", "icon": "👑", "description": "陪伴社区一路走来的元老。", "sort_order": 22},
 ]
+
+
+# ============ 徽章自动发放：支持的动作（后台可配置规则） ============
+
+SUPPORTED_ACTIONS: dict[str, str] = {
+    "checkin_consecutive": "连续签到天数",
+    "approved_posts": "审核通过的帖子数",
+    "approved_comments": "审核通过的评论数",
+    "followers_count": "粉丝数",
+    "likes_received": "获赞总数",
+}
 
 
 # ============ 序列化 ============
@@ -495,6 +506,179 @@ def admin_grant_badge(user_id: int, badge_id: int, request: Request, db: Session
     )
     db.commit()
     return {"user_id": user_id, "badge": badge_dict(badge)}
+
+
+# ============ 自动发放 ============
+
+def auto_grant_by_action(db: Session, user: User, action: str, value: int) -> list[dict]:
+    """按动作触发值自动发放徽章（幂等：已拥有/未启用规则跳过）。
+
+    在业务动作发生后调用（如签到、帖子审核通过、获赞、粉丝数变化等），
+    达到任一启用规则的阈值即自动发放对应徽章并通知用户。
+    """
+    if action not in SUPPORTED_ACTIONS or value <= 0:
+        return []
+    rules = db.scalars(
+        select(BadgeRule).where(
+            BadgeRule.action == action,
+            BadgeRule.is_enabled.is_(True),
+        )
+    ).all()
+    granted: list[dict] = []
+    for rule in rules:
+        if value < rule.threshold:
+            continue
+        badge = db.get(Badge, rule.badge_id)
+        if not badge or not badge.is_active:
+            continue
+        existing = db.scalar(
+            select(UserBadge).where(
+                UserBadge.user_id == user.id,
+                UserBadge.badge_id == badge.id,
+            )
+        )
+        if existing:
+            continue
+        db.add(UserBadge(user_id=user.id, badge_id=badge.id))
+        if not user.wearing_badge_id:
+            user.wearing_badge_id = badge.id
+        create_notification(
+            db,
+            user.id,
+            "自动获得新徽章",
+            f"恭喜你在「{SUPPORTED_ACTIONS[action]}」上达到 {rule.threshold}，"
+            f"系统自动发放了「{badge.icon} {badge.name}」徽章！",
+            ntype="system",
+            reference_type="badge",
+            reference_id=badge.id,
+        )
+        granted.append(badge_dict(badge))
+    if granted:
+        db.commit()
+    return granted
+
+
+def admin_list_badge_rules(db: Session) -> list[dict]:
+    """后台徽章自动发放规则列表。"""
+    rows = db.scalars(
+        select(BadgeRule).order_by(BadgeRule.action.asc(), BadgeRule.threshold.asc())
+    ).all()
+    badge_ids = {r.badge_id for r in rows}
+    badges = {
+        b.id: b
+        for b in db.scalars(select(Badge).where(Badge.id.in_(badge_ids))).all()
+    } if badge_ids else {}
+    return [
+        {
+            "id": r.id,
+            "action": r.action,
+            "action_label": SUPPORTED_ACTIONS.get(r.action, r.action),
+            "badge_id": r.badge_id,
+            "badge_name": badges.get(r.badge_id).name if badges.get(r.badge_id) else None,
+            "badge_icon": badges.get(r.badge_id).icon if badges.get(r.badge_id) else None,
+            "threshold": r.threshold,
+            "description": r.description,
+            "is_enabled": r.is_enabled,
+            "created_at": to_iso_zh(r.created_at),
+        }
+        for r in rows
+    ]
+
+
+def admin_create_badge_rule(payload: dict, request: Request, db: Session, admin: Admin) -> dict:
+    """创建自动发放规则。payload: action/badge_id/threshold/description/is_enabled。"""
+    action = (payload.get("action") or "").strip()
+    badge_id = int(payload.get("badge_id", 0) or 0)
+    threshold = int(payload.get("threshold", 1) or 1)
+    if action not in SUPPORTED_ACTIONS:
+        raise HTTPException(status_code=400, detail="不支持的动作类型")
+    if not db.get(Badge, badge_id):
+        raise HTTPException(status_code=400, detail=ErrorCode.BADGE_NOT_FOUND)
+    if threshold < 1:
+        raise HTTPException(status_code=400, detail="阈值必须 >= 1")
+    existing = db.scalar(
+        select(BadgeRule).where(
+            BadgeRule.action == action,
+            BadgeRule.threshold == threshold,
+        )
+    )
+    if existing:
+        raise HTTPException(status_code=400, detail="同一动作 + 阈值的规则已存在")
+    rule = BadgeRule(
+        action=action,
+        badge_id=badge_id,
+        threshold=threshold,
+        description=(payload.get("description") or "").strip()[:200] or None,
+        is_enabled=bool(payload.get("is_enabled", True)),
+    )
+    db.add(rule)
+    log_admin_action(
+        db,
+        admin.id,
+        "create_badge_rule",
+        json.dumps({"action": action, "badge_id": badge_id, "threshold": threshold}, ensure_ascii=False),
+        _extract_ip(request),
+    )
+    db.commit()
+    db.refresh(rule)
+    return {
+        "id": rule.id,
+        "action": rule.action,
+        "action_label": SUPPORTED_ACTIONS.get(rule.action, rule.action),
+        "badge_id": rule.badge_id,
+        "threshold": rule.threshold,
+        "description": rule.description,
+        "is_enabled": rule.is_enabled,
+        "created_at": to_iso_zh(rule.created_at),
+    }
+
+
+def admin_update_badge_rule(rule_id: int, payload: dict, request: Request, db: Session, admin: Admin) -> dict:
+    """更新自动发放规则。"""
+    rule = db.get(BadgeRule, rule_id)
+    if not rule:
+        raise HTTPException(status_code=404, detail="规则不存在")
+    changes = {}
+    for key in ("badge_id", "threshold", "description", "is_enabled"):
+        if key in payload and getattr(rule, key) != payload[key]:
+            changes[key] = {"old": getattr(rule, key), "new": payload[key]}
+            setattr(rule, key, payload[key])
+    if changes:
+        log_admin_action(
+            db,
+            admin.id,
+            "update_badge_rule",
+            json.dumps({"rule_id": rule_id, "changes": changes}, ensure_ascii=False),
+            _extract_ip(request),
+        )
+    db.commit()
+    db.refresh(rule)
+    return {
+        "id": rule.id,
+        "action": rule.action,
+        "action_label": SUPPORTED_ACTIONS.get(rule.action, rule.action),
+        "badge_id": rule.badge_id,
+        "threshold": rule.threshold,
+        "description": rule.description,
+        "is_enabled": rule.is_enabled,
+        "created_at": to_iso_zh(rule.created_at),
+    }
+
+
+def admin_delete_badge_rule(rule_id: int, request: Request, db: Session, admin: Admin) -> None:
+    """删除自动发放规则。"""
+    rule = db.get(BadgeRule, rule_id)
+    if not rule:
+        raise HTTPException(status_code=404, detail="规则不存在")
+    log_admin_action(
+        db,
+        admin.id,
+        "delete_badge_rule",
+        json.dumps({"rule_id": rule_id, "action": rule.action, "threshold": rule.threshold}, ensure_ascii=False),
+        _extract_ip(request),
+    )
+    db.delete(rule)
+    db.commit()
 
 
 def _extract_ip(request: Request | None) -> str | None:

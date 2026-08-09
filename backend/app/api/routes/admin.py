@@ -757,6 +757,50 @@ def admin_grant_badge(
     return ok(badge_service.admin_grant_badge(user_id, badge_id, request, db, admin))
 
 
+@router.get("/badge-rules")
+def admin_badge_rules(
+    db: Session = Depends(get_db),
+    _: Admin = Depends(admin_user),
+) -> dict:
+    """徽章自动发放规则列表。"""
+    return ok(badge_service.admin_list_badge_rules(db))
+
+
+@router.post("/badge-rules")
+def admin_create_badge_rule(
+    payload: dict = Body(...),
+    request: Request = None,  # type: ignore[assignment]
+    db: Session = Depends(get_db),
+    admin: Admin = Depends(admin_user),
+) -> dict:
+    """创建自动发放规则。payload: action/badge_id/threshold/description/is_enabled。"""
+    return ok(badge_service.admin_create_badge_rule(payload, request, db, admin))
+
+
+@router.patch("/badge-rules/{rule_id}")
+def admin_update_badge_rule(
+    rule_id: int,
+    payload: dict = Body(...),
+    request: Request = None,  # type: ignore[assignment]
+    db: Session = Depends(get_db),
+    admin: Admin = Depends(admin_user),
+) -> dict:
+    """更新自动发放规则。"""
+    return ok(badge_service.admin_update_badge_rule(rule_id, payload, request, db, admin))
+
+
+@router.delete("/badge-rules/{rule_id}")
+def admin_delete_badge_rule(
+    rule_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    admin: Admin = Depends(admin_user),
+) -> dict:
+    """删除自动发放规则。"""
+    badge_service.admin_delete_badge_rule(rule_id, request, db, admin)
+    return ok()
+
+
 # ============ 种子邀请码管理 ============
 
 @router.post("/seed-codes/generate")
