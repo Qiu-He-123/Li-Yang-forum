@@ -25,6 +25,7 @@ import { Icon } from '../components/native'
 import { toast } from '../components/native/Toast'
 import { useSessionStore } from '../stores/session'
 import { useUserStore } from '../stores/user'
+import { useUIStore } from '../stores/ui'
 import { usePostStore } from '../stores/post'
 import { useCircleStore } from '../stores/circle'
 import { useAnnouncementStore } from '../stores/announcement'
@@ -38,10 +39,39 @@ const route = useRoute()
 const router = useRouter()
 const session = useSessionStore()
 const userStore = useUserStore()
+const uiStore = useUIStore()
 const postStore = usePostStore()
 const circleStore = useCircleStore()
 const announcementStore = useAnnouncementStore()
 const interactionStore = useInteractionStore()
+
+// 游客引导卡片：首次以游客身份浏览时提示注册价值（只弹一次）
+const guestGuideVisible = ref(false)
+const GUEST_GUIDE_KEY = 'ly:guest-guide-shown'
+
+function maybeShowGuestGuide() {
+  if (session.userId) return
+  if (localStorage.getItem(GUEST_GUIDE_KEY)) return
+  // 延迟出现，避免打扰首屏
+  setTimeout(() => {
+    guestGuideVisible.value = true
+  }, 900)
+}
+
+function dismissGuestGuide() {
+  guestGuideVisible.value = false
+  localStorage.setItem(GUEST_GUIDE_KEY, '1')
+}
+
+watch(
+  () => session.userId,
+  (id) => {
+    if (id) {
+      guestGuideVisible.value = false
+      localStorage.setItem(GUEST_GUIDE_KEY, '1')
+    }
+  },
+)
 
 const { loading: loadMoreLoading, error: loadMoreError, retry: retryLoadMore } = useInfiniteScroll({
   hasMore: computed(() => postStore.hasMore),
@@ -165,6 +195,7 @@ onMounted(async () => {
   postStore.setView(feedView.value)
   // 用 localStorage 的 userId 立即判断（validateSession 结果回填到 store）
   const hasUserId = !!session.userId
+  maybeShowGuestGuide()
   if (hasUserId) {
     // 第二波：登录用户的互动数据 + 帖子 feed（全部并行）
     await Promise.all([
@@ -243,7 +274,7 @@ async function onJoinCircle(e: Event, slug: string) {
   e.stopPropagation()
   e.preventDefault()
   if (!session.userId) {
-    toast.info('请先登录')
+    uiStore.openAuthDialog()
     return
   }
   const circle = circleStore.circles.find((c) => c.slug === slug)
@@ -270,7 +301,7 @@ async function openPost(post: Post) {
 
 function openSearch() {
   if (!session.userId) {
-    toast.info('请先登录')
+    uiStore.openAuthDialog()
     return
   }
   router.push('/search')
@@ -280,7 +311,7 @@ function openFeature(slug: string) {
   // 随机交友入口跳转独立的漂流瓶页面（不再是圈子帖子流）
   if (slug === 'bottle') {
     if (!session.userId) {
-      toast.info('请先登录')
+      uiStore.openAuthDialog()
       return
     }
     router.push('/bottle')
@@ -541,6 +572,27 @@ onUnmounted(() => {
         />
       </section>
     </div>
+
+    <!-- 游客引导卡片：登录后解锁互动 -->
+    <Transition name="guide">
+      <div v-if="!session.userId && guestGuideVisible" class="guest-guide">
+        <div class="guest-guide-body">
+          <div class="guest-guide-title">
+            <Icon name="log-in" :size="16" />
+            登录立洋社区，解锁全部功能
+          </div>
+          <div class="guest-guide-desc">
+            点赞 / 评论 / 收藏 / 发帖 / 徽章 / 签到 / 漂流瓶，注册只需 30 秒
+          </div>
+          <div class="guest-guide-actions">
+            <button class="guide-btn guide-btn--ghost" type="button" @click="dismissGuestGuide">先逛逛</button>
+            <button class="guide-btn guide-btn--primary" type="button" @click="uiStore.openAuthDialog()">
+              立即登录 / 注册
+            </button>
+          </div>
+        </div>
+      </div>
+    </Transition>
   </main>
 </template>
 
@@ -1093,6 +1145,80 @@ onUnmounted(() => {
   font-size: 12px;
   color: var(--text-400);
   white-space: nowrap;
+}
+
+/* 游客引导卡片 */
+.guest-guide {
+  position: fixed;
+  left: 16px;
+  right: 16px;
+  bottom: calc(84px + env(safe-area-inset-bottom));
+  z-index: 95;
+  max-width: 520px;
+  margin: 0 auto;
+  background: rgba(255, 255, 255, 0.97);
+  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: blur(20px);
+  border: 1px solid var(--bg-300);
+  border-radius: 18px;
+  box-shadow: 0 16px 40px -10px rgba(0, 0, 0, 0.18);
+  padding: 14px 16px;
+}
+.guest-guide-body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.guest-guide-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-800);
+}
+.guest-guide-desc {
+  font-size: 12px;
+  color: var(--text-500);
+  line-height: 1.5;
+}
+.guest-guide-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 6px;
+}
+.guide-btn {
+  flex: 1;
+  padding: 9px 0;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 600;
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+  transition: transform 0.15s, opacity 0.15s;
+}
+.guide-btn:active {
+  transform: scale(0.98);
+}
+.guide-btn--ghost {
+  background: var(--bg-100);
+  color: var(--text-600);
+}
+.guide-btn--primary {
+  background: var(--brand-500);
+  color: #fff;
+}
+
+/* 引导卡片动画 */
+.guide-enter-active,
+.guide-leave-active {
+  transition: opacity 0.25s, transform 0.25s;
+}
+.guide-enter-from,
+.guide-leave-to {
+  opacity: 0;
+  transform: translateY(12px);
 }
 
 /* RESPONSIVE Mobile */

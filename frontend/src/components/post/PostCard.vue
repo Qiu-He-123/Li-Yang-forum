@@ -18,6 +18,7 @@ import { likeTarget, unlikeTarget, favoritePost, unfavoritePost, reportTarget } 
 import { useSessionStore } from '../../stores/session'
 import { usePostStore } from '../../stores/post'
 import { useInteractionStore } from '../../stores/interaction'
+import { useUIStore } from '../../stores/ui'
 import type { Post } from '../../types/api'
 
 const props = defineProps<{
@@ -29,6 +30,7 @@ const emit = defineEmits<{ (e: 'edit', post: Post): void; (e: 'deleted', postId:
 const session = useSessionStore()
 const postStore = usePostStore()
 const interactionStore = useInteractionStore()
+const uiStore = useUIStore()
 const router = useRouter()
 
 const showComments = ref(false)
@@ -93,7 +95,7 @@ function timeAgo(iso?: string | null): string {
 
 async function toggleLike() {
   if (!session.userId) {
-    toast.error('请先登录')
+    uiStore.openAuthDialog()
     return
   }
   likeLoading.value = true
@@ -116,7 +118,7 @@ async function toggleLike() {
 
 async function toggleFavorite() {
   if (!session.userId) {
-    toast.error('请先登录')
+    uiStore.openAuthDialog()
     return
   }
   favLoading.value = true
@@ -148,6 +150,14 @@ function goDetail() {
   }
   // 游客可查看帖子详情
   router.push(`/post/${props.post.id}`)
+}
+
+function openReport() {
+  if (!session.userId) {
+    uiStore.openAuthDialog()
+    return
+  }
+  reportDialogVisible.value = true
 }
 
 async function onDelete() {
@@ -279,7 +289,7 @@ function goTagSearch(tag: string) {
         <Icon name="bookmark" :size="14" />
         <span>{{ favorited ? '已藏' : '收藏' }}</span>
       </button>
-      <button class="action-btn" type="button" @click="reportDialogVisible = true">
+      <button class="action-btn" type="button" @click="openReport">
         <Icon name="flag" :size="14" />
         <span>举报</span>
       </button>

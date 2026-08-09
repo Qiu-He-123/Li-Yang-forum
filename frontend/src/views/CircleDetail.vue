@@ -23,6 +23,7 @@ import InfiniteScrollFooter from '../components/common/InfiniteScrollFooter.vue'
 import { useInfiniteScroll } from '../composables/useInfiniteScroll'
 import { useCircleStore } from '../stores/circle'
 import { useSessionStore } from '../stores/session'
+import { useUIStore } from '../stores/ui'
 import { listCirclePosts } from '../api/circle'
 import {
   addCircleAdmin,
@@ -36,6 +37,7 @@ const route = useRoute()
 const router = useRouter()
 const circleStore = useCircleStore()
 const session = useSessionStore()
+const uiStore = useUIStore()
 
 const slug = computed(() => String(route.params.slug ?? ''))
 const circle = ref<CircleDetail | null>(null)
@@ -164,7 +166,7 @@ function onTabChange(key: typeof activeTab.value) {
 async function onToggleFollow() {
   if (!circle.value) return
   if (!session.userId) {
-    toast.info('请先登录')
+    uiStore.openAuthDialog()
     return
   }
   followLoading.value = true

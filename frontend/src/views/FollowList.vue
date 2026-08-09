@@ -16,11 +16,13 @@ import { toast } from '../components/native/Toast'
 import { fetchUser } from '../api/user'
 import { listFollowers, listFollowing, followUser, unfollowUser } from '../api/follow'
 import { useSessionStore } from '../stores/session'
+import { useUIStore } from '../stores/ui'
 import type { FollowUser, Profile } from '../types/api'
 
 const route = useRoute()
 const router = useRouter()
 const session = useSessionStore()
+const uiStore = useUIStore()
 
 const userId = computed(() => Number(route.params.id))
 const isFollowers = computed(() => route.name === 'user-followers')
@@ -73,7 +75,7 @@ async function loadList() {
 
 async function toggleFollow(user: FollowUser & { loading?: boolean }) {
   if (!session.userId) {
-    toast.info('请先登录')
+    uiStore.openAuthDialog()
     return
   }
   if (user.id === session.userId) return

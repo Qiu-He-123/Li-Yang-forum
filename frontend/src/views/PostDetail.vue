@@ -31,6 +31,7 @@ import { useSessionStore } from '../stores/session'
 import { useInteractionStore } from '../stores/interaction'
 import { useFollowStore } from '../stores/follow'
 import { usePostStore } from '../stores/post'
+import { useUIStore } from '../stores/ui'
 import type { CommentItem, MentionUser, Post } from '../types/api'
 
 const route = useRoute()
@@ -39,6 +40,7 @@ const session = useSessionStore()
 const interactionStore = useInteractionStore()
 const followStore = useFollowStore()
 const postStore = usePostStore()
+const uiStore = useUIStore()
 
 const postId = ref<number>(Number(route.params.id))
 const post = ref<Post | null>(null)
@@ -197,7 +199,7 @@ function onOptionClick(optionId: number) {
   // 已投票或已截止：仅展示，不可点
   if (poll.value.user_voted || poll.value.is_expired) return
   if (!session.userId) {
-    toast.info('请先登录后投票')
+    uiStore.openAuthDialog()
     return
   }
   // 单选/多选统一行为：切换勾选状态，等用户点"提交投票"
@@ -280,7 +282,7 @@ function onCommentCountUpdated(total: number) {
 async function onToggleLike() {
   if (!post.value) return
   if (!session.userId) {
-    toast.info('请先登录')
+    uiStore.openAuthDialog()
     return
   }
   likeLoading.value = true
@@ -330,7 +332,7 @@ async function onToggleCommentLike(item: CommentItem) {
 async function onToggleFavorite() {
   if (!post.value) return
   if (!session.userId) {
-    toast.info('请先登录')
+    uiStore.openAuthDialog()
     return
   }
   favLoading.value = true
@@ -374,7 +376,7 @@ async function onShare() {
 async function onToggleFollow() {
   if (!post.value?.author_id) return
   if (!session.userId) {
-    toast.info('请先登录')
+    uiStore.openAuthDialog()
     return
   }
   followLoading.value = true

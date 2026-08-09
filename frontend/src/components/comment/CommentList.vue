@@ -321,17 +321,23 @@ function onCountUpdated(totalCount: number) {
 
     <!-- 底部评论输入框（固定在视口底部，TabBar 上方） -->
     <div class="comment-input">
-      <input
-        v-model="draft"
-        class="comment-input-field"
-        type="text"
-        placeholder="写评论…"
-        :disabled="submitting"
-        @keyup.enter="submit"
-      />
-      <button class="btn btn-primary btn-sm" type="button" :disabled="submitting" @click="submit">
-        {{ submitting ? '发送中…' : '发送' }}
+      <button v-if="!session.userId" class="comment-guest-btn" type="button" @click="uiStore.openAuthDialog()">
+        <Icon name="log-in" :size="15" />
+        登录后参与评论
       </button>
+      <template v-else>
+        <input
+          v-model="draft"
+          class="comment-input-field"
+          type="text"
+          placeholder="写评论…"
+          :disabled="submitting"
+          @keyup.enter="submit"
+        />
+        <button class="btn btn-primary btn-sm" type="button" :disabled="submitting" @click="submit">
+          {{ submitting ? '发送中…' : '发送' }}
+        </button>
+      </template>
     </div>
   </div>
 </template>
@@ -444,6 +450,28 @@ function onCountUpdated(totalCount: number) {
   backdrop-filter: blur(16px);
   border-top: 0.5px solid var(--bg-300);
   box-shadow: 0 -2px 12px rgba(0, 0, 0, 0.04);
+}
+
+/* 游客评论入口 */
+.comment-guest-btn {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 38px;
+  border-radius: 999px;
+  border: 1px dashed var(--brand-300, #7cb8ff);
+  background: var(--brand-50);
+  color: var(--brand-600);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.15s;
+}
+.comment-guest-btn:hover {
+  background: var(--brand-100);
 }
 
 /* 移动端：TabBar 高度不同，输入框宽度全屏 */

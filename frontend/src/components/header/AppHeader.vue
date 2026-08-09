@@ -169,8 +169,9 @@ function onUserCommand(command: string) {
             </div>
           </transition>
         </div>
-        <button v-else class="icon-btn" aria-label="登录" @click="uiStore.openAuthDialog()">
+        <button v-else class="login-btn" aria-label="登录/注册" @click="uiStore.openAuthDialog()">
           <Icon name="log-in" :size="20" />
+          <span>登录 / 注册</span>
         </button>
       </div>
     </div>
@@ -278,6 +279,24 @@ function onUserCommand(command: string) {
 .icon-btn:hover {
   background: var(--bg-100);
   color: var(--text-800);
+}
+.login-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 34px;
+  padding: 0 14px;
+  border-radius: 999px;
+  border: 1px solid var(--brand-500);
+  background: var(--brand-50);
+  color: var(--brand-600);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.login-btn:hover {
+  background: var(--brand-100);
 }
 .avatar-btn {
   width: 32px;
@@ -429,6 +448,10 @@ function onUserCommand(command: string) {
   .icon-btn {
     width: 34px;
     height: 34px;
+  }
+  .login-btn {
+    padding: 0 12px;
+    font-size: 12px;
   }
   .brand-text {
     display: none;

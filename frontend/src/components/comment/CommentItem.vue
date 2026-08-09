@@ -12,6 +12,7 @@ import { deleteComment } from '../../api/comment'
 import { likeTarget, unlikeTarget } from '../../api/interaction'
 import { useSessionStore } from '../../stores/session'
 import { useInteractionStore } from '../../stores/interaction'
+import { useUIStore } from '../../stores/ui'
 import { formatRelative } from '../../utils/time'
 import AiStatusBadge from '../common/AiStatusBadge.vue'
 import BadgeIcon from '../common/BadgeIcon.vue'
@@ -33,6 +34,7 @@ const emit = defineEmits<{
 
 const session = useSessionStore()
 const interactionStore = useInteractionStore()
+const uiStore = useUIStore()
 const likeLoading = ref(false)
 const deleteDialogVisible = ref(false)
 
@@ -62,7 +64,7 @@ function timeAgo(iso?: string | null): string {
 
 async function toggleLike() {
   if (!session.userId) {
-    toast.error('请先登录')
+    uiStore.openAuthDialog()
     return
   }
   likeLoading.value = true

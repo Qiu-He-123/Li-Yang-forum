@@ -45,8 +45,8 @@ const tabs = computed<TabItem[]>(() => [
   },
   {
     key: 'me',
-    label: '我的',
-    icon: 'user',
+    label: session.userId ? '我的' : '登录',
+    icon: session.userId ? 'user' : 'log-in',
     to: session.userId ? `/user/${session.userId}` : '/',
     requiresAuth: true,
   },

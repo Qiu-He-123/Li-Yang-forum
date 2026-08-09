@@ -30,6 +30,7 @@ import { useInfiniteScroll } from '../composables/useInfiniteScroll'
 import { Dialog, Icon } from '../components/native'
 import { toast } from '../components/native/Toast'
 import { useSessionStore } from '../stores/session'
+import { useUIStore } from '../stores/ui'
 import { useUserStore } from '../stores/user'
 import { usePostStore } from '../stores/post'
 import { useCircleStore } from '../stores/circle'
@@ -43,6 +44,7 @@ import type { Circle, Post } from '../types/api'
 const route = useRoute()
 const router = useRouter()
 const session = useSessionStore()
+const uiStore = useUIStore()
 const userStore = useUserStore()
 const postStore = usePostStore()
 const circleStore = useCircleStore()
@@ -268,7 +270,7 @@ onActivated(() => {
 
 async function onTabChange(tab: 'joined' | 'all') {
   if (tab === 'joined' && !session.userId) {
-    toast.info('请先登录后查看「我加入的」')
+    uiStore.openAuthDialog()
     return
   }
   await router.replace({ query: { ...route.query, tab } })
@@ -279,7 +281,7 @@ async function onJoinCircle(e: Event, slug: string) {
   e.stopPropagation()
   e.preventDefault()
   if (!session.userId) {
-    toast.info('请先登录')
+    uiStore.openAuthDialog()
     return
   }
   const circle = circleStore.circles.find((c) => c.slug === slug)
@@ -319,7 +321,7 @@ function scrollToAllCircles() {
 
 function openSearch() {
   if (!session.userId) {
-    toast.info('请先登录')
+    uiStore.openAuthDialog()
     return
   }
   router.push('/search')
@@ -360,7 +362,7 @@ const applyForm = reactive({
 
 function openApplyDialog() {
   if (!session.userId) {
-    toast.info('请先登录后再创建吧')
+    uiStore.openAuthDialog()
     return
   }
   // 重置表单

@@ -3,11 +3,8 @@ import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 
 import { usePostStore } from '../../stores/post'
-import { useSessionStore } from '../../stores/session'
-import { ElMessage } from 'element-plus'
 
 const postStore = usePostStore()
-const session = useSessionStore()
 const router = useRouter()
 
 // 取当前列表中热度（赞 + 评论）最高的 8 条作为热帖榜
@@ -18,10 +15,6 @@ const hotPosts = computed(() =>
 )
 
 function goDetail(id: number) {
-  if (!session.userId) {
-    ElMessage.error('请先登录')
-    return
-  }
   router.push(`/post/${id}`)
 }
 </script>

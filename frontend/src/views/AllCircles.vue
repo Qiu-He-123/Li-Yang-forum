@@ -13,11 +13,13 @@ import EmptyState from '../components/common/EmptyState.vue'
 import { Icon } from '../components/native'
 import { toast } from '../components/native/Toast'
 import { useSessionStore } from '../stores/session'
+import { useUIStore } from '../stores/ui'
 import { useCircleStore } from '../stores/circle'
 import type { Circle } from '../types/api'
 
 const router = useRouter()
 const session = useSessionStore()
+const uiStore = useUIStore()
 const circleStore = useCircleStore()
 
 type SortKey = 'heat' | 'members' | 'name'
@@ -95,7 +97,7 @@ async function onJoinCircle(e: Event, circle: Circle) {
   e.stopPropagation()
   e.preventDefault()
   if (!session.userId) {
-    toast.info('请先登录')
+    uiStore.openAuthDialog()
     return
   }
   joiningSlug.value = circle.slug
