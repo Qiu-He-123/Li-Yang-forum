@@ -157,3 +157,20 @@ def create_post(client: TestClient, school_id: int, content: str, is_public: boo
     resp = client.post("/posts", json=body).json()
     assert resp["code"] == 0, f"create post failed: {resp}"
     return resp["data"]
+
+
+def approve_comment(client: TestClient, comment_id: int) -> None:
+    """管理员人工审核通过一条评论（测试环境 AI 关闭，评论默认转人工审核）。"""
+    from app.core.database import SessionLocal
+    from app.core.security import hash_password
+    from app.models import Admin
+
+    with SessionLocal() as db:
+        if not db.query(Admin).filter(Admin.username == "t9_comment_admin").first():
+            db.add(Admin(username="t9_comment_admin", password_hash=hash_password("Admin@2026Pwd"), role="admin"))
+            db.commit()
+    resp = client.post("/admin/login", json={"username": "t9_comment_admin", "password": "Admin@2026Pwd"}).json()
+    assert resp["code"] == 0, f"admin login failed: {resp}"
+    audit = client.patch(f"/admin/comments/{comment_id}/audit", json={"ai_status": "approved"}).json()
+    assert audit["code"] == 0, f"approve comment failed: {audit}"
+    client.post("/admin/logout")

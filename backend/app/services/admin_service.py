@@ -413,6 +413,31 @@ def admin_audit_comment(comment_id: int, ai_status: str, request: Request, db: S
         db.add(notif)
     db.commit()
     db.refresh(c)
+    # 审核通过（且此前未通过）：帖子评论数 +1、更新最后回复时间、通知作者
+    # 未通过的评论不计数不通知，避免"隐藏了但还能收到通知/计数"的假拦截
+    if ai_status == "approved" and old != "approved":
+        try:
+            from app.services.notification_service import create_notification
+            post = db.get(Post, c.post_id)
+            if post:
+                post.comment_count = (post.comment_count or 0) + 1
+                from datetime import datetime as _dt
+                post.last_reply_at = _dt.now()
+            if post and post.author_id and post.author_id != c.user_id:
+                content_preview = (c.content[:30] + "...") if len(c.content) > 30 else c.content
+                create_notification(
+                    db,
+                    post.author_id,
+                    "收到评论",
+                    f"你有一条新评论：{content_preview}",
+                    ntype="comment",
+                    sender_id=c.user_id,
+                    reference_type="post",
+                    reference_id=c.post_id,
+                )
+            db.commit()
+        except Exception:
+            pass
     # 徽章自动发放：审核通过评论数达到阈值自动发徽章（含人工审核通过场景）
     if ai_status == "approved":
         try:

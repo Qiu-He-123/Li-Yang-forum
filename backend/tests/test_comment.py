@@ -13,7 +13,7 @@ import pytest
 
 from app.core.database import SessionLocal
 from app.models import Post
-from tests.conftest import create_post, register
+from tests.conftest import approve_comment, create_post, register
 
 
 def test_create_comment_success(client):
@@ -107,17 +107,24 @@ def test_delete_comment_rejects_non_author(client):
 
 
 def test_comment_count_synced_from_backend(client):
-    """T6-6：发评论返回 post_comment_count，前端用它覆盖。"""
+    """T6-6：发评论返回 post_comment_count（审核中的不计入），审核通过后计数生效。"""
     info = register(client, "13702000008", "计数员")
     post = create_post(client, info["school_id"], "计数测试帖")
     # 发评论
     c = client.post(f"/posts/{post['id']}/comments", json={"content": "评论 1"}).json()
     # 应返回 post_comment_count 字段
     assert "post_comment_count" in c["data"], "T6-6: 应返回 post_comment_count"
-    assert c["data"]["post_comment_count"] == 1
+    # 评论在审核中：不计入评论数
+    assert c["data"]["post_comment_count"] == 0
     # 再发一条
     c2 = client.post(f"/posts/{post['id']}/comments", json={"content": "评论 2"}).json()
-    assert c2["data"]["post_comment_count"] == 2
+    assert c2["data"]["post_comment_count"] == 0
+
+    # 审核通过后：评论数生效（2 条）
+    approve_comment(client, c["data"]["id"])
+    approve_comment(client, c2["data"]["id"])
+    detail = client.get(f"/posts/{post['id']}").json()["data"]
+    assert detail["comment_count"] == 2
 
 
 def test_comment_dict_contains_user_id(client):
@@ -163,10 +170,16 @@ def test_delete_root_comment_cascades_replies(client):
     root = client.post(f"/posts/{post['id']}/comments", json={"content": "根评论"}).json()
     root_id = root["data"]["id"]
     # 发 2 条回复
-    client.post(f"/posts/{post['id']}/comments", json={"content": "回复 A", "parent_id": root_id})
-    client.post(f"/posts/{post['id']}/comments", json={"content": "回复 B", "parent_id": root_id})
-    # 此时 comment_count 应为 3
-    assert root["data"]["post_comment_count"] == 1
+    reply_a = client.post(f"/posts/{post['id']}/comments", json={"content": "回复 A", "parent_id": root_id}).json()
+    reply_b = client.post(f"/posts/{post['id']}/comments", json={"content": "回复 B", "parent_id": root_id}).json()
+    # 审核中的评论不计入（post_comment_count 为 0）
+    assert root["data"]["post_comment_count"] == 0
+    # 全部审核通过后 comment_count 应为 3
+    approve_comment(client, root_id)
+    approve_comment(client, reply_a["data"]["id"])
+    approve_comment(client, reply_b["data"]["id"])
+    detail = client.get(f"/posts/{post['id']}").json()["data"]
+    assert detail["comment_count"] == 3
     # 列表应有 3 条
     listing = client.get(f"/posts/{post['id']}/comments").json()
     items = listing["data"]["items"] if isinstance(listing["data"], dict) else listing["data"]
@@ -195,7 +208,10 @@ def test_delete_reply_does_not_cascade(client):
     reply_a = client.post(
         f"/posts/{post['id']}/comments", json={"content": "回复 A", "parent_id": root_id}
     ).json()
-    client.post(f"/posts/{post['id']}/comments", json={"content": "回复 B", "parent_id": root_id})
+    reply_b = client.post(f"/posts/{post['id']}/comments", json={"content": "回复 B", "parent_id": root_id}).json()
+    approve_comment(client, root_id)
+    approve_comment(client, reply_a["data"]["id"])
+    approve_comment(client, reply_b["data"]["id"])
 
     # 删除回复 A
     resp = client.delete(f"/posts/{post['id']}/comments/{reply_a['data']['id']}").json()
@@ -206,6 +222,37 @@ def test_delete_reply_does_not_cascade(client):
     listing = client.get(f"/posts/{post['id']}/comments").json()
     items = listing["data"]["items"] if isinstance(listing["data"], dict) else listing["data"]
     assert len(items) == 2
+
+
+def test_pending_comment_not_notified_or_counted(client):
+    """审核中的评论：作者收不到通知、评论数不增加（修复假拦截）。"""
+    info_a = register(client, "13702000014", "帖子作者A")
+    post = create_post(client, info_a["school_id"], "评论通知测试帖")
+    client.post("/auth/logout")
+    info_b = register(client, "13702000015", "评论者B")
+    comment = client.post(f"/posts/{post['id']}/comments", json={"content": "待审核的评论内容"}).json()
+    assert comment["code"] == 0
+    assert comment["data"]["post_comment_count"] == 0
+
+    # 帖子作者 A 登录：不应收到任何"收到评论"通知
+    client.post("/auth/logout")
+    client.post("/auth/login", json={"username": "13702000014", "password": "Pwd@2026"})
+    notifs = client.get("/notifications", params={"type": "comment"}).json()["data"]
+    assert notifs["total"] == 0, "评论审核中不应通知作者"
+    # 帖子评论数仍为 0（帖子详情真实计数）
+    detail = client.get(f"/posts/{post['id']}").json()["data"]
+    assert detail["comment_count"] == 0
+
+    # 管理员审核通过后：作者收到通知，评论数变为 1
+    client.post("/auth/logout")
+    register(client, "13702000016", "临时登录保持B")
+    approve_comment(client, comment["data"]["id"])
+    client.post("/auth/logout")
+    client.post("/auth/login", json={"username": "13702000014", "password": "Pwd@2026"})
+    notifs2 = client.get("/notifications", params={"type": "comment"}).json()["data"]
+    assert notifs2["total"] >= 1
+    detail2 = client.get(f"/posts/{post['id']}").json()["data"]
+    assert detail2["comment_count"] == 1
 
 
 def test_post_detail_repairs_stale_comment_count(client):

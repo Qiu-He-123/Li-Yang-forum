@@ -41,6 +41,23 @@ DEFAULT_INTEREST_TAGS = [
     "美食", "旅行", "学习", "宠物", "舞蹈", "绘画", "其他",
 ]
 
+
+def _spawn_bottle_audit(bottle_id: int) -> None:
+    """启动漂流瓶后台 AI 审核。
+
+    瓶子路由是同步函数，事件循环中可能不存在 asyncio.create_task 可用；
+    检测到无运行中事件循环时回退到守护线程执行（asyncio.run 新建循环）。
+    """
+    try:
+        asyncio.get_running_loop()
+        asyncio.create_task(audit_bottle_background(bottle_id))
+    except RuntimeError:
+        import threading
+        threading.Thread(
+            target=lambda: asyncio.run(audit_bottle_background(bottle_id)),
+            daemon=True,
+        ).start()
+
 # 有效年龄范围（13~18 岁）
 AGE_MIN, AGE_MAX = 13, 18
 
@@ -185,7 +202,7 @@ def create_bottle(
 
     # 后台异步 AI 审核（仅 pending 状态）
     if initial_audit_status == "pending":
-        asyncio.create_task(audit_bottle_background(bottle.id))
+        _spawn_bottle_audit(bottle.id)
 
     school = db.get(School, bottle.school_id)
     return _bottle_dict(bottle, author=user, school_name=school.name if school else None, show_contact=True)

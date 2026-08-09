@@ -16,6 +16,7 @@
 from __future__ import annotations
 
 import json
+from datetime import datetime
 from typing import Any
 
 from sqlalchemy.orm import Session
@@ -360,6 +361,27 @@ async def audit_comment_background(comment_id: int) -> None:
             elif audit.get("pass", True):
                 comment.ai_status = "approved"
                 comment.reject_reason = None
+                # 审核通过：帖子评论数 +1、更新最后回复时间、通知作者（未通过前不计数不通知）
+                try:
+                    from app.models import Post as _Post
+                    post = db.get(_Post, comment.post_id)
+                    if post:
+                        post.comment_count = (post.comment_count or 0) + 1
+                        post.last_reply_at = datetime.now()
+                    if post and post.author_id and post.author_id != comment.user_id:
+                        content_preview = (comment.content[:30] + "...") if len(comment.content) > 30 else comment.content
+                        create_notification(
+                            db,
+                            post.author_id,
+                            "收到评论",
+                            f"你有一条新评论：{content_preview}",
+                            ntype="comment",
+                            sender_id=comment.user_id,
+                            reference_type="post",
+                            reference_id=comment.post_id,
+                        )
+                except Exception:
+                    pass
                 # 徽章自动发放：审核通过评论数达到阈值自动发徽章
                 try:
                     from sqlalchemy import func as _func

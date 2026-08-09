@@ -515,8 +515,13 @@ def get_post(post_id: int, db: Session, user: User | None) -> dict:
         data["view_block_reason"] = post.ai_status
         return data
 
-    # 查询真实评论数用于响应展示（不写回 post.comment_count，避免每次详情都触发写锁）
-    real_comment_count = db.scalar(select(func.count(Comment.id)).where(Comment.post_id == post_id)) or 0
+    # 查询真实评论数用于响应展示（只统计已审核通过的，审核中的不计入）
+    real_comment_count = db.scalar(
+        select(func.count(Comment.id)).where(
+            Comment.post_id == post_id,
+            Comment.ai_status == "approved",
+        )
+    ) or 0
     data = post_dict(post, comment_count=real_comment_count, db=db)
     data["is_viewable"] = True
     return data

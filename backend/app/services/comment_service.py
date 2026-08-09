@@ -178,9 +178,8 @@ async def create_comment(post_id: int, payload: CommentCreate, request: Request,
         content=payload.content,
         ai_status=initial_ai_status,
     )
-    post.comment_count += 1
-    # 更新最后回复时间
-    post.last_reply_at = datetime.now()
+    # 评论审核通过前不计数、不更新最后回复时间（未通过的评论只是"隐藏"而非真拦截）
+    # 计数与作者通知统一在审核通过时进行（见 audit_comment_background / admin_audit_comment）
     db.add(comment)
     db.flush()
     log_user_action(
@@ -190,19 +189,6 @@ async def create_comment(post_id: int, payload: CommentCreate, request: Request,
         json.dumps({"comment_id": comment.id, "post_id": post_id, "parent_id": payload.parent_id}, ensure_ascii=False),
         _extract_ip(request),
     )
-    # T5-5：通知帖子作者被评论（不通知自己）
-    if post.author_id and post.author_id != user.id:
-        content_preview = (payload.content[:30] + "...") if len(payload.content) > 30 else payload.content
-        create_notification(
-            db,
-            post.author_id,
-            "收到评论",
-            f"{user.nickname} 评论了你的帖子：{content_preview}",
-            ntype="comment",
-            sender_id=user.id,
-            reference_type="post",
-            reference_id=post_id,
-        )
     db.commit()
     db.refresh(comment)
 
@@ -224,8 +210,15 @@ async def create_comment(post_id: int, payload: CommentCreate, request: Request,
         )
         db.commit()
 
-    # T6-6：返回 post_comment_count，前端用此值覆盖，避免前后端不一致
-    return {**comment_dict(comment, user), "post_comment_count": post.comment_count}
+    # T6-6：返回已审核通过的评论数（审核中的评论不计入），前端用此值覆盖
+    from sqlalchemy import func as _func
+    approved_count = db.scalar(
+        select(_func.count(Comment.id)).where(
+            Comment.post_id == post_id,
+            Comment.ai_status == "approved",
+        )
+    ) or 0
+    return {**comment_dict(comment, user), "post_comment_count": int(approved_count)}
 
 
 async def _audit_comment_background(comment_id: int, content: str) -> None:
@@ -283,9 +276,15 @@ def delete_comment(post_id: int, comment_id: int, request: Request, db: Session,
     db.flush()  # 确保删除生效后再统计
 
     if post:
-        # 删除后重新统计实际评论数，保证 comment_count 与数据库一致
+        # 删除后重新统计"已审核通过"的评论数（审核中的不计入），
+        # 保证 comment_count 与真实可见评论一致
         from sqlalchemy import func as _func
-        real_count = db.scalar(select(_func.count(Comment.id)).where(Comment.post_id == post_id)) or 0
+        real_count = db.scalar(
+            select(_func.count(Comment.id)).where(
+                Comment.post_id == post_id,
+                Comment.ai_status == "approved",
+            )
+        ) or 0
         post.comment_count = real_count
     log_user_action(db, user.id, "delete_comment", json.dumps({"comment_id": comment_id, "post_id": post_id, "cascade": deleted_count > 1, "deleted_count": deleted_count}, ensure_ascii=False), _extract_ip(request))
     db.commit()
