@@ -467,3 +467,54 @@ export function adminListUserWarningLogs(userId: number, params: { page?: number
     { params },
   )
 }
+
+// ============ 图片人工审核（图片不走 AI 审核） ============
+
+export interface AdminImage {
+  id: number
+  url: string
+  mime_type: string
+  size_bytes: number
+  is_private: boolean
+  audit_status: 'pending' | 'approved' | 'rejected'
+  user_id: number | null
+  user_nickname: string | null
+  used_in_posts: number
+  created_at: string | null
+}
+
+export interface AdminImageListPage {
+  items: AdminImage[]
+  total: number
+  counts: { pending: number; approved: number; rejected: number }
+  page: number
+  page_size: number
+}
+
+export function adminListImages(params: {
+  status?: 'pending' | 'approved' | 'rejected'
+  keyword?: string
+  page?: number
+  page_size?: number
+} = {}) {
+  return http.get<unknown, { data: { code: number; msg: string; data: AdminImageListPage } }>(
+    '/admin/images',
+    { params },
+  )
+}
+
+export function adminReviewImage(
+  imageId: number,
+  payload: { action: 'approve' | 'reject'; reject_reason?: string },
+) {
+  return http.post<
+    unknown,
+    {
+      data: {
+        code: number
+        msg: string
+        data: { id: number; url: string; audit_status: string; related_posts: number[] }
+      }
+    }
+  >(`/admin/images/${imageId}/review`, payload)
+}

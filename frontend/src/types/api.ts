@@ -167,6 +167,10 @@ export interface ImageUploadResult {
   id: number
   url: string
   thumb_url?: string
+  /** 图片审核状态：pending(待人工审核) / approved / rejected */
+  audit_status?: string
+  /** 图片审核提示（如"图片内容需人工审核"） */
+  audit_note?: string
 }
 
 /** 个人素材库图片（发帖时可复用历史上传） */

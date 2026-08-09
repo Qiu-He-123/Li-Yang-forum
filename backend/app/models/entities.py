@@ -408,6 +408,9 @@ class Image(Base, TimestampMixin):
     size_bytes: Mapped[int] = mapped_column(Integer)
     # P0-1：私密图片（学生证等敏感照片）与公开图片分离，禁止走公开静态目录
     is_private: Mapped[bool] = mapped_column(Boolean, default=False)
+    # 图片审核状态：pending(待人工审核) / approved(已通过) / rejected(已驳回)
+    # 图片不走 AI 审核，一律进入人工审核队列（后台「图片审核」页处理）
+    audit_status: Mapped[str] = mapped_column(String(20), default="pending", index=True)
 
 
 class Announcement(Base, TimestampMixin):

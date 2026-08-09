@@ -1356,6 +1356,22 @@ function onBeforeUnload(e: BeforeUnloadEvent) {
 // 提交
 const submitting = isSubmitting
 const isEditMode = () => props.postId != null
+
+/** 发帖最少有效字数（标题 + 正文合计，不含空白） */
+const MIN_POST_CHARS = 10
+
+// 人工审核提示弹窗（AI 不可用 / 图片需人工审核时不直接放行）
+const manualReviewDialogVisible = ref(false)
+const manualReviewMessage = ref('')
+
+function showManualReviewNotice(reason?: string | null) {
+  const hasImage = imageUrls.value.some((u) => u !== '__uploading__') || /图片/.test(reason || '')
+  manualReviewMessage.value = hasImage
+    ? '内容已提交，图片内容需要人工审核，审核可能较慢，请耐心等待。审核结果会第一时间通知你。'
+    : '内容已提交，AI 审核服务暂不可用（未开启/无余额/调用失败），已转人工审核。审核可能较慢，请耐心等待，审核结果会第一时间通知你。'
+  manualReviewDialogVisible.value = true
+}
+
 const canSubmit = computed(
   () => !!content.value.trim() && !!schoolId.value && !submitting.value,
 )
@@ -1398,6 +1414,14 @@ async function publish(asDraft = false) {
     toast.error('内容不能为空')
     return
   }
+  // 发帖最少字数（标题 + 正文合计），拦截"12"、"......"等灌水
+  if (!asDraft) {
+    const effective = (title.value + ' ' + content.value).replace(/\s+/g, '')
+    if (effective.length < MIN_POST_CHARS) {
+      toast.error(`内容太少，至少 ${MIN_POST_CHARS} 个字`)
+      return
+    }
+  }
   if (!schoolId.value) {
     toast.error('请选择校区')
     return
@@ -1421,12 +1445,22 @@ async function doPublish(asDraft: boolean) {
     const payload = buildPayload(asDraft) as ReturnType<typeof buildPayload> & { is_public?: boolean }
     if (!isEditMode() && !asDraft) payload.is_public = true
     if (isEditMode()) {
-      await updatePost(props.postId!, payload, silentConfig)
+      const { data } = await updatePost(props.postId!, payload, silentConfig) as unknown as {
+        data: { code: number; msg: string; data: { ai_status?: string; reject_reason?: string | null } }
+      }
       toast.success('已更新')
+      if (!asDraft && data?.data?.ai_status === 'manual_review') {
+        showManualReviewNotice(data.data.reject_reason)
+      }
       emit('updated')
     } else {
-      await createPost(payload, silentConfig)
-      toast.success(asDraft ? '草稿已保存' : '发布成功，内容审核中')
+      const { data } = await createPost(payload, silentConfig)
+      if (!asDraft && data?.data?.ai_status === 'manual_review') {
+        toast.success('已提交，进入人工审核')
+        showManualReviewNotice(data.data.reject_reason)
+      } else {
+        toast.success(asDraft ? '草稿已保存' : '发布成功，内容审核中')
+      }
       if (!asDraft) {
         resetForm()
         // 已发布的草稿 id 清理
@@ -1879,7 +1913,7 @@ defineExpose({
             <Icon name="image-plus" :size="14" />
             我的图片
           </button>
-          <span class="images-hint">已选 {{ imageUrls.length }} 张 · 最多 9 张</span>
+          <span class="images-hint">已选 {{ imageUrls.length }} 张 · 最多 9 张 · 图片需人工审核</span>
         </div>
       </div>
       <div class="image-grid">
@@ -2196,6 +2230,14 @@ defineExpose({
           type="button"
           @click="showNoCirclePrompt = false; openCircleSheet()"
         >选择圈子</button>
+      </template>
+    </NativeDialog>
+
+    <!-- 人工审核提示（AI 不可用 / 图片需人工审核时不直接放行） -->
+    <NativeDialog v-model="manualReviewDialogVisible" title="已进入人工审核" width="420px">
+      <p class="no-circle-prompt-text">{{ manualReviewMessage }}</p>
+      <template #footer>
+        <button class="btn btn-primary" type="button" @click="manualReviewDialogVisible = false">我知道了</button>
       </template>
     </NativeDialog>
   </div>

@@ -96,7 +96,7 @@ def test_update_post_by_author(client):
     post = create_post(client, info["school_id"], "原帖内容")
     resp = client.patch(
         f"/posts/{post['id']}",
-        json={"content": "已编辑：新内容"},
+        json={"content": "已编辑：新内容补充文字"},
     ).json()
     assert resp["code"] == 0
     assert "已编辑" in resp["data"]["content"]
@@ -111,7 +111,7 @@ def test_update_post_rejects_non_author(client):
     # 注册 B
     register(client, "13701000009", "用户B")
     # B 尝试编辑 A 的帖子
-    resp = client.patch(f"/posts/{post['id']}", json={"content": "B 篡改"}).json()
+    resp = client.patch(f"/posts/{post['id']}", json={"content": "B 篡改内容补充"}).json()
     assert resp["code"] != 0
 
 

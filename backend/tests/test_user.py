@@ -122,10 +122,21 @@ def test_users_me_rejects_unauthenticated(client):
 
 
 def test_profile_post_count_increments(client):
-    """发帖后 post_count +1。"""
+    """发帖后 post_count +1（仅统计审核通过的作品，人工审核中的不算）。"""
     info = register(client, "13704000009", "计数员")
     before = client.get("/users/me").json()["data"]["post_count"]
-    create_post(client, info["school_id"], "新帖子")
+    post = create_post(client, info["school_id"], "新帖子内容")
+    # 人工审核通过后再计数（AI 关闭时新帖进入人工审核）
+    from app.core.database import SessionLocal
+    from app.core.security import hash_password
+    from app.models import Admin
+    with SessionLocal() as db:
+        if not db.query(Admin).filter(Admin.username == "post_count_admin").first():
+            db.add(Admin(username="post_count_admin", password_hash=hash_password("Admin@2026Pwd"), role="admin"))
+            db.commit()
+    client.post("/admin/login", json={"username": "post_count_admin", "password": "Admin@2026Pwd"})
+    client.patch(f"/admin/posts/{post['id']}/audit", json={"ai_status": "approved"})
+    client.post("/admin/logout")
     after = client.get("/users/me").json()["data"]["post_count"]
     assert after == before + 1
 

@@ -195,11 +195,21 @@ async def create_post(payload: PostCreate, request: Request, db: Session, user: 
     if ban_status["is_banned"]:
         raise HTTPException(status_code=403, detail=ErrorCode.USER_BANNED)
 
-    # AI 审核可用性检查：DeepSeek 或 OpenAI 任一可用即触发审核
-    # 之前只检查 OpenAI，导致仅配置 DeepSeek 时审核被跳过
+    # 审核策略：
+    # 1. 含图片 → 图片不走 AI 审核，一律人工审核（帖子同步转人工审核）
+    # 2. 无图片且 AI 可用 → 后台异步 AI 审核（pending）
+    # 3. 无图片且 AI 不可用（未开启/无余额/调用失败）→ 不直接放行，转人工审核
     from app.services import audit_service
-    ai_available = audit_service.is_ai_audit_available(db)
-    initial_ai_status = "pending" if ai_available else "approved"
+    from app.services.notification_service import create_notification
+    if payload.image_urls:
+        initial_ai_status = "manual_review"
+        manual_reason = "图片内容需人工审核"
+    elif audit_service.is_ai_audit_available(db):
+        initial_ai_status = "pending"
+        manual_reason = None
+    else:
+        initial_ai_status = "manual_review"
+        manual_reason = "AI 审核服务暂不可用，已转人工审核"
 
     # 阶段二：处理话题（草稿也支持）
     topic_id: int | None = None
@@ -219,6 +229,7 @@ async def create_post(payload: PostCreate, request: Request, db: Session, user: 
         is_draft=payload.is_draft,
         tags=json.dumps([], ensure_ascii=False),  # 标签由后台 AI 审核时生成
         ai_status=initial_ai_status,
+        reject_reason=manual_reason,
         # 圈子扩展字段
         title=payload.title,
         is_original=payload.is_original,
@@ -274,10 +285,23 @@ async def create_post(payload: PostCreate, request: Request, db: Session, user: 
             from app.services import topic_service
             topic_service.notify_topic_followers(db, post.id, topic_id, user.id)
             db.commit()
+        # 进入人工审核时立即通知作者（AI 开不起了 / 图片需人工审核）
+        if initial_ai_status == "manual_review":
+            create_notification(
+                db,
+                user.id,
+                "内容已进入人工审核",
+                f"您的帖子已提交，当前进入人工审核（{manual_reason}）。"
+                "审核可能较慢，请耐心等待，审核结果会第一时间通知您。",
+                ntype="system",
+                reference_type="post",
+                reference_id=post.id,
+            )
+            db.commit()
 
     # 后台异步审核（仅 pending 状态触发；草稿不审核）
     if initial_ai_status == "pending" and not payload.is_draft:
-        asyncio.create_task(audit_service.audit_post_background(post.id, payload.content))
+        asyncio.create_task(audit_service.audit_post_background(post.id))
 
     return post_dict(post, db=db)
 
@@ -313,12 +337,18 @@ async def update_post(post_id: int, payload: PostUpdate, request: Request, db: S
         raise HTTPException(status_code=400, detail=ErrorCode.SCHOOL_NOT_FOUND)
     if "content" in changes:
         post.content = changes.pop("content")
-        # 内容变更需重新审核：标记 pending，后台异步审核（与发帖一致）
+        # 内容变更需重新审核：标记 pending（AI 可用时）或人工审核（AI 不可用/含图）
         from app.services import audit_service
-        if audit_service.is_ai_audit_available(db):
+        from app.services.notification_service import create_notification
+        if post.image_urls and json.loads(post.image_urls or "[]"):
+            post.ai_status = "manual_review"
+            post.reject_reason = "图片内容需人工审核"
+        elif audit_service.is_ai_audit_available(db):
             post.ai_status = "pending"
+            post.reject_reason = None
         else:
-            post.ai_status = "approved"
+            post.ai_status = "manual_review"
+            post.reject_reason = "AI 审核服务暂不可用，已转人工审核"
         # 编辑后清空旧标签，等审核通过后由后台重新生成
         post.tags = json.dumps([], ensure_ascii=False)
     if "image_urls" in changes:
@@ -397,7 +427,23 @@ async def update_post(post_id: int, payload: PostUpdate, request: Request, db: S
     # 内容变更后触发后台异步审核（与发帖一致）
     if "content" in payload.model_dump(exclude_unset=True) and post.ai_status == "pending" and not post.is_draft:
         from app.services import audit_service
-        asyncio.create_task(audit_service.audit_post_background(post.id, post.content))
+        asyncio.create_task(audit_service.audit_post_background(post.id))
+    elif post.ai_status == "manual_review" and not post.is_draft:
+        # 编辑后进入人工审核：通知作者
+        try:
+            from app.services.notification_service import create_notification
+            create_notification(
+                db,
+                user.id,
+                "内容已进入人工审核",
+                f"您的帖子修改后进入人工审核（{post.reject_reason or 'AI 审核服务暂不可用'}）。审核可能较慢，请耐心等待。",
+                ntype="system",
+                reference_type="post",
+                reference_id=post_id,
+            )
+            db.commit()
+        except Exception:
+            pass
 
     return post_dict(post, db=db)
 

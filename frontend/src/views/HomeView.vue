@@ -521,14 +521,6 @@ onUnmounted(() => {
               </div>
             </div>
           </article>
-
-          <InfiniteScrollFooter
-            :loading="loadMoreLoading"
-            :error="loadMoreError"
-            :has-more="postStore.hasMore"
-            :has-items="postStore.posts.length > 0"
-            @retry="retryLoadMore"
-          />
         </div>
 
         <div v-else-if="postStore.error" class="feed-error">
@@ -536,6 +528,15 @@ onUnmounted(() => {
           <button class="feed-error-btn" type="button" @click="retryFeed">重新加载</button>
         </div>
         <EmptyState v-else text="暂无帖子，发布第一条校园动态。" />
+
+        <!-- 底部状态：放在瀑布流容器之外，避免多列布局把它排到帖子右边 -->
+        <InfiniteScrollFooter
+          :loading="loadMoreLoading"
+          :error="loadMoreError"
+          :has-more="postStore.hasMore"
+          :has-items="postStore.posts.length > 0"
+          @retry="retryLoadMore"
+        />
       </section>
     </div>
   </main>

@@ -5,6 +5,9 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 
 CATEGORIES = {"普通", "表白", "表白墙", "树洞", "匿名树洞", "失物招领", "二手", "二手市场", "跳蚤市场", "学习", "学习互助", "活动", "吐槽", "校园美食", "游戏开黑", "摄影", "随机匹配", "校园问答"}
 
+# 发帖最少有效字数（标题 + 正文合计，不含空白），防止"12"、"......"等灌水
+MIN_POST_CHARS = 10
+
 
 def _validate_image_url(url: str) -> str:
     """T7-11：校验图片 URL 合法性，防止 XSS via image URL。
@@ -63,9 +66,13 @@ class PostCreate(BaseModel):
 
     @model_validator(mode="after")
     def check_content_for_publish(self) -> "PostCreate":
-        """正式发布（is_draft=False）时 content 不能为空；草稿允许空。"""
+        """正式发布（is_draft=False）时内容不能为空且达到最少字数；草稿允许空。"""
         if not self.is_draft and not self.content.strip():
             raise ValueError("内容不能为空")
+        if not self.is_draft:
+            effective = len((self.title or "").strip() + self.content.strip().replace("\n", "").replace(" ", ""))
+            if effective < MIN_POST_CHARS:
+                raise ValueError(f"内容太少，至少 {MIN_POST_CHARS} 个字")
         return self
 
 
@@ -102,6 +109,10 @@ class PostUpdate(BaseModel):
         草稿（is_draft=True）或未提供 content（None）时允许通过。"""
         if self.is_draft is False and self.content is not None and not self.content.strip():
             raise ValueError("内容不能为空")
+        if self.is_draft is False and self.content is not None:
+            effective = len((self.title or "").strip() + self.content.strip().replace("\n", "").replace(" ", ""))
+            if effective < MIN_POST_CHARS:
+                raise ValueError(f"内容太少，至少 {MIN_POST_CHARS} 个字")
         return self
 
 

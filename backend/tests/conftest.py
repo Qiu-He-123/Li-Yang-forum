@@ -142,6 +142,9 @@ def register(
 
 
 def create_post(client: TestClient, school_id: int, content: str, is_public: bool = True, is_draft: bool = False, category: str = "普通") -> dict:
+    # 发帖最少字数（标题+正文 >= 10）：短内容自动补足，避免被最小字数校验拦截
+    if len(content.replace(" ", "").replace("\n", "")) < 10:
+        content = content + "（测试补充内容）"
     body = {
         "content": content,
         "school_id": school_id,

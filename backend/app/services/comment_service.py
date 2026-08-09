@@ -165,10 +165,11 @@ async def create_comment(post_id: int, payload: CommentCreate, request: Request,
     if ban_status["is_banned"]:
         raise HTTPException(status_code=403, detail=ErrorCode.USER_BANNED)
 
-    # AI 审核可用性检查：DeepSeek 或 OpenAI 任一可用即触发审核
+    # 审核策略：AI 可用 → 后台异步审核；AI 不可用（未开启/无余额/失败）→ 转人工审核，不直接放行
     from app.services import audit_service
+    from app.services.notification_service import create_notification
     ai_available = audit_service.is_ai_audit_available(db)
-    initial_ai_status = "pending" if ai_available else "approved"
+    initial_ai_status = "pending" if ai_available else "manual_review"
 
     comment = Comment(
         post_id=post_id,
@@ -207,7 +208,21 @@ async def create_comment(post_id: int, payload: CommentCreate, request: Request,
 
     # 后台异步审核
     if initial_ai_status == "pending":
-        asyncio.create_task(audit_service.audit_comment_background(comment.id, payload.content))
+        asyncio.create_task(audit_service.audit_comment_background(comment.id))
+    else:
+        # AI 不可用：转人工审核并通知作者
+        comment.reject_reason = "AI 审核服务暂不可用，已转人工审核"
+        create_notification(
+            db,
+            user.id,
+            "评论已进入人工审核",
+            "您的评论已提交，当前进入人工审核（AI 审核服务暂不可用，未开启/无余额/调用失败）。"
+            "审核可能较慢，请耐心等待。",
+            ntype="system",
+            reference_type="comment",
+            reference_id=comment.id,
+        )
+        db.commit()
 
     # T6-6：返回 post_comment_count，前端用此值覆盖，避免前后端不一致
     return {**comment_dict(comment, user), "post_comment_count": post.comment_count}

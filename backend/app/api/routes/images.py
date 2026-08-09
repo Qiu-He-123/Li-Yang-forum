@@ -156,11 +156,19 @@ async def upload_image(
         url=url,
         mime_type=content_type,
         size_bytes=len(content),
+        # 图片不走 AI 审核，默认进入人工审核队列（后台「图片审核」页处理）
+        audit_status="pending",
     )
     db.add(image)
     db.commit()
     db.refresh(image)
-    return ok({"id": image.id, "url": url, "thumb_url": thumb_url or url})
+    return ok({
+        "id": image.id,
+        "url": url,
+        "thumb_url": thumb_url or url,
+        "audit_status": image.audit_status,
+        "audit_note": "图片内容需人工审核",
+    })
 
 
 @router.post("/verification")
@@ -199,6 +207,8 @@ async def upload_verification_image(
         mime_type=content_type,
         size_bytes=len(content),
         is_private=True,
+        # 学生证照片由「学生认证审核」流程人工把关，不进入图片审核队列
+        audit_status="approved",
     )
     db.add(image)
     db.commit()

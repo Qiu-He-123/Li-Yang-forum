@@ -25,6 +25,7 @@ from app.models import (
     Badge,
     BanRecord,
     Comment,
+    Image,
     LoginLog,
     Notification,
     OperationLog,
@@ -708,6 +709,138 @@ def admin_login_logs(
         "total": int(total),
         "page": page,
         "page_size": page_size,
+    }
+
+
+# ============ 图片人工审核（图片不走 AI 审核） ============
+
+def admin_list_images(
+    db: Session,
+    status: str | None = None,
+    page: int = 1,
+    page_size: int = 20,
+    keyword: str | None = None,
+) -> dict:
+    """图片审核列表（分页 + 状态过滤 + 使用统计）。"""
+    query = select(Image).order_by(desc(Image.created_at))
+    if status in ("pending", "approved", "rejected"):
+        query = query.where(Image.audit_status == status)
+    if keyword:
+        query = query.where(Image.url.contains(keyword))
+
+    total = db.scalar(select(func.count()).select_from(query.subquery())) or 0
+    rows = db.scalars(query.offset((page - 1) * page_size).limit(page_size)).all()
+    user_ids = list({r.user_id for r in rows if r.user_id})
+    users = {u.id: u for u in db.scalars(select(User).where(User.id.in_(user_ids))).all()} if user_ids else {}
+
+    counts = {s: 0 for s in ("pending", "approved", "rejected")}
+    for row in db.execute(
+        select(Image.audit_status, func.count(Image.id)).group_by(Image.audit_status)
+    ).all():
+        if row[0] in counts:
+            counts[row[0]] = int(row[1])
+
+    items = []
+    for img in rows:
+        used_in_posts = db.scalar(
+            select(func.count(Post.id)).where(Post.image_urls.like(f"%{img.url}%"))
+        ) or 0
+        items.append({
+            "id": img.id,
+            "url": img.url,
+            "mime_type": img.mime_type,
+            "size_bytes": img.size_bytes,
+            "is_private": img.is_private,
+            "audit_status": img.audit_status,
+            "user_id": img.user_id,
+            "user_nickname": users.get(img.user_id).nickname if img.user_id and users.get(img.user_id) else None,
+            "used_in_posts": int(used_in_posts),
+            "created_at": to_iso_zh(img.created_at),
+        })
+    return {
+        "items": items,
+        "total": int(total),
+        "counts": counts,
+        "page": page,
+        "page_size": page_size,
+    }
+
+
+def admin_review_image(
+    db: Session,
+    admin: Admin,
+    image_id: int,
+    action: str,
+    reject_reason: str | None = None,
+) -> dict:
+    """人工审核图片（图片不走 AI 审核）。
+
+    - approve: 标记通过；相关因「图片需人工审核」而挂起的帖子自动放行
+    - reject:  标记驳回；相关帖子标记为 rejected 并通知作者
+    """
+    img = db.get(Image, image_id)
+    if not img:
+        raise HTTPException(status_code=404, detail="图片不存在")
+    if action not in ("approve", "reject"):
+        raise HTTPException(status_code=400, detail="审核动作仅支持 approve / reject")
+
+    old = img.audit_status
+    img.audit_status = "approved" if action == "approve" else "rejected"
+
+    related_posts = db.scalars(
+        select(Post).where(
+            Post.image_urls.like(f"%{img.url}%"),
+            Post.is_draft.is_(False),
+        )
+    ).all()
+    for post in related_posts:
+        if action == "approve" and post.ai_status == "manual_review":
+            post.ai_status = "approved"
+            post.reject_reason = None
+            db.add(
+                Notification(
+                    user_id=post.author_id,
+                    title="帖子已通过人工审核",
+                    content="您帖子中的图片已通过人工审核，帖子已正常发布。",
+                    type="system",
+                    reference_type="post",
+                    reference_id=post.id,
+                )
+            )
+        elif action == "reject" and post.ai_status in ("manual_review", "pending"):
+            post.ai_status = "rejected"
+            reason = (reject_reason or "图片未通过人工审核").strip()
+            post.reject_reason = f"图片未通过人工审核：{reason}"[:200]
+            db.add(
+                Notification(
+                    user_id=post.author_id,
+                    title="帖子未通过人工审核",
+                    content=f"您帖子中的图片未通过人工审核（{reason}），帖子暂未发布。请更换图片后重新发布。",
+                    type="system",
+                    reference_type="post",
+                    reference_id=post.id,
+                )
+            )
+
+    log_admin_action(
+        db,
+        admin.id,
+        "review_image",
+        json.dumps({
+            "image_id": image_id,
+            "old": old,
+            "new": img.audit_status,
+            "related_posts": [p.id for p in related_posts],
+            "reject_reason": reject_reason or "",
+        }, ensure_ascii=False),
+        None,
+    )
+    db.commit()
+    return {
+        "id": img.id,
+        "url": img.url,
+        "audit_status": img.audit_status,
+        "related_posts": [p.id for p in related_posts],
     }
 
 

@@ -252,6 +252,11 @@ const routes = [
         component: () => import('../views/Admin/VerificationsAudit.vue'),
       },
       {
+        path: 'images-audit',
+        name: 'admin-images-audit',
+        component: () => import('../views/Admin/ImagesAudit.vue'),
+      },
+      {
         path: 'seed-codes',
         name: 'admin-seed-codes',
         component: () => import('../views/Admin/SeedCodesManage.vue'),

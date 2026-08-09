@@ -130,7 +130,7 @@ def test_post_accepts_https_url(client):
     """合法 https:// URL 通过校验。"""
     info = register(client, "13706000006", "合法 URL 员")
     body = {
-        "content": "合法图片 URL 测试",
+        "content": "合法图片 URL 测试内容",
         "school_id": info["school_id"],
         "category": "普通",
         "image_urls": ["https://example.com/image.png"],

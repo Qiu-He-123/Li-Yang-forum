@@ -78,11 +78,12 @@ def _run_audit(db: Session, content: str) -> dict[str, Any]:
     # 在后台审核场景中，调用方已经处于 async 上下文，应直接 await ai_service.check_text
     # 此同步函数仅用于 DeepSeek 不可用时的降级判断
     return {
-        "pass": True,
-        "reason": "",
+        "pass": False,
+        "reason": "AI 审核服务不可用，已转人工审核",
         "category": "none",
         "severity": "none",
         "provider": "none",
+        "skipped": True,
     }
 
 
@@ -129,13 +130,14 @@ async def run_audit_async(content: str) -> dict[str, Any]:
     except Exception:
         pass
 
-    # 两者都不可用 → 放行（降级）
+    # 两者都不可用 → 不直接放行，转人工审核
     return {
-        "pass": True,
-        "reason": "",
+        "pass": False,
+        "reason": "AI 审核服务不可用，已转人工审核",
         "category": "none",
         "severity": "none",
         "provider": "none",
+        "skipped": True,
     }
 
 
@@ -149,18 +151,46 @@ def _record_audit_log(
 ) -> None:
     """写入 AI 审核日志。"""
     try:
+        result = "approved" if audit.get("pass", True) else (
+            "error" if audit.get("skipped") else "rejected"
+        )
         log = AuditLog(
             target_type=target_type,
             target_id=target_id,
             user_id=user_id,
             ai_provider=audit.get("provider", "none"),
-            result="approved" if audit.get("pass", True) else "rejected",
+            result=result,
             reason=audit.get("reason", "")[:500],
             category=audit.get("category", "none"),
             severity=audit.get("severity", "none"),
             content_snapshot=content[:500],
         )
         db.add(log)
+    except Exception:
+        pass
+
+
+def _send_manual_review_notification(
+    db: Session,
+    user_id: int,
+    target_type: str,
+    target_id: int,
+    reason: str = "AI 审核服务暂不可用，已转人工审核",
+) -> None:
+    """内容进入人工审核时通知作者（AI 开不起了/图片需人工审核）。"""
+    label = "帖子" if target_type == "post" else "评论"
+    try:
+        db.add(
+            Notification(
+                user_id=user_id,
+                title=f"{label}已进入人工审核",
+                content=f"您的{label}已提交，当前进入人工审核（{reason}）。"
+                        f"审核可能较慢，请耐心等待，审核结果会第一时间通知您。",
+                type="system",
+                reference_type=target_type,
+                reference_id=target_id,
+            )
+        )
     except Exception:
         pass
 
@@ -216,31 +246,42 @@ def _send_reject_notification(
     db.add(notif)
 
 
-async def audit_post_background(post_id: int, content: str) -> None:
+async def audit_post_background(post_id: int) -> None:
     """后台异步审核帖子：执行 AI 审核 → 更新状态 → 记录日志 → 发送通知 → 处理违规。
 
     状态流转：
     - AI 通过  → ai_status=approved + 生成标签
     - AI 违规  → ai_status=rejected + reject_reason + 累计违规（合并通知，仅发一条）
-    - AI 异常  → ai_status=manual_review
+    - AI 不可用 → ai_status=manual_review（不直接放行，转入人工审核）
     """
     try:
-        audit = await run_audit_async(content)
         with SessionLocal() as db:
             post = db.get(Post, post_id)
             if not post:
                 return
+            # 标题 + 内容一起审核（标题也要过审核）
+            title_part = f"标题：{post.title}\n" if post.title else ""
+            content = f"{title_part}内容：{post.content}"
+            audit = await run_audit_async(content)
 
             # 写入审核日志
             _record_audit_log(db, "post", post_id, post.author_id, audit, content)
 
-            if audit.get("pass", True):
+            if audit.get("skipped"):
+                # AI 不可用/调用失败 → 不直接放行，转人工审核
+                post.ai_status = "manual_review"
+                post.reject_reason = "AI 审核服务不可用，已转人工审核"
+                _send_manual_review_notification(
+                    db, post.author_id, "post", post.id,
+                    reason="AI 审核服务暂不可用（未开启/无余额/调用失败）",
+                )
+            elif audit.get("pass", True):
                 post.ai_status = "approved"
                 post.reject_reason = None
                 # 生成标签（仅 OpenAI 路径有标签生成能力）
                 if audit.get("provider") == "openai":
                     try:
-                        tags = await ai_service.generate_tags(content)
+                        tags = await ai_service.generate_tags(post.content)
                         if tags:
                             post.tags = json.dumps(tags, ensure_ascii=False)
                     except Exception:
@@ -273,27 +314,35 @@ async def audit_post_background(post_id: int, content: str) -> None:
                 post = db.get(Post, post_id)
                 if post:
                     post.ai_status = "manual_review"
+                    post.reject_reason = "AI 审核服务不可用，已转人工审核"
                     db.commit()
         except Exception:
             pass
 
 
-async def audit_comment_background(comment_id: int, content: str) -> None:
+async def audit_comment_background(comment_id: int) -> None:
     """后台异步审核评论：执行 AI 审核 → 更新状态 → 记录日志 → 发送通知 → 处理违规。
 
     状态流转同 audit_post_background。
     """
     try:
-        audit = await run_audit_async(content)
         with SessionLocal() as db:
             comment = db.get(Comment, comment_id)
             if not comment:
                 return
+            audit = await run_audit_async(comment.content)
 
             # 写入审核日志
             _record_audit_log(db, "comment", comment_id, comment.user_id, audit, content)
 
-            if audit.get("pass", True):
+            if audit.get("skipped"):
+                comment.ai_status = "manual_review"
+                comment.reject_reason = "AI 审核服务不可用，已转人工审核"
+                _send_manual_review_notification(
+                    db, comment.user_id, "comment", comment.id,
+                    reason="AI 审核服务暂不可用（未开启/无余额/调用失败）",
+                )
+            elif audit.get("pass", True):
                 comment.ai_status = "approved"
                 comment.reject_reason = None
                 # 评论审核通过：减少作者警告值（积极行为奖励）
@@ -323,6 +372,7 @@ async def audit_comment_background(comment_id: int, content: str) -> None:
                 comment = db.get(Comment, comment_id)
                 if comment:
                     comment.ai_status = "manual_review"
+                    comment.reject_reason = "AI 审核服务不可用，已转人工审核"
                     db.commit()
         except Exception:
             pass

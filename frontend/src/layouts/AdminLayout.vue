@@ -53,6 +53,7 @@ const menuGroups = computed<MenuGroup[]>(() => [
     items: [
       { index: '/admin/users', label: '用户管理', icon: '👤' },
       { index: '/admin/verifications-audit', label: '学生认证审核', icon: '🎓' },
+      { index: '/admin/images-audit', label: '图片审核', icon: '🖼️' },
       { index: '/admin/seed-codes', label: '种子邀请码', icon: '🎫' },
       { index: '/admin/ban-records', label: '封号管理', icon: '🔨' },
       { index: '/admin/appeals', label: '申诉管理', icon: '✊' },

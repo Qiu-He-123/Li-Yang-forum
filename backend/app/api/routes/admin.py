@@ -274,6 +274,37 @@ def admin_login_logs(
 
 # ============ 系统设置 ============
 
+# ============ 图片人工审核（图片不走 AI 审核） ============
+
+@router.get("/images")
+def admin_images(
+    status: str | None = Query(default=None, pattern="^(pending|approved|rejected)$"),
+    keyword: str | None = Query(default=None),
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=100),
+    db: Session = Depends(get_db),
+    _: Admin = Depends(admin_user),
+) -> dict:
+    """图片审核列表（分页 + 状态过滤）。"""
+    return ok(admin_service.admin_list_images(db, status, page, page_size, keyword))
+
+
+@router.post("/images/{image_id}/review")
+def admin_review_image(
+    image_id: int,
+    payload: dict = Body(...),
+    db: Session = Depends(get_db),
+    admin: Admin = Depends(admin_user),
+) -> dict:
+    """人工审核图片。payload: action(approve/reject) + reject_reason。"""
+    return ok(admin_service.admin_review_image(
+        db,
+        admin,
+        image_id,
+        payload.get("action", "approve"),
+        reject_reason=payload.get("reject_reason"),
+    ))
+
 @router.get("/settings")
 def admin_list_settings(
     db: Session = Depends(get_db),
