@@ -247,9 +247,12 @@ def _init_seed_invite_codes(db, count: int) -> None:
     import string
     from sqlalchemy import func
 
-    # 查当前未使用的种子码数量
+    # 查当前未使用的种子码数量（「待使用」的种子码已被管理员复制带走，不计入）
     unused = db.scalar(
-        select(func.count(SeedInviteCode.id)).where(SeedInviteCode.used_by.is_(None))
+        select(func.count(SeedInviteCode.id)).where(
+            SeedInviteCode.used_by.is_(None),
+            SeedInviteCode.status == "unused",
+        )
     ) or 0
     if unused >= count:
         return  # 数量足够，跳过

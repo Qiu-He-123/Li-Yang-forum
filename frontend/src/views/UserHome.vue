@@ -24,6 +24,11 @@ import {
 } from '../api/user'
 import { updateMe } from '../api/user'
 import { uploadImage } from '../api/image'
+import {
+  applyInviteCode,
+  getMyInviteCode,
+  type MyInviteCodeInfo,
+} from '../api/auth'
 import { useSessionStore } from '../stores/session'
 import { useUserStore } from '../stores/user'
 import { useFollowStore } from '../stores/follow'
@@ -78,7 +83,8 @@ const tabs = computed(() => [
   { key: 'likes' as const, label: '点赞', count: 0 },
 ])
 
-const funcGrid = [
+const funcGrid = computed(() => {
+  const items = [
   { icon: 'file-text', color: '#007aff', label: '我的作品', to: 'posts' },
   { icon: 'bookmark', color: '#ff3b30', label: '我的收藏', to: '/my/favorites' },
   { icon: 'heart', color: '#ff9500', label: '我的点赞', to: 'likes' },
@@ -88,7 +94,92 @@ const funcGrid = [
   { icon: 'gift', color: '#00c7be', label: '每日签到', to: '/my/checkin' },
   { icon: 'medal', color: '#f7b500', label: '我的徽章', to: '/my/badges' },
   { icon: 'creditcard', color: '#ff6b35', label: '校园卡', to: '' },
-]
+  ]
+  // 邀请码：未认证显示「填写邀请码」，已认证显示「分享邀请码」
+  const inviteItem = session.isVerified()
+    ? { icon: 'link' as const, color: '#007aff', label: '分享邀请码', to: 'invite' }
+    : { icon: 'shield' as const, color: '#ff9500', label: '填写邀请码', to: 'invite' }
+  items.push(inviteItem)
+  return items
+})
+
+// ============ 邀请码：填写 / 分享 ============
+const inviteDialogVisible = ref(false)
+const inviteCodeInput = ref('')
+const inviteSubmitting = ref(false)
+const inviteInfo = ref<MyInviteCodeInfo | null>(null)
+const inviteInfoLoading = ref(false)
+
+async function loadInviteInfo() {
+  if (!session.isVerified()) {
+    inviteInfo.value = null
+    return
+  }
+  inviteInfoLoading.value = true
+  try {
+    const { data } = await getMyInviteCode({
+      showGlobalLoading: false,
+      showGlobalError: false,
+    })
+    inviteInfo.value = data.data
+  } catch {
+    inviteInfo.value = null
+  } finally {
+    inviteInfoLoading.value = false
+  }
+}
+
+function onInviteEntryClick() {
+  if (!isMe.value) return
+  if (session.isVerified()) {
+    router.push('/settings')
+    return
+  }
+  inviteCodeInput.value = ''
+  inviteDialogVisible.value = true
+}
+
+async function submitInviteCode() {
+  const code = inviteCodeInput.value.trim()
+  if (!code) {
+    toast.error('请输入邀请码')
+    return
+  }
+  inviteSubmitting.value = true
+  try {
+    const { data } = await applyInviteCode({ code })
+    if (data.data.verification_status === 'verified') {
+      session.setVerificationStatus('verified')
+      inviteDialogVisible.value = false
+      toast.success('邀请码验证成功，已解锁全部功能')
+      await loadInviteInfo()
+    }
+  } catch (err) {
+    toast.error((err as Error).message)
+  } finally {
+    inviteSubmitting.value = false
+  }
+}
+
+async function copyMyInviteCode() {
+  if (!inviteInfo.value?.code) return
+  try {
+    await navigator.clipboard.writeText(inviteInfo.value.code)
+    toast.success('邀请码已复制')
+  } catch {
+    toast.info(`邀请码：${inviteInfo.value.code}`)
+  }
+}
+
+function formatCooldown(sec: number): string {
+  if (sec <= 0) return ''
+  const d = Math.floor(sec / 86400)
+  const h = Math.floor((sec % 86400) / 3600)
+  const m = Math.floor((sec % 3600) / 60)
+  if (d > 0) return `${d}天${h}小时`
+  if (h > 0) return `${h}小时${m}分钟`
+  return `${Math.max(1, m)}分钟`
+}
 
 // ============ 我的页直接编辑（点头像/名字/校区） ============
 const avatarUploading = ref(false)
@@ -384,7 +475,11 @@ function onTabChange(tab: 'posts' | 'favorites' | 'likes') {
   loadPosts()
 }
 
-function onFuncClick(item: typeof funcGrid[number]) {
+function onFuncClick(item: (typeof funcGrid.value)[number]) {
+  if (item.to === 'invite') {
+    onInviteEntryClick()
+    return
+  }
   if (!item.to) {
     toast.info('功能开发中')
     return
@@ -448,6 +543,7 @@ onActivated(async () => {
   // 静默刷新：不触发 loading/骨架屏，保留旧数据可见
   const oldPostsFp = posts.value.map(p => `${p.id}:${p.like_count}:${p.comment_count}`).join('|')
   await Promise.all([loadProfile(), loadPostsSilent(), loadWarningStatus()])
+  loadInviteInfo()
   const newPostsFp = posts.value.map(p => `${p.id}:${p.like_count}:${p.comment_count}`).join('|')
   if (oldPostsFp !== newPostsFp) triggerFade()
 })
@@ -500,6 +596,7 @@ onMounted(async () => {
   void session.validateSession()
   const minDelay = new Promise(resolve => setTimeout(resolve, 200))
   await Promise.all([loadProfile(), loadPosts(), loadWarningStatus(), minDelay])
+  loadInviteInfo()
   pageLoading.value = false
 })
 </script>
@@ -622,6 +719,49 @@ onMounted(async () => {
       </div>
     </section>
 
+    <!-- 邀请码卡片（填写 / 分享，仅自己可见） -->
+    <section v-if="isMe" class="invite-section">
+      <div v-if="!session.isVerified()" class="invite-card invite-card--fill">
+        <div class="invite-card-icon">
+          <Icon name="shield" :size="20" />
+        </div>
+        <div class="invite-card-body">
+          <span class="invite-card-title">填写邀请码解锁全部功能</span>
+          <span class="invite-card-desc">发帖 / 评论 / 随机匹配 / 漂流瓶 需要邀请码</span>
+        </div>
+        <button class="invite-card-btn" type="button" @click="onInviteEntryClick">立即填写</button>
+      </div>
+      <div v-else-if="inviteInfo" class="invite-card invite-card--share">
+        <div class="invite-card-icon">
+          <Icon name="link" :size="20" />
+        </div>
+        <div class="invite-card-body">
+          <span class="invite-card-title">
+            我的邀请码 <b class="invite-code">{{ inviteInfo.code }}</b>
+          </span>
+          <span class="invite-card-desc">
+            <template v-if="inviteInfo.is_frozen">
+              邀请资格已冻结（{{ formatCooldown(inviteInfo.frozen_remaining) }} 后解冻）
+            </template>
+            <template v-else-if="inviteInfo.can_share">
+              分享给同学，对方填写后解锁全部功能
+            </template>
+            <template v-else>
+              分享冷却中（{{ formatCooldown(inviteInfo.cooldown_remaining) }} 后可再分享）
+            </template>
+          </span>
+        </div>
+        <button
+          class="invite-card-btn"
+          type="button"
+          :disabled="inviteInfo.is_frozen"
+          @click="copyMyInviteCode"
+        >
+          复制
+        </button>
+      </div>
+    </section>
+
     <!-- 功能宫格（仅自己可见） -->
     <section v-if="isMe" class="func-section">
       <div class="func-grid">
@@ -669,6 +809,27 @@ onMounted(async () => {
         <button class="btn btn-outline" type="button" @click="schoolDialogVisible = false">取消</button>
         <button class="btn btn-primary" type="button" :disabled="schoolSaving" @click="saveSchool">
           {{ schoolSaving ? '保存中…' : '保存' }}
+        </button>
+      </template>
+    </NativeDialog>
+
+    <!-- 填写邀请码弹窗 -->
+    <NativeDialog v-model="inviteDialogVisible" title="填写邀请码" width="420px">
+      <p class="edit-hint">
+        输入同学分享给你的邀请码，验证后即可解锁发帖 / 评论 / 随机匹配 / 漂流瓶等功能。
+      </p>
+      <input
+        v-model="inviteCodeInput"
+        class="edit-input"
+        type="text"
+        maxlength="16"
+        placeholder="请输入邀请码"
+        @keydown.enter="submitInviteCode"
+      />
+      <template #footer>
+        <button class="btn btn-outline" type="button" @click="inviteDialogVisible = false">取消</button>
+        <button class="btn btn-primary" type="button" :disabled="inviteSubmitting" @click="submitInviteCode">
+          {{ inviteSubmitting ? '验证中…' : '解锁功能' }}
         </button>
       </template>
     </NativeDialog>
@@ -1063,6 +1224,94 @@ onMounted(async () => {
   background: var(--brand-500);
   color: #fff;
 }
+
+/* 邀请码卡片 */
+.invite-section {
+  max-width: 640px;
+  margin: 14px auto 0;
+  padding: 0 16px;
+}
+.invite-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-xs);
+}
+.invite-card--fill {
+  background: linear-gradient(135deg, #fff4e0, #fff);
+  border: 1px solid #ffd591;
+}
+.invite-card--share {
+  background: linear-gradient(135deg, #eaf2ff, #fff);
+  border: 1px solid #b3d8ff;
+}
+.invite-card-icon {
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  flex-shrink: 0;
+}
+.invite-card--fill .invite-card-icon {
+  background: linear-gradient(135deg, #ff9500, #ff6b00);
+}
+.invite-card--share .invite-card-icon {
+  background: linear-gradient(135deg, #007aff, #0064d6);
+}
+.invite-card-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.invite-card-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-800);
+}
+.invite-code {
+  font-family: 'Courier New', Menlo, monospace;
+  letter-spacing: 1px;
+  color: var(--brand-600);
+  margin-left: 4px;
+}
+.invite-card-desc {
+  font-size: 11px;
+  color: var(--text-500);
+  line-height: 1.5;
+}
+.invite-card-btn {
+  padding: 7px 16px;
+  border-radius: 999px;
+  border: none;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  flex-shrink: 0;
+  font-family: inherit;
+  transition: transform 0.15s, opacity 0.15s;
+}
+.invite-card-btn:active {
+  transform: scale(0.97);
+}
+.invite-card-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.invite-card--fill .invite-card-btn {
+  background: linear-gradient(135deg, #ff9500, #ff6b00);
+  color: #fff;
+}
+.invite-card--share .invite-card-btn {
+  background: var(--brand-500);
+  color: #fff;
+}
+
 .hero-bio {
   margin: 4px 0 16px;
   font-size: 13px;
@@ -1523,6 +1772,7 @@ onMounted(async () => {
     font-size: 18px;
   }
   .func-section,
+  .invite-section,
   .posts-section,
   .settings-section {
     padding: 0 12px;

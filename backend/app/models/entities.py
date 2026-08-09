@@ -814,6 +814,11 @@ class SeedInviteCode(Base):
     冷启动阶段：管理员线下把种子码发给可靠的班长/学生会主席，
     学生用种子码注册即可直接获得 verified 状态（无需再填邀请码）。
     每个种子码只能使用一次。
+
+    状态机：
+    - unused: 未使用（可被管理员「复制并标记待使用」选取）
+    - reserved: 待使用（已被某位管理员复制带走，其他管理员应避免重复分发）
+    - used: 已使用（用户注册/填码消耗）
     """
     __tablename__ = "seed_invite_codes"
 
@@ -823,6 +828,11 @@ class SeedInviteCode(Base):
     note: Mapped[str | None] = mapped_column(String(100), default=None)
     # 批次号（管理员批量生成时分配，便于按批次查询）
     batch_no: Mapped[str | None] = mapped_column(String(32), index=True, default=None)
+    # 状态：unused / reserved / used
+    status: Mapped[str] = mapped_column(String(20), default="unused", index=True)
+    # 待使用状态：由哪位管理员复制带走（其他管理员据此避免重复分发）
+    reserved_by: Mapped[int | None] = mapped_column(ForeignKey("admin.id"), default=None)
+    reserved_at: Mapped[datetime | None] = mapped_column(DateTime, default=None)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     used_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), default=None)
     used_at: Mapped[datetime | None] = mapped_column(DateTime, default=None)

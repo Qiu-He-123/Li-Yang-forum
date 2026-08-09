@@ -118,7 +118,10 @@ def register(
 
         with SessionLocal() as db:
             seed = db.scalar(
-                select(SeedInviteCode).where(SeedInviteCode.used_by.is_(None))
+                select(SeedInviteCode).where(
+                    SeedInviteCode.used_by.is_(None),
+                    SeedInviteCode.status == "unused",
+                )
             )
             assert seed is not None, "测试环境应存在种子邀请码"
             invite_code = seed.code

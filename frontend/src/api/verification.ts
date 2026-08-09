@@ -50,6 +50,12 @@ export interface SeedCode {
   code: string
   note: string | null
   batch_no: string | null
+  /** unused(未使用) / reserved(待使用) / used(已使用) */
+  status: 'unused' | 'reserved' | 'used'
+  /** 待使用状态：由哪位管理员复制带走 */
+  reserved_by: number | null
+  reserved_by_username?: string | null
+  reserved_at: string | null
   used_by: number | null
   used_by_username?: string | null
   used_at: string | null
@@ -59,6 +65,7 @@ export interface SeedCode {
 export interface SeedCodeListPage {
   items: SeedCode[]
   total: number
+  counts: { unused: number; reserved: number; used: number }
   page: number
   page_size: number
 }
@@ -81,8 +88,21 @@ export function adminGenerateSeedCodes(payload: { count?: number; note?: string;
   return http.post<unknown, { data: { code: number; msg: string; data: GenerateSeedCodesResult } }>('/admin/seed-codes/generate', payload)
 }
 
-export function adminListSeedCodes(params: { page?: number; page_size?: number; batch_no?: string; status?: 'unused' | 'used' } = {}) {
+export function adminListSeedCodes(params: { page?: number; page_size?: number; batch_no?: string; status?: 'unused' | 'reserved' | 'used' } = {}) {
   return http.get<unknown, { data: { code: number; msg: string; data: SeedCodeListPage } }>('/admin/seed-codes', { params })
+}
+
+export function adminReserveSeedCodes(payload: { count?: number; note?: string; batch_no?: string }) {
+  return http.post<unknown, { data: { code: number; msg: string; data: GenerateSeedCodesResult } }>(
+    '/admin/seed-codes/reserve',
+    payload,
+  )
+}
+
+export function adminReleaseSeedCode(codeId: number) {
+  return http.post<unknown, { data: { code: number; msg: string; data: { ok: boolean; code: string; status: string } } }>(
+    `/admin/seed-codes/${codeId}/release`,
+  )
 }
 
 export function adminDeleteSeedCode(codeId: number) {

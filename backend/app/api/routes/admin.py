@@ -720,13 +720,48 @@ def admin_list_seed_codes(
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
     batch_no: str | None = Query(default=None),
-    status: str | None = Query(default=None, pattern="^(unused|used)$"),
+    status: str | None = Query(default=None, pattern="^(unused|reserved|used)$"),
     db: Session = Depends(get_db),
     _: Admin = Depends(admin_user),
 ) -> dict:
     """种子邀请码列表（分页 + 批次号/状态过滤）。"""
     from app.services import verification_service
     return ok(verification_service.admin_list_seed_codes(db, page, page_size, batch_no, status))
+
+
+@router.post("/seed-codes/reserve")
+def admin_reserve_seed_codes(
+    payload: dict = Body(...),
+    db: Session = Depends(get_db),
+    admin: Admin = Depends(admin_user),
+) -> dict:
+    """复制 N 个未使用种子码并标记为「待使用」（记录当前管理员）。
+
+    Body:
+        count: int (1-200)
+        note: str | None (备注，会追加到每个种子码的备注中)
+        batch_no: str | None (批次号，不传自动生成)
+    """
+    from app.services import verification_service
+    count = int(payload.get("count", 1) or 1)
+    return ok(verification_service.admin_reserve_seed_codes(
+        db,
+        admin,
+        count=count,
+        note=payload.get("note"),
+        batch_no=payload.get("batch_no"),
+    ))
+
+
+@router.post("/seed-codes/{code_id}/release")
+def admin_release_seed_code(
+    code_id: int,
+    db: Session = Depends(get_db),
+    admin: Admin = Depends(admin_user),
+) -> dict:
+    """释放「待使用」种子码，回到未使用池。"""
+    from app.services import verification_service
+    return ok(verification_service.admin_release_seed_code(db, admin, code_id))
 
 
 @router.delete("/seed-codes/{code_id}")

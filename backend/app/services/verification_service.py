@@ -228,6 +228,7 @@ def admin_review_verification(
             code=seed_code,
             note=f"学生认证通过自动生成（user_id={user.id}, verification_id={v.id}）",
             batch_no=f"verify-{v.id}",
+            status="used",
             used_by=user.id,
             used_at=datetime.now(),
         )
@@ -328,6 +329,7 @@ def admin_generate_seed_codes(
             code=code,
             note=note,
             batch_no=batch_no,
+            status="unused",
         ))
         codes.append(code)
 
@@ -357,36 +359,61 @@ def admin_list_seed_codes(
 
     status:
     - unused: 未使用
+    - reserved: 待使用（已被管理员复制带走）
     - used: 已使用
     - None: 全部
     """
     query = select(SeedInviteCode).order_by(SeedInviteCode.created_at.desc())
     if batch_no:
         query = query.where(SeedInviteCode.batch_no == batch_no)
-    if status == "unused":
-        query = query.where(SeedInviteCode.used_by.is_(None))
-    elif status == "used":
-        query = query.where(SeedInviteCode.used_by.isnot(None))
+    if status in ("unused", "reserved", "used"):
+        query = query.where(SeedInviteCode.status == status)
 
     total = db.scalar(select(func.count()).select_from(query.subquery())) or 0
     rows = db.scalars(query.offset((page - 1) * page_size).limit(page_size)).all()
     # 批量加载使用人
     user_ids = list({r.used_by for r in rows if r.used_by})
     users = {u.id: u for u in db.scalars(select(User).where(User.id.in_(user_ids))).all()} if user_ids else {}
+    # 批量加载预留管理员
+    admin_ids = list({r.reserved_by for r in rows if r.reserved_by})
+    admins = {a.id: a for a in db.scalars(select(Admin).where(Admin.id.in_(admin_ids))).all()} if admin_ids else {}
+    # 各状态统计（未使用 / 待使用 / 已使用）
+    counts = {s: 0 for s in ("unused", "reserved", "used")}
+    for row in db.execute(
+        select(SeedInviteCode.status, func.count(SeedInviteCode.id)).group_by(SeedInviteCode.status)
+    ).all():
+        if row[0] in counts:
+            counts[row[0]] = int(row[1])
     return {
-        "items": [_seed_code_dict(r, users.get(r.used_by) if r.used_by else None) for r in rows],
+        "items": [
+            _seed_code_dict(
+                r,
+                used_by_user=users.get(r.used_by) if r.used_by else None,
+                reserved_by_admin=admins.get(r.reserved_by) if r.reserved_by else None,
+            )
+            for r in rows
+        ],
         "total": int(total),
+        "counts": counts,
         "page": page,
         "page_size": page_size,
     }
 
 
-def _seed_code_dict(s: SeedInviteCode, used_by_user: User | None = None) -> dict[str, Any]:
+def _seed_code_dict(
+    s: SeedInviteCode,
+    used_by_user: User | None = None,
+    reserved_by_admin: Admin | None = None,
+) -> dict[str, Any]:
     return {
         "id": s.id,
         "code": s.code,
         "note": s.note,
         "batch_no": s.batch_no,
+        "status": s.status or ("used" if s.used_by else "unused"),
+        "reserved_by": s.reserved_by,
+        "reserved_by_username": reserved_by_admin.username if reserved_by_admin else None,
+        "reserved_at": to_iso_zh(s.reserved_at) if s.reserved_at else None,
         "used_by": s.used_by,
         "used_by_username": used_by_user.username if used_by_user else None,
         "used_at": to_iso_zh(s.used_at) if s.used_at else None,
@@ -394,13 +421,98 @@ def _seed_code_dict(s: SeedInviteCode, used_by_user: User | None = None) -> dict
     }
 
 
+def admin_reserve_seed_codes(
+    db: Session,
+    admin: Admin,
+    count: int = 1,
+    note: str | None = None,
+    batch_no: str | None = None,
+) -> dict[str, Any]:
+    """复制 N 个未使用种子并标记为「待使用」。
+
+    用途：管理员线下分发前批量复制种子码，复制的同时打上「待使用」状态 +
+    当前管理员信息，其他管理员看到后就不会再重复分发同一批种子。
+    """
+    if count < 1 or count > 200:
+        raise HTTPException(status_code=400, detail="复制数量必须在 1-200 之间")
+    note = (note or "").strip()[:100] if note else None
+    if not batch_no:
+        batch_no = f"reserve-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
+
+    # FIFO 选取未使用种子（最早生成的先用），避免跳过旧码
+    rows = db.scalars(
+        select(SeedInviteCode)
+        .where(SeedInviteCode.status == "unused")
+        .order_by(SeedInviteCode.created_at.asc(), SeedInviteCode.id.asc())
+        .limit(count)
+    ).all()
+    if not rows:
+        raise HTTPException(status_code=400, detail="暂无可复制的未使用种子码，请先批量生成")
+    if len(rows) < count:
+        raise HTTPException(
+            status_code=400,
+            detail=f"未使用种子码不足，当前仅剩 {len(rows)} 个，请先批量生成",
+        )
+
+    codes: list[str] = []
+    for s in rows:
+        s.status = "reserved"
+        s.reserved_by = admin.id
+        s.reserved_at = datetime.now()
+        if note:
+            prefix = f"{s.note}｜" if s.note else ""
+            s.note = f"{prefix}待使用：{note}"[:100]
+        if not s.batch_no:
+            s.batch_no = batch_no
+        codes.append(s.code)
+
+    log_admin_action(
+        db,
+        admin.id,
+        "reserve_seed_invite_codes",
+        json.dumps({"count": len(codes), "batch_no": batch_no, "note": note, "code_ids": [s.id for s in rows]}, ensure_ascii=False),
+        None,
+    )
+    db.commit()
+    return {
+        "batch_no": batch_no,
+        "count": len(codes),
+        "codes": codes,
+    }
+
+
+def admin_release_seed_code(db: Session, admin: Admin, code_id: int) -> dict[str, Any]:
+    """释放「待使用」种子码（回到未使用池，供其他管理员复制）。"""
+    s = db.get(SeedInviteCode, code_id)
+    if not s:
+        raise HTTPException(status_code=404, detail=ErrorCode.TARGET_NOT_FOUND)
+    if s.status != "reserved":
+        raise HTTPException(status_code=400, detail="仅「待使用」状态的种子码可释放")
+    old_note = s.note
+    s.status = "unused"
+    s.reserved_by = None
+    s.reserved_at = None
+    # 去掉追加的「待使用：xxx」备注（保留原始备注）
+    if old_note and "｜待使用：" in old_note:
+        s.note = old_note.split("｜待使用：", 1)[0]
+    log_admin_action(
+        db,
+        admin.id,
+        "release_seed_invite_code",
+        json.dumps({"code_id": code_id, "code": s.code}, ensure_ascii=False),
+        None,
+    )
+    db.commit()
+    return {"ok": True, "code": s.code, "status": s.status}
+
+
 def admin_delete_seed_code(db: Session, admin: Admin, code_id: int) -> dict[str, Any]:
     """管理员删除未使用的种子邀请码（已使用的不可删除）。"""
     s = db.get(SeedInviteCode, code_id)
     if not s:
         raise HTTPException(status_code=404, detail=ErrorCode.TARGET_NOT_FOUND)
-    if s.used_by is not None:
-        raise HTTPException(status_code=400, detail="已使用的种子码不可删除")
+    if s.status != "unused":
+        raise HTTPException(status_code=400, detail="仅「未使用」状态的种子码可删除")
     db.delete(s)
     log_admin_action(
         db,

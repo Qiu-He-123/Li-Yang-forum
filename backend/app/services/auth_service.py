@@ -172,6 +172,9 @@ def register(payload, request, response: Response, db: Session) -> dict[str, Any
     if seed_code_record:
         seed_code_record.used_by = user.id
         seed_code_record.used_at = datetime.now()
+        seed_code_record.status = "used"
+        seed_code_record.reserved_by = None
+        seed_code_record.reserved_at = None
 
     tokens = _issue_tokens(response, db, user)
     db.add(LoginLog(user_id=user.id, phone=user.username, success=True))
@@ -415,6 +418,9 @@ def apply_invite_code(payload, request: Request, db: Session, user: User) -> dic
     if seed_record:
         seed_record.used_by = user.id
         seed_record.used_at = datetime.now()
+        seed_record.status = "used"
+        seed_record.reserved_by = None
+        seed_record.reserved_at = None
 
     log_user_action(
         db,
