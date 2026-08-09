@@ -177,7 +177,12 @@ async function onIconFileChange(e: Event) {
   }
 }
 
-const isImageIcon = computed(() => /^https?:\/\//i.test(editForm.icon))
+/** 图标是否为图片地址（http(s) 或本站相对上传路径） */
+function isImageUrl(url: string): boolean {
+  return /^https?:\/\//i.test(url) || url.startsWith('/uploads/') || url.startsWith('/minio/')
+}
+
+const isImageIcon = computed(() => isImageUrl(editForm.icon))
 
 function openGen(row: AdminBadge) {
   genBadge.value = row
@@ -330,8 +335,8 @@ onMounted(load)
     <div class="badge-list">
       <div v-for="b in list" :key="b.id" class="badge-card" :class="{ 'is-disabled': !b.is_active }">
         <div class="badge-card-head">
-          <div class="badge-icon" :class="{ 'is-image': /^https?:\/\//i.test(b.icon) }">
-            <img v-if="/^https?:\/\//i.test(b.icon)" :src="b.icon" :alt="b.name" />
+          <div class="badge-icon" :class="{ 'is-image': isImageUrl(b.icon) }">
+            <img v-if="isImageUrl(b.icon)" :src="b.icon" :alt="b.name" />
             <span v-else>{{ b.icon || '🏅' }}</span>
           </div>
           <div class="badge-title-wrap">

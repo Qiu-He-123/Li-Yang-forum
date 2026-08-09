@@ -20,7 +20,12 @@ const props = withDefaults(
 
 const icon = computed(() => props.badge?.icon || '')
 const name = computed(() => props.badge?.name || '')
-const isImage = computed(() => /^https?:\/\//i.test(icon.value))
+/** 图标是图片：http(s) 绝对地址或本站相对上传路径（/uploads /minio） */
+const isImage = computed(() =>
+  /^https?:\/\//i.test(icon.value) ||
+  icon.value.startsWith('/uploads/') ||
+  icon.value.startsWith('/minio/'),
+)
 </script>
 
 <template>
