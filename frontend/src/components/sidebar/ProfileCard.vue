@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import BadgeIcon from '../common/BadgeIcon.vue'
 import { useUserStore } from '../../stores/user'
 import { useSessionStore } from '../../stores/session'
 import { useUIStore } from '../../stores/ui'
@@ -20,7 +21,10 @@ const uiStore = useUIStore()
             {{ userStore.profile.nickname?.[0] || '?' }}
           </el-avatar>
           <div class="min-w-0">
-            <p class="m-0 truncate text-[15px] font-bold text-tie-ink">{{ userStore.profile.nickname }}</p>
+            <p class="m-0 flex items-center gap-1 truncate text-[15px] font-bold text-tie-ink">
+              <BadgeIcon :badge="userStore.profile.wearing_badge" :size="15" />
+              <span class="truncate">{{ userStore.profile.nickname }}</span>
+            </p>
             <p class="m-0 truncate text-xs text-tie-sub">
               {{ userStore.profile.uid }} · {{ userStore.profile.school }}
             </p>

@@ -10,6 +10,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 import EmptyState from '../components/common/EmptyState.vue'
+import BadgeIcon from '../components/common/BadgeIcon.vue'
 import { Icon } from '../components/native'
 import { toast } from '../components/native/Toast'
 import { fetchUser } from '../api/user'
@@ -145,7 +146,10 @@ watch([userId, isFollowers], () => {
             <span v-if="!user.avatar_url">{{ user.nickname.charAt(0).toUpperCase() }}</span>
           </div>
           <div class="user-info">
-            <span class="user-name">{{ user.nickname }}</span>
+            <span class="user-name">
+              <BadgeIcon :badge="user.badge" :size="14" />
+              {{ user.nickname }}
+            </span>
             <span v-if="user.bio" class="user-bio">{{ user.bio }}</span>
             <span v-else-if="user.school" class="user-bio">{{ user.school }}</span>
           </div>
@@ -285,6 +289,9 @@ watch([userId, isFollowers], () => {
   font-size: 15px;
   font-weight: 600;
   color: var(--text-800);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;

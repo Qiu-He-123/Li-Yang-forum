@@ -26,6 +26,11 @@ def profile(user: User, db: Session, viewer: User | None = None) -> dict:
         .select_from(Post)
         .where(Post.author_id == user.id, Post.is_draft == False, Post.ai_status == "approved")
     ) or 0
+    from app.models import UserBadge
+    from app.services.badge_service import badge_dict as _badge_dict
+    badge_count = db.scalar(
+        select(func.count(UserBadge.id)).where(UserBadge.user_id == user.id)
+    ) or 0
     # T8-4 优化：用 join 替代子查询
     like_count = (
         db.scalar(
@@ -55,6 +60,8 @@ def profile(user: User, db: Session, viewer: User | None = None) -> dict:
         "following_count": user.following_count or 0,
         "followers_count": user.followers_count or 0,
         "warning_score": user.warning_score or 0,
+        "wearing_badge": _badge_dict(user.wearing_badge),
+        "badge_count": badge_count,
     }
     # 关注关系字段：仅当查看者存在且不是本人时计算
     if viewer and viewer.id != user.id:
@@ -82,6 +89,11 @@ def profile(user: User, db: Session, viewer: User | None = None) -> dict:
 def update_me(payload: ProfileUpdate, request: Request, db: Session, user: User) -> dict:
     """更新当前用户资料。"""
     changes = payload.model_dump(exclude_unset=True)
+    if "school_id" in changes:
+        from app.models import School
+        school = db.get(School, changes["school_id"])
+        if not school:
+            raise HTTPException(status_code=400, detail=ErrorCode.SCHOOL_NOT_FOUND)
     for key, value in changes.items():
         setattr(user, key, value)
     log_user_action(db, user.id, "update_profile", json.dumps({"fields": list(changes.keys())}, ensure_ascii=False), _extract_ip(request))
@@ -214,6 +226,7 @@ def user_likers(user_id: int, db: Session) -> list[dict]:
             "id": u.id,
             "nickname": u.nickname,
             "avatar_url": u.avatar_url,
+            "badge": badge_dict(u.wearing_badge),
             "bio": u.bio,
             "school": u.school.name if u.school else None,
             "grade": u.grade,
@@ -232,6 +245,12 @@ def _extract_ip(request) -> str | None:
         return extract_ip(request)
     except Exception:
         return None
+
+
+def badge_dict(badge) -> dict | None:
+    """序列化佩戴徽章（避免 service 间循环导入）。"""
+    from app.services.badge_service import badge_dict as _badge_dict
+    return _badge_dict(badge)
 
 
 def my_liked_post_ids(user_id: int, db: Session) -> list[int]:

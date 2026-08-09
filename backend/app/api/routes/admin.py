@@ -1,4 +1,8 @@
-from fastapi import APIRouter, Body, Depends, Query, Request, Response
+import io
+from uuid import uuid4
+
+from fastapi import APIRouter, Body, Depends, File, HTTPException, Query, Request, Response, UploadFile
+from PIL import Image as PILImage
 from sqlalchemy.orm import Session
 
 from app.api.deps import admin_user
@@ -7,7 +11,7 @@ from app.models import Admin
 from app.schemas.auth import AdminLoginIn
 from app.schemas.common import ok
 from app.schemas.interactions import AnnouncementCreate
-from app.services import admin_service, circle_apply_service
+from app.services import admin_service, badge_service, circle_apply_service
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -524,6 +528,169 @@ def admin_user_warning_logs(
     """查看指定用户的警告值变动记录（分页）。"""
     from app.services import warning_service
     return ok(warning_service.list_user_warning_logs(db, user_id, page, page_size))
+
+
+# ============ 徽章管理 ============
+
+@router.post("/badges/icon")
+async def admin_upload_badge_icon(
+    file: UploadFile = File(...),
+    request: Request = None,  # type: ignore[assignment]
+    db: Session = Depends(get_db),
+    _: Admin = Depends(admin_user),
+) -> dict:
+    """上传徽章图标（服务端自动极限压缩，徽章展示尺寸很小）。
+
+    压缩策略：
+    - 统一缩放到 96x96 以内（徽章展示通常 16-32px）
+    - 保留透明通道（圆形徽章图标），PNG 量化 256 色 + optimize
+    - 上传结果走公开存储（/uploads 或 MinIO），返回 URL 写入徽章 icon 字段
+    """
+    from app.api.routes.images import (
+        ALLOWED_TYPES,
+        TYPE_ALIASES,
+        _check_content_length,
+        _detect_image_type,
+        _read_limited,
+    )
+    from app.services.storage_service import storage_service
+
+    _check_content_length(request)
+    raw_content_type = file.content_type or ""
+    content_type = TYPE_ALIASES.get(raw_content_type, raw_content_type)
+    if content_type not in ALLOWED_TYPES:
+        raise HTTPException(status_code=400, detail="图片格式仅支持 jpg、png、webp、gif")
+    content = await _read_limited(file)
+
+    real_type = _detect_image_type(content)
+    if not real_type:
+        raise HTTPException(status_code=400, detail="无法识别的图片格式，请重新选择文件")
+    if real_type != content_type:
+        raise HTTPException(status_code=400, detail="图片内容与声明格式不符，疑似伪装文件")
+
+    # 服务端极限压缩：徽章展示很小，缩放到 96x96，透明背景保留
+    BADGE_ICON_MAX_SIZE = (96, 96)
+    try:
+        img = PILImage.open(io.BytesIO(content))
+        img.thumbnail(BADGE_ICON_MAX_SIZE, PILImage.LANCZOS)
+        # 统一转 RGBA 保留透明（徽章常为圆形/异形图标）；96px 小图直接存优化 PNG
+        if img.mode != "RGBA":
+            img = img.convert("RGBA")
+        buf = io.BytesIO()
+        img.save(buf, format="PNG", optimize=True)
+        compressed = buf.getvalue()
+    except Exception:
+        raise HTTPException(status_code=400, detail="图片处理失败，请更换图片重试")
+
+    filename = f"{uuid4().hex}.png"
+    url = await storage_service.upload_image_async(filename, compressed, "image/png")
+    return ok({
+        "url": url,
+        "size_bytes": len(compressed),
+        "size_text": f"{len(compressed) / 1024:.1f} KB",
+    })
+
+@router.get("/badges")
+def admin_badges(
+    keyword: str | None = Query(default=None),
+    db: Session = Depends(get_db),
+    _: Admin = Depends(admin_user),
+) -> dict:
+    """徽章列表（含停用徽章 + 激活码/发放统计）。"""
+    return ok(badge_service.admin_list_badges(db, keyword))
+
+
+@router.post("/badges")
+def admin_create_badge(
+    payload: dict = Body(...),
+    request: Request = None,  # type: ignore[assignment]
+    db: Session = Depends(get_db),
+    admin: Admin = Depends(admin_user),
+) -> dict:
+    """创建徽章。payload: name/code/icon/description/is_active/sort_order/is_system。"""
+    return ok(badge_service.admin_create_badge(payload, request, db, admin))
+
+
+@router.patch("/badges/{badge_id}")
+def admin_update_badge(
+    badge_id: int,
+    payload: dict = Body(...),
+    request: Request = None,  # type: ignore[assignment]
+    db: Session = Depends(get_db),
+    admin: Admin = Depends(admin_user),
+) -> dict:
+    """更新徽章（名称/图标/描述/排序/启用状态）。"""
+    return ok(badge_service.admin_update_badge(badge_id, payload, request, db, admin))
+
+
+@router.delete("/badges/{badge_id}")
+def admin_delete_badge(
+    badge_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    admin: Admin = Depends(admin_user),
+) -> dict:
+    """删除徽章（系统徽章不可删除，只能停用）。"""
+    badge_service.admin_delete_badge(badge_id, request, db, admin)
+    return ok()
+
+
+@router.post("/badges/{badge_id}/codes")
+def admin_generate_badge_codes(
+    badge_id: int,
+    payload: dict = Body(...),
+    request: Request = None,  # type: ignore[assignment]
+    db: Session = Depends(get_db),
+    admin: Admin = Depends(admin_user),
+) -> dict:
+    """为徽章批量生成激活码。payload: count(1-100)/note/batch_no。"""
+    count = int(payload.get("count", 1) or 1)
+    return ok(badge_service.admin_generate_badge_codes(
+        db, admin, badge_id, count=count,
+        request=request,
+        note=payload.get("note"),
+        batch_no=payload.get("batch_no"),
+    ))
+
+
+@router.get("/badge-codes")
+def admin_badge_codes(
+    badge_id: int | None = Query(default=None),
+    status: str | None = Query(default=None, pattern="^(used|unused)$"),
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=100),
+    db: Session = Depends(get_db),
+    _: Admin = Depends(admin_user),
+) -> dict:
+    """激活码列表（分页 + 徽章/状态过滤）。"""
+    return ok(badge_service.admin_list_badge_codes(
+        db, badge_id, status, page, page_size
+    ))
+
+
+@router.delete("/badge-codes/{code_id}")
+def admin_delete_badge_code(
+    code_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    admin: Admin = Depends(admin_user),
+) -> dict:
+    """删除未使用的激活码。"""
+    badge_service.admin_delete_badge_code(code_id, request, db, admin)
+    return ok()
+
+
+@router.post("/badges/grant")
+def admin_grant_badge(
+    payload: dict = Body(...),
+    request: Request = None,  # type: ignore[assignment]
+    db: Session = Depends(get_db),
+    admin: Admin = Depends(admin_user),
+) -> dict:
+    """直接向用户发放徽章。payload: user_id/badge_id。"""
+    user_id = int(payload.get("user_id", 0))
+    badge_id = int(payload.get("badge_id", 0))
+    return ok(badge_service.admin_grant_badge(user_id, badge_id, request, db, admin))
 
 
 # ============ 种子邀请码管理 ============

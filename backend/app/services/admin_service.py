@@ -22,6 +22,7 @@ from app.models import (
     Announcement,
     Appeal,
     AuditLog,
+    Badge,
     BanRecord,
     Comment,
     LoginLog,
@@ -30,6 +31,7 @@ from app.models import (
     Post,
     Report,
     User,
+    UserBadge,
 )
 from app.schemas.interactions import AnnouncementCreate
 from app.services.audit_log import log_admin_action
@@ -408,14 +410,26 @@ def admin_users(db: Session, page: int = 1, page_size: int = 20, keyword: str | 
     total = db.scalar(select(func.count()).select_from(query.subquery())) or 0
     rows = db.scalars(query.offset((page - 1) * page_size).limit(page_size)).all()
     return {
-        "items": [_user_dict(u) for u in rows],
+        "items": [_user_dict(u, db) for u in rows],
         "total": int(total),
         "page": page,
         "page_size": page_size,
     }
 
 
-def _user_dict(u: User) -> dict:
+def _user_dict(u: User, db: Session | None = None) -> dict:
+    from app.services.badge_service import badge_dict as _badge_dict
+    from app.models import UserBadge
+    badge_names: list[str] = []
+    if db is not None:
+        rows = db.execute(
+            select(Badge.name, Badge.icon).join(
+                UserBadge, UserBadge.badge_id == Badge.id
+            ).where(UserBadge.user_id == u.id).order_by(Badge.sort_order.asc())
+        ).all()
+        badge_names = [
+            f"{icon} {name}" for name, icon in rows
+        ]
     return {
         "id": u.id,
         "nickname": u.nickname,
@@ -424,6 +438,8 @@ def _user_dict(u: User) -> dict:
         "grade": u.grade,
         "avatar_url": u.avatar_url,
         "bio": u.bio,
+        "wearing_badge": _badge_dict(getattr(u, "wearing_badge", None)),
+        "badge_names": badge_names,
         "is_active": u.is_active,
         "ban_until": to_iso_zh(u.ban_until) if u.ban_until else None,
         "ban_reason": u.ban_reason,
@@ -452,7 +468,7 @@ def admin_update_user(user_id: int, payload: dict, request: Request, db: Session
     )
     db.commit()
     db.refresh(u)
-    return _user_dict(u)
+    return _user_dict(u, db)
 
 
 # ============ 举报处理 ============
@@ -509,7 +525,7 @@ def admin_report_with_target(r: Report, db: Session) -> dict:
         elif r.target_type == "user":
             u = db.get(User, r.target_id)
             if u:
-                target = _user_dict(u)
+                target = _user_dict(u, db)
     except Exception:
         target = None
     data["target"] = target
@@ -988,7 +1004,7 @@ def admin_unban_user(user_id: int, request: Request, db: Session, admin: Admin) 
     )
     db.commit()
     db.refresh(u)
-    return _user_dict(u)
+    return _user_dict(u, db)
 
 
 def admin_ban_records(db: Session, page: int = 1, page_size: int = 20, user_id: int | None = None, status: str | None = None) -> dict:

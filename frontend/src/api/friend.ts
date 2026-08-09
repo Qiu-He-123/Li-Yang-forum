@@ -1,9 +1,11 @@
 import { http, type LoadingAxiosRequestConfig } from './http'
+import type { Badge } from '../types/api'
 
 export interface FriendUser {
   id: number
   nickname: string
   avatar_url: string | null
+  badge?: Badge | null
   bio: string | null
   school: string | null
   /** @deprecated 已弃用，改用 age */

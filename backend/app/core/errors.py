@@ -47,6 +47,10 @@ class ErrorCode:
     INVALID_LIKE_TARGET = -209
     PARENT_COMMENT_NOT_FOUND = -210
     POST_PRIVATE = -211        # 帖子为私密发布，仅作者可见
+    BADGE_NOT_FOUND = -212     # 徽章不存在或已停用
+    BADGE_CODE_INVALID = -213  # 激活码无效或已被使用
+    BADGE_ALREADY_OWNED = -214 # 已拥有该徽章
+    BADGE_CANNOT_WEAR = -215   # 未拥有该徽章，无法佩戴
 
     # ============ 权限类 ============
     NO_PERMISSION = -300
@@ -91,6 +95,10 @@ _ERROR_MESSAGES: dict[int, str] = {
     ErrorCode.CATEGORY_NOT_FOUND: "分类不存在",
     ErrorCode.POST_NOT_FOUND: "帖子不存在或已被删除",
     ErrorCode.POST_PRIVATE: "该帖子为私密发布，仅作者可见",
+    ErrorCode.BADGE_NOT_FOUND: "徽章不存在或已停用",
+    ErrorCode.BADGE_CODE_INVALID: "激活码无效或已被使用",
+    ErrorCode.BADGE_ALREADY_OWNED: "您已拥有该徽章",
+    ErrorCode.BADGE_CANNOT_WEAR: "您还未获得该徽章，无法佩戴",
     ErrorCode.COMMENT_NOT_FOUND: "评论不存在",
     ErrorCode.TARGET_NOT_FOUND: "对象不存在",
     ErrorCode.REPORT_TARGET_NOT_FOUND: "举报对象不存在",

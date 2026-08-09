@@ -64,10 +64,12 @@ def _parse_json(value: str | None, default: Any) -> Any:
 
 
 def _user_brief(u: User) -> dict:
+    from app.services.badge_service import badge_dict as _badge_dict
     return {
         "id": u.id,
         "nickname": u.nickname,
         "avatar_url": u.avatar_url,
+        "badge": _badge_dict(getattr(u, "wearing_badge", None)),
         "school_id": u.school_id,
         "grade": u.grade,
         "age": calculate_age(u.birthday),

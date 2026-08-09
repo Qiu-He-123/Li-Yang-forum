@@ -17,6 +17,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { Dialog, Icon } from '../components/native'
 import { toast } from '../components/native/Toast'
 import EmptyState from '../components/common/EmptyState.vue'
+import BadgeIcon from '../components/common/BadgeIcon.vue'
 import CircleDetailSkeleton from '../components/common/CircleDetailSkeleton.vue'
 import InfiniteScrollFooter from '../components/common/InfiniteScrollFooter.vue'
 import { useInfiniteScroll } from '../composables/useInfiniteScroll'
@@ -429,7 +430,10 @@ watch(slug, () => {
                 >
                   <img v-if="post.author_avatar_url && !post.is_anonymous" :src="post.author_avatar_url" :alt="post.author" />
                 </span>
-                <span class="post-author">{{ post.is_anonymous ? '匿名同学' : post.author }}</span>
+                <span class="post-author">
+                  <BadgeIcon v-if="!post.is_anonymous" :badge="post.author_badge" :size="13" />
+                  {{ post.is_anonymous ? '匿名同学' : post.author }}
+                </span>
                 <span class="post-dot" aria-hidden="true">·</span>
                 <span class="post-time">{{ timeAgo(post.created_at) }}</span>
                 <span v-if="(post.like_count ?? 0) >= 10" class="post-badge">

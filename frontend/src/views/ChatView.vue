@@ -19,6 +19,7 @@ import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 import EmptyState from '../components/common/EmptyState.vue'
+import BadgeIcon from '../components/common/BadgeIcon.vue'
 import { Icon } from '../components/native'
 import { toast } from '../components/native/Toast'
 import { fetchUser } from '../api/user'
@@ -385,7 +386,10 @@ watch(friendId, async () => {
           <span v-if="!friend?.avatar_url">{{ displayFriendInitial }}</span>
         </div>
         <div class="chat-name-wrap">
-          <span class="chat-name">{{ displayFriendName }}</span>
+          <span class="chat-name">
+            <BadgeIcon :badge="friend?.wearing_badge" :size="15" />
+            {{ displayFriendName }}
+          </span>
           <span class="chat-subtitle" :class="{ 'is-mutual': isMutual, 'is-blocked': !canSend }">
             {{ headerSubtitle }}
           </span>
@@ -550,6 +554,9 @@ watch(friendId, async () => {
   font-size: 16px;
   font-weight: 600;
   color: #000;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;

@@ -1,5 +1,6 @@
 import axios from 'axios'
 import { http } from './http'
+import type { Badge } from '../types/api'
 
 // 管理员 API 独立实例：admin_token Cookie 由浏览器自动携带（withCredentials），
 // 但 admin 接口不走用户 /api/http 拦截器中的 refresh 逻辑（admin_token 不通过 refresh 续期）。
@@ -129,6 +130,10 @@ export interface AdminUser {
   age: number | null
   avatar_url: string | null
   bio: string | null
+  /** 当前佩戴的徽章 */
+  wearing_badge?: Badge | null
+  /** 已拥有徽章列表（"图标 名称" 文本） */
+  badge_names?: string[]
   is_active: boolean
   post_count: number
   following_count: number

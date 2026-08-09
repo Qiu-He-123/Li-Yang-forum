@@ -44,6 +44,10 @@ def post_dict(post: Post, comment_count: int | None = None, db: Session | None =
         db: Session（可选，传入则输出 topic_name/poll/mention_users 等扩展字段）
     """
     author_name = "匿名同学" if post.is_anonymous else post.author.nickname
+    from app.services.badge_service import badge_dict as _badge_dict
+    author_badge = (
+        None if post.is_anonymous else _badge_dict(getattr(post.author, "wearing_badge", None))
+    )
     data = {
         "id": post.id,
         "content": post.content,
@@ -55,6 +59,7 @@ def post_dict(post: Post, comment_count: int | None = None, db: Session | None =
         "author": author_name,
         "author_id": post.author_id,
         "author_avatar_url": post.author.avatar_url if post.author.avatar_url else None,
+        "author_badge": author_badge,
         "is_public": post.is_public,
         "is_draft": post.is_draft,
         "like_count": post.like_count,

@@ -4,6 +4,8 @@ from app.models.entities import (
     AnnouncementRead,
     Appeal,
     AuditLog,
+    Badge,
+    BadgeCode,
     BanRecord,
     Bottle,
     BottlePick,
@@ -45,6 +47,7 @@ from app.models.entities import (
     TopicFollow,
     User,
     UserCategory,
+    UserBadge,
     WarningConfig,
     WarningLog,
 )
@@ -56,6 +59,8 @@ __all__ = [
     "AnnouncementRead",
     "Appeal",
     "AuditLog",
+    "Badge",
+    "BadgeCode",
     "BanRecord",
     "Bottle",
     "BottlePick",
@@ -99,6 +104,7 @@ __all__ = [
     "TopicFollow",
     "User",
     "UserCategory",
+    "UserBadge",
     "WarningConfig",
     "WarningLog",
 ]

@@ -1,10 +1,12 @@
 import { http, type LoadingAxiosRequestConfig } from './http'
+import type { Badge } from '../types/api'
 
 /** 用户简要信息（匹配到的对方） */
 export interface MatchPeer {
   id: number
   nickname: string
   avatar_url: string | null
+  badge?: Badge | null
   school_id: number
   /** @deprecated 已弃用，改用 age */
   grade: string | null

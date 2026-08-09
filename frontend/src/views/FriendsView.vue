@@ -10,6 +10,7 @@ import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 
 import EmptyState from '../components/common/EmptyState.vue'
+import BadgeIcon from '../components/common/BadgeIcon.vue'
 import { Icon } from '../components/native'
 import { toast } from '../components/native/Toast'
 import type { FriendItem, FriendRequestItem, SearchUserResult } from '../api/friend'
@@ -256,7 +257,10 @@ onUnmounted(() => {
               <span v-if="!item.user.avatar_url">{{ item.user.nickname.charAt(0).toUpperCase() }}</span>
             </div>
             <div class="user-info">
-              <span class="user-name">{{ item.user.nickname }}</span>
+              <span class="user-name">
+                <BadgeIcon :badge="item.user.badge" :size="14" />
+                {{ item.user.nickname }}
+              </span>
               <span class="user-bio">
                 <span v-if="item.user.school">{{ item.user.school }}</span>
                 <span v-if="item.user.age !== null && item.user.age !== undefined && item.user.school"> · </span>
@@ -358,7 +362,10 @@ onUnmounted(() => {
                 <span v-if="!req.user.avatar_url">{{ req.user.nickname.charAt(0).toUpperCase() }}</span>
               </div>
               <div class="user-info">
-                <span class="user-name">{{ req.user.nickname }}</span>
+                <span class="user-name">
+                  <BadgeIcon :badge="req.user.badge" :size="14" />
+                  {{ req.user.nickname }}
+                </span>
                 <span class="user-bio">{{ req.message || '请求加你为好友' }}</span>
               </div>
               <div class="request-actions">
@@ -398,7 +405,10 @@ onUnmounted(() => {
                 <span v-if="!f.user.avatar_url">{{ f.user.nickname.charAt(0).toUpperCase() }}</span>
               </div>
               <div class="user-info">
-                <span class="user-name">{{ f.user.nickname }}</span>
+                <span class="user-name">
+                  <BadgeIcon :badge="f.user.badge" :size="14" />
+                  {{ f.user.nickname }}
+                </span>
                 <span class="user-bio">{{ f.last_message || f.user.bio || '点击开始聊天' }}</span>
               </div>
               <div class="friend-meta">
@@ -710,6 +720,9 @@ onUnmounted(() => {
   font-size: 15px;
   font-weight: 600;
   color: var(--text-800);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;

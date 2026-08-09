@@ -15,6 +15,7 @@ import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 
 import { Icon } from '../components/native'
+import BadgeIcon from '../components/common/BadgeIcon.vue'
 import { toast } from '../components/native/Toast'
 import { useSessionStore } from '../stores/session'
 import { useUserStore } from '../stores/user'
@@ -1121,7 +1122,10 @@ function ageLabel(age: number | null | undefined): string {
             />
             <span v-else class="avatar avatar-md" aria-hidden="true">{{ (activeSession.peer?.nickname || 'U').charAt(0) }}</span>
             <div class="peer-info">
-              <span class="peer-name">{{ activeSession.peer?.nickname || '匿名同学' }}</span>
+              <span class="peer-name">
+                <BadgeIcon :badge="activeSession.peer?.badge" :size="14" />
+                {{ activeSession.peer?.nickname || '匿名同学' }}
+              </span>
               <span class="peer-meta">
                 <span>{{ ageLabel(activeSession.peer?.age) }}</span>
                 <span class="meta-dot">·</span>

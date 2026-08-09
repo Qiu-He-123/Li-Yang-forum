@@ -10,7 +10,7 @@ from loguru import logger
 from sqlalchemy import select
 
 from app.api.routes import (
-    admin, announcements, auth, bottles, browse_history, circle_apply, circles, checkin,
+    admin, announcements, auth, badges, bottles, browse_history, circle_apply, circles, checkin,
     comments, deepseek, feedback, follows, images, interactions, match, messages, notifications,
     polls, posts, schools, search, stats, topics, users, ws,
 )
@@ -18,7 +18,7 @@ from app.core.config import get_settings
 from app.core.database import Base, SessionLocal, engine
 from app.core.errors import ErrorCode, error_response, get_error_message, pydantic_error_to_code
 from app.core.logger import setup_logger
-from app.models import Announcement, Category, CategoryAdmin, School, SeedInviteCode, WarningConfig, WarningLog  # noqa: F401  保证模型注册到 Base.metadata
+from app.models import Announcement, Badge, Category, CategoryAdmin, School, SeedInviteCode, WarningConfig, WarningLog  # noqa: F401  保证模型注册到 Base.metadata
 
 setup_logger()
 settings = get_settings()
@@ -144,6 +144,8 @@ def startup() -> None:
         for name, code in [("本部校区", "main"), ("未来校区", "future"), ("香山校区", "xiangshan"), ("东校区", "east")]:
             if not db.scalar(select(School).where(School.code == code)):
                 db.add(School(name=name, code=code))
+        # 初始化徽章系统（幂等，至少 20 个种子徽章）
+        _init_badges(db)
         if not db.scalar(select(Announcement)):
             db.add(Announcement(title="欢迎来到立洋社区", content="请遵守校园社区规范，友好交流，保护隐私。"))
         # 初始化 8 个圈子（与 School 初始化保持一致风格）
@@ -263,12 +265,35 @@ def _init_seed_invite_codes(db, count: int) -> None:
                 break
 
 
+def _init_badges(db) -> None:
+    """初始化种子徽章（幂等，已有 code 则跳过）。"""
+    from app.services.badge_service import DEFAULT_BADGES
+
+    existing_codes = set(
+        db.scalars(select(Badge.code)).all()
+    )
+    for item in DEFAULT_BADGES:
+        if item["code"] in existing_codes:
+            continue
+        db.add(
+            Badge(
+                name=item["name"],
+                code=item["code"],
+                icon=item["icon"],
+                description=item["description"],
+                sort_order=item.get("sort_order", 0),
+                is_system=item.get("is_system", False),
+            )
+        )
+
+
 app.include_router(auth.router)
 app.include_router(schools.router)
 app.include_router(posts.router)
 app.include_router(comments.router)
 app.include_router(interactions.router)
 app.include_router(users.router)
+app.include_router(badges.router)
 app.include_router(images.router)
 app.include_router(admin.router)
 app.include_router(announcements.router)

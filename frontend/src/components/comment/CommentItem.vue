@@ -14,6 +14,7 @@ import { useSessionStore } from '../../stores/session'
 import { useInteractionStore } from '../../stores/interaction'
 import { formatRelative } from '../../utils/time'
 import AiStatusBadge from '../common/AiStatusBadge.vue'
+import BadgeIcon from '../common/BadgeIcon.vue'
 import type { CommentItem as CommentItemType } from '../../types/api'
 
 const props = defineProps<{
@@ -117,6 +118,7 @@ const isAuthor = () => props.comment.user_id != null && props.comment.user_id ==
       </span>
       <div class="comment-meta">
         <div class="comment-name-row">
+          <BadgeIcon :badge="comment.author_badge" :size="13" />
           <b class="comment-author">{{ comment.author }}</b>
           <AiStatusBadge :status="comment.ai_status" :reject-reason="comment.reject_reason" />
         </div>

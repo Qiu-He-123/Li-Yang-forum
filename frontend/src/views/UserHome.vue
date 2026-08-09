@@ -7,10 +7,11 @@ import { useRoute, useRouter } from 'vue-router'
 
 import EmptyState from '../components/common/EmptyState.vue'
 import AiStatusBadge from '../components/common/AiStatusBadge.vue'
+import BadgeIcon from '../components/common/BadgeIcon.vue'
 import PostListSkeleton from '../components/post/PostListSkeleton.vue'
 import ProfileSkeleton from '../components/common/ProfileSkeleton.vue'
 import InfiniteScrollFooter from '../components/common/InfiniteScrollFooter.vue'
-import { Icon } from '../components/native'
+import { Dialog as NativeDialog, Icon, Select as NativeSelect } from '../components/native'
 import { toast } from '../components/native/Toast'
 import { useInfiniteScroll } from '../composables/useInfiniteScroll'
 import {
@@ -21,9 +22,12 @@ import {
   fetchUserPosts,
   type WarningStatus,
 } from '../api/user'
+import { updateMe } from '../api/user'
+import { uploadImage } from '../api/image'
 import { useSessionStore } from '../stores/session'
 import { useUserStore } from '../stores/user'
 import { useFollowStore } from '../stores/follow'
+import { useSchoolStore } from '../stores/school'
 import type { Post, Profile } from '../types/api'
 
 const route = useRoute()
@@ -31,6 +35,7 @@ const router = useRouter()
 const session = useSessionStore()
 const userStore = useUserStore()
 const followStore = useFollowStore()
+const schoolStore = useSchoolStore()
 
 // 关键修复：/user/:id 和 /post/:id 共用 :id 参数名。
 // keep-alive 缓存 UserHome 后导航到 PostDetail，route.params.id 变成帖子 ID，
@@ -81,8 +86,106 @@ const funcGrid = [
   { icon: 'history', color: '#5856d6', label: '浏览历史', to: '/my/history' },
   { icon: 'sparkles', color: '#34c759', label: '我创建的吧', to: '/my/circles-applied' },
   { icon: 'gift', color: '#00c7be', label: '每日签到', to: '/my/checkin' },
+  { icon: 'medal', color: '#f7b500', label: '我的徽章', to: '/my/badges' },
   { icon: 'creditcard', color: '#ff6b35', label: '校园卡', to: '' },
 ]
+
+// ============ 我的页直接编辑（点头像/名字/校区） ============
+const avatarUploading = ref(false)
+const avatarInputRef = ref<HTMLInputElement | null>(null)
+
+const nameDialogVisible = ref(false)
+const nameSaving = ref(false)
+const editName = ref('')
+
+const schoolDialogVisible = ref(false)
+const schoolSaving = ref(false)
+const selectedSchoolId = ref<number>(0)
+
+function onAvatarClick() {
+  if (!isMe.value) return
+  avatarInputRef.value?.click()
+}
+
+async function onAvatarFileChange(e: Event) {
+  const input = e.target as HTMLInputElement
+  const file = input.files?.[0]
+  input.value = ''
+  if (!file) return
+  avatarUploading.value = true
+  try {
+    const { data } = await uploadImage(file)
+    await updateMe({ avatar_url: data.data.url })
+    await userStore.loadProfile()
+    profile.value = userStore.profile
+    toast.success('头像已更新')
+  } catch (err) {
+    toast.error((err as Error).message)
+  } finally {
+    avatarUploading.value = false
+  }
+}
+
+function onNameClick() {
+  if (!isMe.value) return
+  editName.value = displayName.value
+  nameDialogVisible.value = true
+}
+
+async function saveName() {
+  const name = editName.value.trim()
+  if (!name) {
+    toast.error('昵称不能为空')
+    return
+  }
+  nameSaving.value = true
+  try {
+    await updateMe({ nickname: name.slice(0, 32) })
+    await userStore.loadProfile()
+    profile.value = userStore.profile
+    session.setNickname(name.slice(0, 32))
+    nameDialogVisible.value = false
+    toast.success('昵称已更新')
+  } catch (err) {
+    toast.error((err as Error).message)
+  } finally {
+    nameSaving.value = false
+  }
+}
+
+function onSchoolClick() {
+  if (!isMe.value) return
+  if (!schoolStore.loaded) void schoolStore.loadSchools()
+  selectedSchoolId.value = profile.value?.school_id || 0
+  schoolDialogVisible.value = true
+}
+
+const schoolOptions = computed(() =>
+  schoolStore.schools.map((s) => ({ label: s.name, value: s.id })),
+)
+
+async function saveSchool() {
+  if (!selectedSchoolId.value) {
+    toast.error('请选择校区')
+    return
+  }
+  schoolSaving.value = true
+  try {
+    await updateMe({ school_id: selectedSchoolId.value })
+    await userStore.loadProfile()
+    profile.value = userStore.profile
+    schoolDialogVisible.value = false
+    toast.success('校区已更新')
+  } catch (err) {
+    toast.error((err as Error).message)
+  } finally {
+    schoolSaving.value = false
+  }
+}
+
+function goMyBadges() {
+  router.push('/my/badges')
+}
 
 const settingsList = [
   { icon: 'bell', label: '消息通知中心设置', desc: '管理各类通知提醒', to: '/settings' },
@@ -419,21 +522,47 @@ onMounted(async () => {
       </div>
 
       <div class="hero-body">
-        <div
+        <button
           class="hero-avatar"
+          :class="{ 'is-editable': isMe }"
+          type="button"
+          :disabled="avatarUploading"
+          @click="onAvatarClick"
           :style="
             profile?.avatar_url
               ? { backgroundImage: `url(${profile.avatar_url})` }
               : { background: avatarGradient(profile?.id || userId) }
           "
+          aria-label="修改头像"
         >
           <span v-if="!profile?.avatar_url">{{ displayInitial }}</span>
-        </div>
-        <h2 class="hero-name">{{ displayName }}</h2>
+          <span v-if="isMe" class="avatar-camera">
+            <Icon name="camera" :size="14" />
+          </span>
+        </button>
+        <h2 class="hero-name" :class="{ 'is-editable': isMe }" @click="onNameClick">
+          <BadgeIcon :badge="profile?.wearing_badge" :size="20" />
+          <span>{{ displayName }}</span>
+          <span v-if="isMe" class="name-edit-hint">
+            <Icon name="edit" :size="12" />
+          </span>
+        </h2>
         <div class="hero-meta">
           <span v-if="profile?.age !== null && profile?.age !== undefined" class="grade-pill">{{ profile.age }} 岁</span>
-          <span v-if="profile?.school" class="hero-school">{{ profile.school }}</span>
+          <span v-if="profile?.school" class="hero-school" :class="{ 'is-editable': isMe }" @click="onSchoolClick">
+            {{ profile.school }}
+            <span v-if="isMe" class="school-edit-hint">
+              <Icon name="chevron-right" :size="11" />
+            </span>
+          </span>
         </div>
+        <!-- 佩戴徽章展示：让用户知道可以佩戴徽章 -->
+        <button v-if="isMe" class="wearing-badge-row" type="button" @click="goMyBadges">
+          <BadgeIcon :badge="profile?.wearing_badge" :size="16" />
+          <span v-if="profile?.wearing_badge">佩戴中：{{ profile.wearing_badge.name }}</span>
+          <span v-else>还没有佩戴徽章</span>
+          <span class="wearing-badge-action">去管理<Icon name="chevron-right" :size="11" /></span>
+        </button>
         <p v-if="profile?.bio" class="hero-bio">{{ profile.bio }}</p>
 
         <!-- 统计（可点击） -->
@@ -510,6 +639,48 @@ onMounted(async () => {
         </button>
       </div>
     </section>
+
+    <!-- 修改昵称 / 校区弹窗 -->
+    <NativeDialog v-model="nameDialogVisible" title="修改昵称" width="420px">
+      <input
+        v-model="editName"
+        class="edit-input"
+        type="text"
+        maxlength="32"
+        placeholder="请输入新昵称（最多 32 字）"
+        @keydown.enter="saveName"
+      />
+      <template #footer>
+        <button class="btn btn-outline" type="button" @click="nameDialogVisible = false">取消</button>
+        <button class="btn btn-primary" type="button" :disabled="nameSaving" @click="saveName">
+          {{ nameSaving ? '保存中…' : '保存' }}
+        </button>
+      </template>
+    </NativeDialog>
+
+    <NativeDialog v-model="schoolDialogVisible" title="切换校区" width="420px">
+      <NativeSelect
+        v-model="selectedSchoolId"
+        :options="schoolOptions"
+        placeholder="请选择校区"
+      />
+      <p class="edit-hint">切换校区后，首页「本校区」内容将按新校区展示</p>
+      <template #footer>
+        <button class="btn btn-outline" type="button" @click="schoolDialogVisible = false">取消</button>
+        <button class="btn btn-primary" type="button" :disabled="schoolSaving" @click="saveSchool">
+          {{ schoolSaving ? '保存中…' : '保存' }}
+        </button>
+      </template>
+    </NativeDialog>
+
+    <!-- 隐藏的头像文件选择（点击头像直接触发） -->
+    <input
+      ref="avatarInputRef"
+      class="hidden-file-input"
+      type="file"
+      accept="image/*"
+      @change="onAvatarFileChange"
+    />
 
     <!-- 警告值状态卡片（仅自己可见） -->
     <section v-if="isMe && warningStatus" class="warning-section">
@@ -717,6 +888,8 @@ onMounted(async () => {
   width: 80px;
   height: 80px;
   border-radius: 50%;
+  border: 3px solid white;
+  padding: 0;
   background-size: cover;
   background-position: center;
   display: grid;
@@ -724,8 +897,33 @@ onMounted(async () => {
   color: white;
   font-size: 32px;
   font-weight: 700;
-  border: 3px solid white;
   box-shadow: var(--shadow-md);
+  position: relative;
+  overflow: hidden;
+}
+.hero-avatar.is-editable {
+  cursor: pointer;
+  transition: transform 0.15s var(--ease-apple), box-shadow 0.15s;
+}
+.hero-avatar.is-editable:hover {
+  transform: scale(1.03);
+  box-shadow: var(--shadow-lg, 0 10px 24px -8px rgba(0, 0, 0, 0.25));
+}
+.hero-avatar.is-editable:active {
+  transform: scale(0.98);
+}
+.avatar-camera {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  display: grid;
+  place-items: center;
+  border: 2px solid #fff;
 }
 .hero-name {
   margin: 12px 0 6px;
@@ -733,6 +931,22 @@ onMounted(async () => {
   font-weight: 700;
   color: var(--text-800);
   letter-spacing: -0.02em;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.hero-name.is-editable {
+  cursor: pointer;
+}
+.name-edit-hint {
+  display: inline-flex;
+  align-items: center;
+  color: var(--text-400);
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.hero-name.is-editable:hover .name-edit-hint {
+  opacity: 1;
 }
 .hero-meta {
   display: flex;
@@ -751,6 +965,103 @@ onMounted(async () => {
 .hero-school {
   font-size: 12px;
   color: var(--text-500);
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+.hero-school.is-editable {
+  cursor: pointer;
+  padding: 3px 8px;
+  border-radius: 999px;
+  transition: background 0.15s;
+}
+.hero-school.is-editable:hover {
+  background: rgba(0, 0, 0, 0.06);
+  color: var(--brand-600);
+}
+.school-edit-hint {
+  display: inline-flex;
+  align-items: center;
+}
+.wearing-badge-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 2px 0 6px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  border: 1px dashed var(--brand-300, #7cb8ff);
+  background: rgba(0, 122, 255, 0.05);
+  color: var(--text-600);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+.wearing-badge-row:hover {
+  background: rgba(0, 122, 255, 0.1);
+  border-color: var(--brand-500);
+}
+.wearing-badge-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  color: var(--brand-500);
+  font-weight: 600;
+}
+.edit-input {
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--color-border, #e5e5ea);
+  font-size: 15px;
+  font-family: inherit;
+  color: var(--text-800);
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.edit-input:focus {
+  border-color: var(--brand-500);
+  box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.15);
+}
+.edit-hint {
+  margin: 10px 0 0;
+  font-size: 12px;
+  color: var(--text-400);
+  line-height: 1.5;
+}
+.hidden-file-input {
+  display: none;
+}
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 8px 18px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: inherit;
+  border: none;
+  cursor: pointer;
+  transition: transform 0.15s, opacity 0.15s, background 0.15s;
+}
+.btn:active {
+  transform: scale(0.98);
+}
+.btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+.btn-outline {
+  background: transparent;
+  color: var(--text-700);
+  border: 1px solid var(--bg-300);
+}
+.btn-primary {
+  background: var(--brand-500);
+  color: #fff;
 }
 .hero-bio {
   margin: 4px 0 16px;

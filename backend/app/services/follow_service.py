@@ -211,10 +211,12 @@ def _follow_dict(u: User, created_at, following_set: set[int] | None = None) -> 
     is_following = False
     if following_set is not None and u.id in following_set:
         is_following = True
+    from app.services.badge_service import badge_dict as _badge_dict
     return {
         "id": u.id,
         "nickname": u.nickname,
         "avatar_url": u.avatar_url,
+        "badge": _badge_dict(getattr(u, "wearing_badge", None)),
         "bio": u.bio,
         "school": u.school.name if u.school else None,
         "grade": u.grade,

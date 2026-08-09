@@ -12,6 +12,7 @@ import { Dialog as NativeDialog } from '../native'
 import PostImages from './PostImages.vue'
 import CommentList from '../comment/CommentList.vue'
 import AiStatusBadge from '../common/AiStatusBadge.vue'
+import BadgeIcon from '../common/BadgeIcon.vue'
 import { deletePost } from '../../api/post'
 import { likeTarget, unlikeTarget, favoritePost, unfavoritePost, reportTarget } from '../../api/interaction'
 import { useSessionStore } from '../../stores/session'
@@ -203,6 +204,7 @@ function goTagSearch(tag: string) {
       </span>
       <div class="author-meta">
         <div class="author-name-row">
+          <BadgeIcon v-if="!post.is_anonymous" :badge="post.author_badge" :size="14" />
           <span class="author-name">{{ post.is_anonymous ? '匿名同学' : post.author }}</span>
           <AiStatusBadge
             :status="post.ai_status"

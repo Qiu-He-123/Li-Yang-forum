@@ -17,6 +17,7 @@ declare module 'vue' {
     AnnouncementPopup: typeof import('./../components/AnnouncementPopup.vue')['default']
     AppHeader: typeof import('./../components/header/AppHeader.vue')['default']
     AuthDialog: typeof import('./../components/auth/AuthDialog.vue')['default']
+    BadgeIcon: typeof import('./../components/common/BadgeIcon.vue')['default']
     BottleSkeleton: typeof import('./../components/common/BottleSkeleton.vue')['default']
     BottomTabBar: typeof import('./../components/BottomTabBar.vue')['default']
     CircleDetailSkeleton: typeof import('./../components/common/CircleDetailSkeleton.vue')['default']

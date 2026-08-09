@@ -7,6 +7,8 @@ export interface ProfileUpdatePayload {
   avatar_url?: string
   background_url?: string
   bio?: string
+  /** 校区 id（我的页直接切换校区） */
+  school_id?: number
   /** @deprecated 已弃用，改用 birthday */
   grade?: string
   /** 生日（ISO 字符串 YYYY-MM-DD，设置后动态计算年龄，替代 grade） */

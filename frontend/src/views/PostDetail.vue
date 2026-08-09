@@ -3,6 +3,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 import EmptyState from '../components/common/EmptyState.vue'
+import BadgeIcon from '../components/common/BadgeIcon.vue'
 import PostDetailSkeleton from '../components/post/PostDetailSkeleton.vue'
 import { Icon } from '../components/native'
 import { Dialog as NativeDialog } from '../components/native'
@@ -585,6 +586,7 @@ onMounted(() => {
                 </button>
                 <div class="author-meta">
                   <div class="author-name">
+                    <BadgeIcon v-if="!post.is_anonymous" :badge="post.author_badge" :size="15" />
                     {{ post.is_anonymous ? '匿名同学' : post.author }}
                     <span v-if="post.is_anonymous" class="anon-badge">匿名</span>
                   </div>

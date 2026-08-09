@@ -13,6 +13,25 @@ export interface MentionUser {
   id: number
   nickname: string
   avatar_url?: string | null
+  badge?: Badge | null
+}
+
+/** 徽章（勋章） */
+export interface Badge {
+  id: number
+  name: string
+  code: string
+  /** 图标：emoji（如 🏅）或图片 URL */
+  icon: string
+  description?: string | null
+  is_active?: boolean
+  is_system?: boolean
+  sort_order?: number
+  /** 当前用户是否已拥有 */
+  is_owned?: boolean
+  /** 当前用户是否正在佩戴 */
+  is_wearing?: boolean
+  created_at?: string | null
 }
 
 export interface Post {
@@ -30,6 +49,8 @@ export interface Post {
   author: string
   author_id?: number
   author_avatar_url?: string | null
+  /** 作者佩戴的徽章（匿名帖不返回） */
+  author_badge?: Badge | null
   like_count: number
   comment_count: number
   view_count?: number
@@ -62,6 +83,8 @@ export interface CommentItem {
   content: string
   author: string
   author_avatar_url?: string | null
+  /** 评论者佩戴的徽章 */
+  author_badge?: Badge | null
   user_id?: number
   like_count: number
   ai_status?: AiStatus
@@ -89,6 +112,10 @@ export interface Profile {
   like_count: number
   following_count?: number
   followers_count?: number
+  /** 当前佩戴的徽章 */
+  wearing_badge?: Badge | null
+  /** 已拥有的徽章数量 */
+  badge_count?: number
   /** 该用户是否关注了当前登录用户（用于判断互关） */
   is_following_me?: boolean
 }
@@ -229,6 +256,7 @@ export interface FollowUser {
   id: number
   nickname: string
   avatar_url: string | null
+  badge?: Badge | null
   bio: string | null
   school: string
   /** 当前用户是否已关注此人 */

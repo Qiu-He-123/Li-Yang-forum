@@ -19,6 +19,7 @@ from app.services.notification_service import create_notification
 
 def comment_dict(comment: Comment, user: User | None) -> dict:
     """序列化评论为前端响应字典（含 user_id 用于权限判断）。"""
+    from app.services.badge_service import badge_dict as _badge_dict
     return {
         "id": comment.id,
         "post_id": comment.post_id,
@@ -26,6 +27,7 @@ def comment_dict(comment: Comment, user: User | None) -> dict:
         "content": comment.content,
         "author": user.nickname if user else "同学",
         "author_avatar_url": user.avatar_url if user and user.avatar_url else None,
+        "author_badge": _badge_dict(getattr(user, "wearing_badge", None)) if user else None,
         "user_id": comment.user_id,
         "like_count": comment.like_count,
         "ai_status": comment.ai_status,

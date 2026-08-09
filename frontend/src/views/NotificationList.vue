@@ -12,11 +12,14 @@ import { useRoute, useRouter } from 'vue-router'
 
 import EmptyState from '../components/common/EmptyState.vue'
 import InfiniteScrollFooter from '../components/common/InfiniteScrollFooter.vue'
-import { Icon } from '../components/native'
+import BadgeIcon from '../components/common/BadgeIcon.vue'
+import { Dialog as NativeDialog, Icon } from '../components/native'
 import { toast } from '../components/native/Toast'
 import { listNotifications, markAllNotificationsRead, markNotificationRead } from '../api/notification'
+import { claimBadge, fetchMyBadges } from '../api/badge'
 import { useInfiniteScroll } from '../composables/useInfiniteScroll'
 import { useNotificationStore } from '../stores/notification'
+import type { Badge } from '../types/api'
 import type { NotificationItem } from '../types/api'
 
 const route = useRoute()
@@ -43,6 +46,14 @@ const loading = ref(false)
 const page = ref(1)
 const total = ref(0)
 const pageSize = 20
+const isSystem = computed(() => currentType.value === 'system')
+
+// 系统消息页的徽章领取入口
+const badgeCount = ref(0)
+const wearingBadge = ref<Badge | null>(null)
+const claimDialogVisible = ref(false)
+const claimCode = ref('')
+const claiming = ref(false)
 
 async function loadList() {
   loading.value = true
@@ -56,6 +67,45 @@ async function loadList() {
     toast.error((err as Error).message)
   } finally {
     loading.value = false
+  }
+}
+
+async function loadBadgeSummary() {
+  if (!isSystem.value) return
+  try {
+    const { data } = await fetchMyBadges({
+      showGlobalLoading: false,
+      showGlobalError: false,
+    })
+    badgeCount.value = data.data.total || 0
+    wearingBadge.value = data.data.wearing_badge || null
+  } catch {
+    /* ignore */
+  }
+}
+
+function openClaim() {
+  claimCode.value = ''
+  claimDialogVisible.value = true
+}
+
+async function submitClaim() {
+  const code = claimCode.value.trim()
+  if (!code) {
+    toast.error('请输入激活码')
+    return
+  }
+  claiming.value = true
+  try {
+    const { data } = await claimBadge(code)
+    toast.success(`已获得「${data.data.icon} ${data.data.name}」徽章！`)
+    claimDialogVisible.value = false
+    await loadBadgeSummary()
+    await loadList()
+  } catch (err) {
+    toast.error((err as Error).message)
+  } finally {
+    claiming.value = false
   }
 }
 
@@ -170,6 +220,7 @@ function avatarGradient(id: number | null | undefined): string {
 onMounted(async () => {
   // 先加载列表展示，再后台清除该分类未读红点
   await loadList()
+  await loadBadgeSummary()
   clearUnreadDot()
 })
 
@@ -177,6 +228,7 @@ onMounted(async () => {
 watch(currentType, async () => {
   page.value = 1
   await loadList()
+  await loadBadgeSummary()
   clearUnreadDot()
 })
 </script>
@@ -196,6 +248,21 @@ watch(currentType, async () => {
     </header>
 
     <div class="page-container">
+      <!-- 系统消息：徽章领取入口 -->
+      <div v-if="isSystem" class="badge-claim-card">
+        <div class="badge-claim-icon">
+          <BadgeIcon :badge="wearingBadge" :size="26" />
+        </div>
+        <div class="badge-claim-info">
+          <span class="badge-claim-title">徽章中心（{{ badgeCount }}）</span>
+          <span class="badge-claim-desc">
+            {{ wearingBadge ? `佩戴中：${wearingBadge.name}` : '输入激活码领取徽章，佩戴后展示在名字前' }}
+          </span>
+        </div>
+        <button class="badge-claim-btn" type="button" @click="openClaim">领取</button>
+        <button class="badge-claim-btn is-ghost" type="button" @click="router.push('/my/badges')">管理</button>
+      </div>
+
       <div v-if="loading && !items.length" class="loading-tip">
         <Icon name="refresh" :size="20" />
         <span>加载中…</span>
@@ -242,6 +309,27 @@ watch(currentType, async () => {
 
       <EmptyState v-else :icon="meta.icon" :text="`暂无${meta.title}消息`" />
     </div>
+
+    <!-- 领取徽章弹窗 -->
+    <NativeDialog v-model="claimDialogVisible" title="领取徽章" width="420px">
+      <p class="claim-tip">
+        输入管理员发放的激活码领取徽章。每人可拥有多个徽章，可随时更换佩戴的徽章。
+      </p>
+      <input
+        v-model="claimCode"
+        class="claim-input"
+        type="text"
+        maxlength="32"
+        placeholder="请输入激活码"
+        @keydown.enter="submitClaim"
+      />
+      <template #footer>
+        <button class="btn btn-outline" type="button" @click="claimDialogVisible = false">取消</button>
+        <button class="btn btn-primary" type="button" :disabled="claiming" @click="submitClaim">
+          {{ claiming ? '领取中…' : '领取' }}
+        </button>
+      </template>
+    </NativeDialog>
   </main>
 </template>
 
@@ -313,6 +401,118 @@ watch(currentType, async () => {
   max-width: 720px;
   margin: 0 auto;
   padding: 8px 0 0;
+}
+
+/* 徽章领取卡片（仅系统消息页） */
+.badge-claim-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 8px 16px 0;
+  padding: 12px 14px;
+  background: linear-gradient(135deg, #fffbea, #fff);
+  border: 1px solid #ffe1a6;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-xs);
+}
+.badge-claim-icon {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: #fff;
+  border: 1px dashed #f0c14b;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+.badge-claim-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.badge-claim-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-800);
+}
+.badge-claim-desc {
+  font-size: 11px;
+  color: var(--text-500);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.badge-claim-btn {
+  padding: 6px 14px;
+  border-radius: 999px;
+  border: none;
+  background: linear-gradient(135deg, #ffd60a, #f7b500);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  flex-shrink: 0;
+  font-family: inherit;
+}
+.badge-claim-btn.is-ghost {
+  background: #fff;
+  color: var(--text-600);
+  border: 1px solid var(--bg-300);
+}
+.claim-tip {
+  margin: 0 0 12px;
+  font-size: 13px;
+  color: var(--text-500);
+  line-height: 1.6;
+}
+.claim-input {
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--color-border, #e5e5ea);
+  font-size: 15px;
+  font-family: inherit;
+  color: var(--text-800);
+  outline: none;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.claim-input:focus {
+  border-color: var(--brand-500);
+  box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.15);
+}
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 8px 18px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: inherit;
+  border: none;
+  cursor: pointer;
+  transition: transform 0.15s, opacity 0.15s;
+}
+.btn:active {
+  transform: scale(0.98);
+}
+.btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+.btn-outline {
+  background: transparent;
+  color: var(--text-700);
+  border: 1px solid var(--bg-300);
+}
+.btn-primary {
+  background: var(--brand-500);
+  color: #fff;
 }
 
 .loading-tip {
@@ -418,6 +618,9 @@ watch(currentType, async () => {
     padding-top: env(safe-area-inset-top);
   }
   .notif-list {
+    margin: 8px 12px 0;
+  }
+  .badge-claim-card {
     margin: 8px 12px 0;
   }
   .notif-item {

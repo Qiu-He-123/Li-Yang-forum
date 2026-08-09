@@ -17,6 +17,7 @@ import { onMounted, onUnmounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 
 import BottleSkeleton from '../components/common/BottleSkeleton.vue'
+import BadgeIcon from '../components/common/BadgeIcon.vue'
 import { Icon } from '../components/native'
 import { toast } from '../components/native/Toast'
 import { useSessionStore } from '../stores/session'
@@ -819,7 +820,10 @@ onUnmounted(() => {
                     />
                     <span v-else class="avatar avatar-md" aria-hidden="true">{{ (pickResult.author_nickname || 'U').charAt(0) }}</span>
                     <div class="author-info">
-                      <span class="author-name">{{ pickResult.author_nickname || '匿名同学' }}</span>
+                      <span class="author-name">
+                        <BadgeIcon :badge="pickResult.author_badge" :size="14" />
+                        {{ pickResult.author_nickname || '匿名同学' }}
+                      </span>
                       <span class="author-meta">
                         <span>{{ ageLabel(pickResult.author_age) }}</span>
                         <span class="meta-dot">·</span>
@@ -955,7 +959,10 @@ onUnmounted(() => {
                       class="avatar avatar-sm"
                     />
                     <span v-else class="avatar avatar-sm" aria-hidden="true">{{ (b.author_nickname || 'U').charAt(0) }}</span>
-                    <span class="author-name">{{ b.author_nickname || '匿名同学' }}</span>
+                    <span class="author-name">
+                      <BadgeIcon :badge="b.author_badge" :size="14" />
+                      {{ b.author_nickname || '匿名同学' }}
+                    </span>
                   </div>
                   <span class="mine-item-time">{{ formatRelative(b.picked_at || b.created_at || '') }}</span>
                 </div>

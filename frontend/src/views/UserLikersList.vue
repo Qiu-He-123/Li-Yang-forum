@@ -8,12 +8,14 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 import EmptyState from '../components/common/EmptyState.vue'
+import BadgeIcon from '../components/common/BadgeIcon.vue'
 import { Icon } from '../components/native'
 import { toast } from '../components/native/Toast'
 import { fetchUser, fetchUserLikers } from '../api/user'
 import { followUser, unfollowUser } from '../api/follow'
 import { useSessionStore } from '../stores/session'
 import type { Profile } from '../types/api'
+import type { Badge } from '../types/api'
 
 const route = useRoute()
 const router = useRouter()
@@ -26,6 +28,7 @@ interface Liker {
   id: number
   nickname: string
   avatar_url: string | null
+  badge?: Badge | null
   bio: string | null
   school: string | null
   /** @deprecated 已弃用，改用 age */
@@ -174,7 +177,10 @@ watch(userId, () => {
             <span v-if="!liker.avatar_url">{{ liker.nickname.charAt(0).toUpperCase() }}</span>
           </div>
           <div class="liker-info" @click="openUser(liker.id)">
-            <span class="liker-name">{{ liker.nickname }}</span>
+            <span class="liker-name">
+              <BadgeIcon :badge="liker.badge" :size="14" />
+              {{ liker.nickname }}
+            </span>
             <span v-if="liker.bio" class="liker-bio">{{ liker.bio }}</span>
             <span v-else-if="liker.school" class="liker-bio">{{ liker.school }}</span>
             <span v-if="liker.post_content" class="liker-source" @click.stop="openPost(liker.post_id)">
@@ -312,6 +318,9 @@ watch(userId, () => {
   font-size: 15px;
   font-weight: 600;
   color: var(--text-800);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
 }
 .liker-bio {
   font-size: 12px;

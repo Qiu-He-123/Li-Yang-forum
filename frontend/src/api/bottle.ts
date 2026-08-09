@@ -1,10 +1,13 @@
 import { http, type LoadingAxiosRequestConfig } from './http'
+import type { Badge } from '../types/api'
 
 /** 漂流瓶作者信息（拾取到的瓶子暴露的作者基本信息） */
 export interface BottleAuthor {
   author_id: number
   author_nickname: string | null
   author_avatar_url: string | null
+  /** 作者佩戴的徽章 */
+  author_badge?: Badge | null
   author_gender: 'male' | 'female' | 'unknown'
   /** @deprecated 已弃用，改用 author_age */
   author_grade: string | null

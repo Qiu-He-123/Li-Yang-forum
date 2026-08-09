@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 
 import AppHeader from '../components/header/AppHeader.vue'
 import EmptyState from '../components/common/EmptyState.vue'
+import BadgeIcon from '../components/common/BadgeIcon.vue'
 import { Icon } from '../components/native'
 import { toast } from '../components/native/Toast'
 import { listPosts } from '../api/post'
@@ -224,6 +225,7 @@ onMounted(async () => {
             </h3>
             <p v-if="post.content && post.title" class="result-excerpt">{{ post.content }}</p>
             <div class="result-meta">
+              <BadgeIcon v-if="!post.is_anonymous" :badge="post.author_badge" :size="13" />
               <span class="result-author">{{ post.is_anonymous ? '匿名' : post.author }}</span>
               <span class="dot">·</span>
               <span class="result-cat">#{{ post.category || '校园' }}</span>

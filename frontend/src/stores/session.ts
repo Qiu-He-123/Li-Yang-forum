@@ -31,6 +31,11 @@ export const useSessionStore = defineStore('session', () => {
     localStorage.setItem('verificationStatus', status)
   }
 
+  function setNickname(name: string) {
+    nickname.value = name
+    localStorage.setItem('nickname', name)
+  }
+
   /** 判断是否已认证（已填邀请码） */
   function isVerified() {
     return verificationStatus.value === 'verified'
@@ -164,6 +169,7 @@ export const useSessionStore = defineStore('session', () => {
     verificationStatus,
     setBanned,
     setVerificationStatus,
+    setNickname,
     isVerified,
     isLoggedIn,
     register,

@@ -10,6 +10,7 @@ import { onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 
 import { adminListUsers, adminUpdateUser, type AdminUser } from '../../api/admin'
+import BadgeIcon from '../../components/common/BadgeIcon.vue'
 
 const list = ref<AdminUser[]>([])
 const loading = ref(false)
@@ -165,6 +166,15 @@ onMounted(() => load())
               </div>
               <div class="user-info">
                 <div class="user-nickname">{{ row.nickname }}</div>
+                <div v-if="row.wearing_badge || row.badge_names?.length" class="user-badges">
+                  <span v-if="row.wearing_badge" class="user-badge-tag">
+                    <BadgeIcon :badge="row.wearing_badge" :size="12" />
+                    {{ row.wearing_badge.name }}
+                  </span>
+                  <span v-else-if="row.badge_names?.slice(0, 2).join(' ')" class="user-badge-tag">
+                    {{ row.badge_names!.slice(0, 2).join(' ') }}
+                  </span>
+                </div>
                 <div class="user-meta">{{ maskPhone(row.phone) }}</div>
               </div>
             </div>
@@ -313,6 +323,23 @@ onMounted(() => load())
 .user-meta {
   font-size: 11px;
   color: #8c8c8c;
+}
+.user-badges {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+.user-badge-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 11px;
+  color: #b8860b;
+  background: #fffbea;
+  border: 1px solid #ffe1a6;
+  padding: 1px 6px;
+  border-radius: 999px;
 }
 .pagination {
   display: flex;

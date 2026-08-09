@@ -73,11 +73,13 @@ def _bottle_dict(
     author_age = b.author_age
     if author_age is None and author is not None:
         author_age = calculate_age(author.birthday)
+    from app.services.badge_service import badge_dict as _badge_dict
     return {
         "id": b.id,
         "author_id": b.author_id,
         "author_nickname": author.nickname if author else None,
         "author_avatar_url": author.avatar_url if author else None,
+        "author_badge": _badge_dict(getattr(author, "wearing_badge", None)) if author else None,
         "author_gender": b.gender or "unknown",
         "author_grade": b.grade,           # 旧字段，保留兼容
         "author_age": author_age,          # 新字段：作者年龄

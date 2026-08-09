@@ -45,6 +45,7 @@ const menuGroups = computed<MenuGroup[]>(() => [
       { index: '/admin/circles-audit', label: '吧审核', icon: '🏷️' },
       { index: '/admin/reports', label: '举报处理', icon: '🚩' },
       { index: '/admin/announcements', label: '公告管理', icon: '📢' },
+      { index: '/admin/badges', label: '徽章管理', icon: '🏅' },
     ],
   },
   {
@@ -86,9 +87,11 @@ const breadcrumb = computed(() => {
 })
 
 const collapsed = ref(false)
+const mobileMenuOpen = ref(false)
 
 function onSelect(index: string) {
   router.push(index)
+  mobileMenuOpen.value = false
 }
 
 async function onLogout() {
@@ -104,13 +107,24 @@ async function onLogout() {
 
 onMounted(() => {
   // 路由守卫已校验 admin_token
+  // 移动端切换路由时自动收起抽屉菜单
+  router.afterEach(() => {
+    mobileMenuOpen.value = false
+  })
 })
 </script>
 
 <template>
   <main class="admin-layout">
+    <!-- 移动端抽屉遮罩 -->
+    <div
+      v-if="mobileMenuOpen"
+      class="admin-mobile-mask"
+      @click="mobileMenuOpen = false"
+    />
+
     <!-- 侧边栏 -->
-    <aside class="admin-sidebar" :class="{ collapsed }">
+    <aside class="admin-sidebar" :class="{ collapsed, 'mobile-open': mobileMenuOpen }">
       <div class="sidebar-logo">
         <span class="logo-icon">🏛</span>
         <span v-if="!collapsed" class="logo-text">立洋管理后台</span>
@@ -152,6 +166,9 @@ onMounted(() => {
         <div class="header-left">
           <button class="collapse-btn" type="button" @click="collapsed = !collapsed">
             <span>{{ collapsed ? '☰' : '✕' }}</span>
+          </button>
+          <button class="mobile-menu-btn" type="button" @click="mobileMenuOpen = !mobileMenuOpen">
+            <span>☰</span>
           </button>
           <span class="header-breadcrumb">{{ breadcrumb }}</span>
         </div>
@@ -344,6 +361,20 @@ onMounted(() => {
   border-radius: 4px;
   transition: background 0.15s;
 }
+.mobile-menu-btn {
+  display: none;
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-size: 18px;
+  color: #595959;
+  border-radius: 4px;
+}
+.mobile-menu-btn:hover {
+  background: #f0f0f0;
+}
 .collapse-btn:hover {
   background: #f0f0f0;
 }
@@ -365,5 +396,106 @@ onMounted(() => {
   flex: 1;
   overflow-y: auto;
   padding: 24px;
+}
+
+/* ============ 移动端适配（手机也能顺畅操作后台） ============ */
+.admin-mobile-mask {
+  display: none;
+}
+@media (max-width: 768px) {
+  .mobile-menu-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .collapse-btn {
+    display: none;
+  }
+  .admin-sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    z-index: 1200;
+    transform: translateX(-100%);
+    transition: transform 0.25s cubic-bezier(0.32, 0.72, 0, 1);
+    box-shadow: 0 0 24px rgba(0, 0, 0, 0.2);
+  }
+  .admin-sidebar.mobile-open {
+    transform: translateX(0);
+  }
+  .admin-sidebar.collapsed {
+    width: 232px;
+  }
+  .admin-mobile-mask {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.45);
+    z-index: 1100;
+  }
+  .admin-header {
+    height: 52px;
+    padding: 0 12px;
+  }
+  .header-breadcrumb {
+    font-size: 14px;
+  }
+  .header-time {
+    display: none;
+  }
+  .admin-content {
+    padding: 12px;
+  }
+}
+</style>
+
+<style>
+/* ============ 后台页面通用移动端适配（作用于所有 Admin 子页面） ============ */
+@media (max-width: 768px) {
+  .admin-page .page-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+  .admin-page .page-title {
+    font-size: 18px;
+  }
+  .admin-page .filter-card {
+    flex-direction: column;
+    align-items: stretch;
+    padding: 12px;
+  }
+  .admin-page .filter-card .el-input,
+  .admin-page .filter-card .el-select,
+  .admin-page .filter-card .el-date-editor,
+  .admin-page .filter-card input {
+    width: 100% !important;
+    max-width: none !important;
+  }
+  .admin-page .table-card {
+    padding: 8px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .admin-page .el-table {
+    min-width: 720px;
+  }
+  .admin-page .el-dialog {
+    width: calc(100vw - 24px) !important;
+    max-width: calc(100vw - 24px) !important;
+    margin-top: 5vh !important;
+  }
+  .admin-page .el-pagination {
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+  .admin-page .el-pagination .el-pagination__jump {
+    display: none;
+  }
+  .admin-page .el-pagination .el-pagination__sizes {
+    display: none;
+  }
 }
 </style>

@@ -122,6 +122,12 @@ const routes = [
     meta: { requiresAuth: true },
   },
   {
+    path: '/my/badges',
+    name: 'my-badges',
+    component: () => import('../views/MyBadges.vue'),
+    meta: { requiresAuth: true },
+  },
+  {
     path: '/my/history',
     name: 'my-history',
     component: () => import('../views/BrowseHistory.vue'),
@@ -274,6 +280,11 @@ const routes = [
         path: 'announcements',
         name: 'admin-announcements',
         component: () => import('../views/Admin/Announcements.vue'),
+      },
+      {
+        path: 'badges',
+        name: 'admin-badges',
+        component: () => import('../views/Admin/Badges.vue'),
       },
       {
         path: 'circles-audit',

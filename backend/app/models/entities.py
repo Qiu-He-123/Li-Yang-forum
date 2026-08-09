@@ -63,8 +63,70 @@ class User(Base, TimestampMixin):
     invited_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), default=None)
     # 连坐冻结截止时间：被邀请人违规核实后，邀请人 N 天内不能分享邀请码
     invite_privilege_until: Mapped[datetime | None] = mapped_column(DateTime, default=None)
+    # 徽章系统：当前佩戴的徽章（每人可拥有多个徽章，选择其中一个佩戴）
+    wearing_badge_id: Mapped[int | None] = mapped_column(
+        ForeignKey("badges.id"), default=None, index=True
+    )
 
     school: Mapped[School] = relationship()
+    wearing_badge: Mapped["Badge | None"] = relationship(
+        foreign_keys=[wearing_badge_id], lazy="selectin"
+    )
+
+
+class Badge(Base, TimestampMixin):
+    """徽章表（勋章机制）。
+
+    徽章以图标（emoji 或图片 URL）展示，每个用户可以拥有多个徽章，
+    通过 users.wearing_badge_id 选择佩戴哪一个，佩戴徽章会在所有
+    展示名字的场景中显示在名字之前（如 [🏅] 我的名字）。
+    """
+
+    __tablename__ = "badges"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(32), unique=True, index=True)
+    # 唯一标识 code（如 admin / group_member），也用于种子徽章去重
+    code: Mapped[str] = mapped_column(String(32), unique=True, index=True)
+    # 徽章图标：优先 emoji（如 🏅），也支持图片 URL
+    icon: Mapped[str] = mapped_column(String(500), default="🏅")
+    description: Mapped[str | None] = mapped_column(String(200), default=None)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    sort_order: Mapped[int] = mapped_column(Integer, default=0)
+    # 系统徽章（如管理员/集团成员）不允许删除，只可停用
+    is_system: Mapped[bool] = mapped_column(Boolean, default=False)
+
+
+class BadgeCode(Base, TimestampMixin):
+    """徽章激活码表。
+
+    管理员在后台为指定徽章批量生成激活码，用户通过「消息 → 系统」的
+    领取徽章入口输入激活码即可获得对应徽章。每个激活码仅可使用一次。
+    """
+
+    __tablename__ = "badge_codes"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    badge_id: Mapped[int] = mapped_column(ForeignKey("badges.id"), index=True)
+    code: Mapped[str] = mapped_column(String(32), unique=True, index=True)
+    # 备注（如"发给张三"）与批次号（管理员批量生成时分配）
+    note: Mapped[str | None] = mapped_column(String(100), default=None)
+    batch_no: Mapped[str | None] = mapped_column(String(32), index=True, default=None)
+    created_by: Mapped[int | None] = mapped_column(ForeignKey("admin.id"), default=None)
+    used_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), default=None)
+    used_at: Mapped[datetime | None] = mapped_column(DateTime, default=None)
+
+
+class UserBadge(Base):
+    """用户徽章关系表（一人可拥有多个徽章）。"""
+
+    __tablename__ = "user_badges"
+    __table_args__ = (UniqueConstraint("user_id", "badge_id"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    badge_id: Mapped[int] = mapped_column(ForeignKey("badges.id"), index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
 
 class Post(Base, TimestampMixin):
