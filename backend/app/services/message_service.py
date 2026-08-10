@@ -22,7 +22,16 @@ from sqlalchemy.orm import Session, selectinload
 from app.core.errors import ErrorCode
 from app.core.time_utils import to_iso_zh
 from app.models import Follow, FriendRequest, Message, User
-from app.services.follow_service import is_mutual_follow
+from app.services.follow_service import _default_friend_id, is_mutual_follow
+
+
+def _default_friend_user(db: Session, user: User) -> User | None:
+    """管理端配置的默认好友（本人除外）；未配置或用户不存在返回 None。"""
+    fid = _default_friend_id(db)
+    if not fid or fid == user.id:
+        return None
+    friend = db.get(User, fid)
+    return friend if friend and friend.is_active else None
 
 
 # 私信权限枚举
@@ -274,9 +283,6 @@ def list_friends(db: Session, user: User) -> list[dict]:
     mutual_ids = following_ids & follower_ids
     friend_ids.update(mutual_ids)
 
-    if not friend_ids:
-        return []
-
     users = {
         u.id: u
         for u in db.scalars(
@@ -314,6 +320,16 @@ def list_friends(db: Session, user: User) -> list[dict]:
         })
 
     result.sort(key=lambda x: x["last_time"] or "", reverse=True)
+    # 默认好友置顶：即使没有任何好友/消息记录也显示在第一位
+    default_friend = _default_friend_user(db, user)
+    if default_friend:
+        result = [r for r in result if r["user"]["id"] != default_friend.id]
+        result.insert(0, {
+            "user": _user_dict(default_friend),
+            "last_message": None,
+            "last_time": None,
+            "unread_count": 0,
+        })
     return result
 
 
@@ -495,9 +511,6 @@ def list_conversations(db: Session, user: User) -> list[dict]:
         .order_by(func.max(Message.created_at).desc())
     ).all()
 
-    if not conv_rows:
-        return []
-
     # 从 conversation_id 解析对方用户 ID
     result = []
     for conv_id_str, last_time in conv_rows:
@@ -541,6 +554,17 @@ def list_conversations(db: Session, user: User) -> list[dict]:
             "is_mutual": mutual,
         })
 
+    # 默认好友置顶：无消息记录也显示在消息栏第一位
+    default_friend = _default_friend_user(db, user)
+    if default_friend:
+        result = [r for r in result if r["user"]["id"] != default_friend.id]
+        result.insert(0, {
+            "user": _user_dict(default_friend),
+            "last_message": None,
+            "last_time": None,
+            "unread_count": 0,
+            "is_mutual": True,
+        })
     return result
 
 

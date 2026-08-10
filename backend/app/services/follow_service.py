@@ -15,10 +15,19 @@ from app.services.notification_service import create_notification
 
 
 def _default_friend_id(db: Session) -> int | None:
-    """管理端配置的默认好友用户 ID（所有用户默认与其互关且不可取关，0/空=关闭）。"""
-    from app.services import settings_service
+    """管理端配置的默认好友用户 ID（所有用户默认与其互关且不可取关，0/空=关闭）。
 
-    uid = settings_service.get_int(db, "default_friend_user_id", 0)
+    直接从数据库读取（不走 settings 内存缓存）：保证「后续修改设置」即时生效，多 worker 也一致。
+    """
+    from app.models import Setting
+
+    row = db.get(Setting, "default_friend_user_id")
+    if not row or not row.value:
+        return None
+    try:
+        uid = int(str(row.value).strip())
+    except ValueError:
+        return None
     return uid if uid > 0 else None
 
 

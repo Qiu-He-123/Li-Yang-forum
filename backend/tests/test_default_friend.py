@@ -7,7 +7,7 @@ from sqlalchemy import func, select
 from app.core.database import SessionLocal
 from app.core.security import hash_password
 from app.models import Admin, Follow, User
-from app.services import follow_service, settings_service
+from app.services import follow_service, message_service, settings_service
 from tests.conftest import register
 
 ADMIN_USER = "t9_default_friend_admin"
@@ -59,6 +59,18 @@ def test_default_friend_mutual_and_locked(client):
                 follow_service.unfollow_user(db, ua, ub.id)
             assert exc.value.status_code == 400
             assert "默认好友" in exc.value.detail
+
+            # 好友列表 / 消息栏置顶显示默认好友（无需真实好友或消息记录）
+            friends = message_service.list_friends(db, ua)
+            assert friends and friends[0]["user"]["id"] == ub.id
+            convs = message_service.list_conversations(db, ua)
+            assert convs and convs[0]["user"]["id"] == ub.id
     finally:
         with SessionLocal() as db:
             settings_service.set_setting(db, "default_friend_user_id", "")
+
+    # 关闭配置后不再出现（后续修改即时生效）
+    with SessionLocal() as db:
+        ua = db.get(User, a["user_id"])
+        assert message_service.list_friends(db, ua) == []
+        assert message_service.list_conversations(db, ua) == []
