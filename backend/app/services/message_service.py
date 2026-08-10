@@ -22,16 +22,24 @@ from sqlalchemy.orm import Session, selectinload
 from app.core.errors import ErrorCode
 from app.core.time_utils import to_iso_zh
 from app.models import Follow, FriendRequest, Message, User
-from app.services.follow_service import _default_friend_id, is_mutual_follow
+from app.services.follow_service import _default_friend_ids, is_mutual_follow
 
 
-def _default_friend_user(db: Session, user: User) -> User | None:
-    """管理端配置的默认好友（本人除外）；未配置或用户不存在返回 None。"""
-    fid = _default_friend_id(db)
-    if not fid or fid == user.id:
-        return None
-    friend = db.get(User, fid)
-    return friend if friend and friend.is_active else None
+def _default_friend_users(db: Session, user: User) -> list[User]:
+    """管理端配置的默认好友列表（有序，本人除外）；未配置或用户不存在返回空列表。"""
+    ids = _default_friend_ids(db)
+    if not ids:
+        return []
+    users = {
+        u.id: u
+        for u in db.scalars(
+            select(User).where(User.id.in_(ids))
+        ).all()
+    }
+    return [
+        users[uid] for uid in ids
+        if uid != user.id and uid in users and users[uid].is_active
+    ]
 
 
 # 私信权限枚举
@@ -283,10 +291,8 @@ def list_friends(db: Session, user: User) -> list[dict]:
     mutual_ids = following_ids & follower_ids
     friend_ids.update(mutual_ids)
 
-    # 默认好友视作好友（即使没有真实好友关系），以便读取真实最后一条消息/未读数
-    default_friend = _default_friend_user(db, user)
-    if default_friend:
-        friend_ids.add(default_friend.id)
+    # 默认好友们视作好友（即使没有真实好友关系），以便读取真实最后一条消息/未读数
+    friend_ids.update(u.id for u in _default_friend_users(db, user))
 
     users = {
         u.id: u
@@ -326,20 +332,26 @@ def list_friends(db: Session, user: User) -> list[dict]:
 
     result.sort(key=lambda x: x["last_time"] or "", reverse=True)
     # 默认好友置顶：有真实记录则保留最后一条消息/未读数，仅在没有记录时插入占位项
-    default_friend = _default_friend_user(db, user)
-    if default_friend:
-        pinned = next((r for r in result if r["user"]["id"] == default_friend.id), None)
-        if pinned is None:
-            pinned = {
-                "user": _user_dict(default_friend),
-                "last_message": "默认好友（官方账号）",
-                "last_time": None,
-                "unread_count": 0,
-            }
-        elif not pinned["last_message"]:
-            # 有真实好友关系但没有消息时，避免前端显示「开始聊天吧」
-            pinned["last_message"] = "默认好友（官方账号）"
-        result = [pinned] + [r for r in result if r["user"]["id"] != default_friend.id]
+    default_friends = _default_friend_users(db, user)
+    if default_friends:
+        pinned_entries = []
+        default_ids = {df.id for df in default_friends}
+        for df in default_friends:
+            entry = next((r for r in result if r["user"]["id"] == df.id), None)
+            if entry is None:
+                entry = {
+                    "user": _user_dict(df),
+                    "last_message": "默认好友（官方账号）",
+                    "last_time": None,
+                    "unread_count": 0,
+                }
+            elif not entry["last_message"]:
+                # 有真实好友关系但没有消息时，避免前端显示「开始聊天吧」
+                entry["last_message"] = "默认好友（官方账号）"
+            pinned_entries.append(entry)
+        result = pinned_entries + [
+            r for r in result if r["user"]["id"] not in default_ids
+        ]
     return result
 
 
@@ -434,7 +446,7 @@ def send_message(db: Session, sender: User, receiver_id: int, content: str, msg_
         "msg_type": msg.msg_type,
         "is_read": msg.is_read,
         "is_mutual": mutual,
-        "is_default_friend": _default_friend_id(db) == receiver_id,
+        "is_default_friend": receiver_id in _default_friend_ids(db),
         "created_at": to_iso_zh(msg.created_at),
     }
 
@@ -493,7 +505,7 @@ def get_messages(db: Session, user: User, friend_id: int, page: int = 1, page_si
         "page": page,
         "page_size": page_size,
         "is_mutual": mutual,
-        "is_default_friend": _default_friend_id(db) == friend_id,
+        "is_default_friend": friend_id in _default_friend_ids(db),
         "other_message_permission": other_perm,
         "can_send": can_send_info["can_send"],
         "can_send_reason": can_send_info["reason"],
@@ -567,18 +579,24 @@ def list_conversations(db: Session, user: User) -> list[dict]:
         })
 
     # 默认好友置顶：有真实会话则保留最后一条消息/未读数（红点正常），仅在没有会话时插入占位项
-    default_friend = _default_friend_user(db, user)
-    if default_friend:
-        pinned = next((r for r in result if r["user"]["id"] == default_friend.id), None)
-        if pinned is None:
-            pinned = {
-                "user": _user_dict(default_friend),
-                "last_message": "默认好友（官方账号）",
-                "last_time": None,
-                "unread_count": 0,
-                "is_mutual": True,
-            }
-        result = [pinned] + [r for r in result if r["user"]["id"] != default_friend.id]
+    default_friends = _default_friend_users(db, user)
+    if default_friends:
+        pinned_entries = []
+        default_ids = {df.id for df in default_friends}
+        for df in default_friends:
+            entry = next((r for r in result if r["user"]["id"] == df.id), None)
+            if entry is None:
+                entry = {
+                    "user": _user_dict(df),
+                    "last_message": "默认好友（官方账号）",
+                    "last_time": None,
+                    "unread_count": 0,
+                    "is_mutual": True,
+                }
+            pinned_entries.append(entry)
+        result = pinned_entries + [
+            r for r in result if r["user"]["id"] not in default_ids
+        ]
     return result
 
 

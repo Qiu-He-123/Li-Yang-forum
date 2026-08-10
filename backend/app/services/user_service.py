@@ -84,8 +84,8 @@ def profile(user: User, db: Session, viewer: User | None = None) -> dict:
         result["is_following_me"] = False
         result["is_mutual"] = False
     # 标记默认好友（官方账号），前端聊天页/主页据此显示“官方账号”
-    from app.services.follow_service import _default_friend_id
-    result["is_default_friend"] = _default_friend_id(db) == user.id
+    from app.services.follow_service import _default_friend_ids
+    result["is_default_friend"] = user.id in _default_friend_ids(db)
     return result
 
 

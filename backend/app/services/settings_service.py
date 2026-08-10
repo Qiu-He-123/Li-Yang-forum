@@ -28,6 +28,7 @@ _DEFAULTS: dict[str, str] = {
     # 转人工复核的触发条件：ai_unavailable / violation / high_severity / sensitive_category
     "manual_review_triggers": "ai_unavailable",
     "default_friend_user_id": "",
+    "default_friend_user_ids": "",
 }
 
 _DESC: dict[str, str] = {
@@ -38,6 +39,8 @@ _DESC: dict[str, str] = {
     "audit_auto_delete_days": "审核失败内容自动删除天数（0=不自动删除）",
     "audit_scope": "需要 AI 审核的内容范围（逗号分隔：post 帖子 / comment 评论 / bottle 漂流瓶 / image 含图帖子转人工审核）",
     "manual_review_triggers": "转人工复核的触发条件（逗号分隔：ai_unavailable AI不可用 / violation AI判违规 / high_severity 中高严重度 / sensitive_category 敏感类别）",
+    "default_friend_user_id": "默认好友（官方账号）用户 ID（旧配置，建议改用 default_friend_user_ids 支持多人）",
+    "default_friend_user_ids": "默认好友（官方账号）用户 ID 列表（逗号分隔，可配置多人，留空关闭）",
 }
 
 

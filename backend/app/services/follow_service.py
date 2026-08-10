@@ -14,21 +14,39 @@ from app.models import Follow, School, User
 from app.services.notification_service import create_notification
 
 
-def _default_friend_id(db: Session) -> int | None:
-    """管理端配置的默认好友用户 ID（所有用户默认与其互关且不可取关，0/空=关闭）。
+def _default_friend_ids(db: Session) -> list[int]:
+    """管理端配置的默认好友用户 ID 列表（有序去重；空=关闭）。
 
+    新配置 default_friend_user_ids 支持逗号/换行分隔的多个用户 ID；
+    兼容旧配置 default_friend_user_id（单个 ID）。
     直接从数据库读取（不走 settings 内存缓存）：保证「后续修改设置」即时生效，多 worker 也一致。
     """
     from app.models import Setting
 
-    row = db.get(Setting, "default_friend_user_id")
-    if not row or not row.value:
-        return None
-    try:
-        uid = int(str(row.value).strip())
-    except ValueError:
-        return None
-    return uid if uid > 0 else None
+    def _parse(raw: str | None) -> list[int]:
+        if not raw:
+            return []
+        ids: list[int] = []
+        seen: set[int] = set()
+        for part in str(raw).replace("\n", ",").replace("，", ",").split(","):
+            part = part.strip()
+            if not part:
+                continue
+            try:
+                uid = int(part)
+            except (ValueError, TypeError):
+                continue
+            if uid > 0 and uid not in seen:
+                seen.add(uid)
+                ids.append(uid)
+        return ids
+
+    row = db.get(Setting, "default_friend_user_ids")
+    ids = _parse(row.value if row else None)
+    if ids:
+        return ids
+    legacy = db.get(Setting, "default_friend_user_id")
+    return _parse(legacy.value if legacy else None)
 
 
 def follow_user(db: Session, follower: User, followee_id: int) -> dict:
@@ -46,8 +64,8 @@ def follow_user(db: Session, follower: User, followee_id: int) -> dict:
         raise HTTPException(status_code=404, detail=ErrorCode.USER_NOT_FOUND)
 
     # 默认好友：隐式互关，无需落库
-    default_id = _default_friend_id(db)
-    if default_id and followee_id == default_id and follower.id != default_id:
+    default_ids = set(_default_friend_ids(db))
+    if followee_id in default_ids and follower.id not in default_ids:
         return {
             "user_id": followee_id,
             "is_following": True,
@@ -99,7 +117,7 @@ def unfollow_user(db: Session, follower: User, followee_id: int) -> dict:
         raise HTTPException(status_code=404, detail=ErrorCode.USER_NOT_FOUND)
 
     # 默认好友不可取关
-    if _default_friend_id(db) == followee_id:
+    if followee_id in _default_friend_ids(db):
         raise HTTPException(status_code=400, detail="该用户是默认好友，不可取消关注")
 
     existing = db.scalar(
@@ -128,9 +146,9 @@ def is_following(db: Session, user: User, target_id: int) -> dict:
     """查询当前用户是否已关注 target_id，同时返回互关状态。"""
     if user.id == target_id:
         return {"user_id": target_id, "is_following": False, "is_self": True, "is_mutual": False}
-    # 默认好友：所有用户与其默认互相关注
-    default_id = _default_friend_id(db)
-    if default_id and user.id != target_id and (user.id == default_id or target_id == default_id):
+    # 默认好友：所有用户与默认好友们默认互相关注
+    default_ids = set(_default_friend_ids(db))
+    if user.id != target_id and (user.id in default_ids or target_id in default_ids):
         return {"user_id": target_id, "is_following": True, "is_self": False, "is_mutual": True}
     forward = db.scalar(
         select(Follow).where(
@@ -154,8 +172,8 @@ def is_mutual_follow(db: Session, user_a_id: int, user_b_id: int) -> bool:
     """检查两个用户是否互相关注（双向关注）。"""
     if user_a_id == user_b_id:
         return False
-    default_id = _default_friend_id(db)
-    if default_id and (user_a_id == default_id or user_b_id == default_id):
+    default_ids = set(_default_friend_ids(db))
+    if user_a_id != user_b_id and (user_a_id in default_ids or user_b_id in default_ids):
         return True
     forward = db.scalar(
         select(Follow).where(
@@ -242,13 +260,12 @@ def _batch_following_ids(db: Session, current_user_id: int | None, target_ids: l
         )
     ).all()
     result = set(rows)
-    # 默认好友：默认好友关注所有人；其他人视作已关注默认好友
-    default_id = _default_friend_id(db)
-    if default_id:
-        if current_user_id == default_id:
+    # 默认好友：默认好友们关注所有人；其他人视作已关注默认好友们
+    default_ids = set(_default_friend_ids(db))
+    if default_ids:
+        if current_user_id in default_ids:
             return set(target_ids)
-        if default_id in target_ids:
-            result.add(default_id)
+        result.update(default_ids & set(target_ids))
     return result
 
 
