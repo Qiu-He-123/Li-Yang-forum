@@ -80,8 +80,24 @@ export function adminGetPost(postId: number) {
   return http.get<unknown, { data: { code: number; msg: string; data: AdminPost } }>(`/admin/posts/${postId}`)
 }
 
-export function adminDeletePost(postId: number) {
-  return http.delete(`/admin/posts/${postId}`)
+export function adminDeletePost(postId: number, reason: string) {
+  return http.post(`/admin/posts/${postId}/delete`, { reason })
+}
+
+// ============ 系统设置 ============
+
+export interface SystemSetting {
+  key: string
+  value: string
+  description?: string | null
+}
+
+export function adminListSettings() {
+  return http.get<unknown, { data: { code: number; msg: string; data: SystemSetting[] } }>('/admin/settings')
+}
+
+export function adminUpdateSettings(settings: Record<string, string>) {
+  return http.put('/admin/settings', { settings })
 }
 
 export function adminAuditPost(postId: number, aiStatus: string, rejectReason?: string) {
@@ -266,6 +282,10 @@ export interface DeepSeekConfig {
   base_url: string
   model: string
   auto_delete_days: number
+  /** 需要审核的内容范围：post 帖子 / comment 评论 / bottle 漂流瓶 / image 含图帖子转人工 */
+  audit_scope: string[]
+  /** 转人工复核的触发条件：ai_unavailable / violation / high_severity / sensitive_category */
+  manual_review_triggers: string[]
 }
 
 export interface DeepSeekStatus {
@@ -275,6 +295,8 @@ export interface DeepSeekStatus {
   base_url: string
   model: string
   auto_delete_days: number
+  audit_scope: string[]
+  manual_review_triggers: string[]
 }
 
 export interface DeepSeekTestResult {

@@ -103,3 +103,56 @@ def test_title_and_content_both_count_for_min_length(client):
         },
     ).json()
     assert resp["code"] == 0
+
+
+def _set_audit_setting(key: str, value: str) -> None:
+    """写测试设置并同步内存缓存（用后需恢复默认值）。"""
+    from app.core.database import SessionLocal
+    from app.services import settings_service
+
+    with SessionLocal() as db:
+        settings_service.set_setting(db, key, value)
+
+
+def test_disable_post_scope_skips_ai_audit(client):
+    """后台关闭「帖子」审核范围 → 新帖直接放行（免审），不再进入 AI/人工审核。"""
+    info = register(client, "13709000006", "免审发帖员")
+    try:
+        _set_audit_setting("audit_scope", "comment,bottle,image")
+        resp = client.post(
+            "/posts",
+            json={
+                "content": "这是一段完全正常的校园分享内容",
+                "school_id": info["school_id"],
+                "category": "普通",
+                "image_urls": [],
+                "is_anonymous": False,
+                "is_public": True,
+            },
+        ).json()
+        assert resp["code"] == 0
+        assert resp["data"]["ai_status"] == "approved"
+    finally:
+        _set_audit_setting("audit_scope", "post,comment,bottle,image")
+
+
+def test_ai_unavailable_trigger_off_allows_direct_pass(client):
+    """关闭「AI 服务不可用 → 转人工」触发后，AI 不可用时新帖直接放行。"""
+    info = register(client, "13709000007", "放行发帖员")
+    try:
+        _set_audit_setting("manual_review_triggers", "")
+        resp = client.post(
+            "/posts",
+            json={
+                "content": "这是一段完全正常的校园分享内容",
+                "school_id": info["school_id"],
+                "category": "普通",
+                "image_urls": [],
+                "is_anonymous": False,
+                "is_public": True,
+            },
+        ).json()
+        assert resp["code"] == 0
+        assert resp["data"]["ai_status"] == "approved"
+    finally:
+        _set_audit_setting("manual_review_triggers", "ai_unavailable")

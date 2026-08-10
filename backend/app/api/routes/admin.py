@@ -3,6 +3,7 @@ from uuid import uuid4
 
 from fastapi import APIRouter, Body, Depends, File, HTTPException, Query, Request, Response, UploadFile
 from PIL import Image as PILImage
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.api.deps import admin_user
@@ -14,6 +15,10 @@ from app.schemas.interactions import AnnouncementCreate
 from app.services import admin_service, badge_service, circle_apply_service
 
 router = APIRouter(prefix="/admin", tags=["admin"])
+
+
+class AdminDeletePostIn(BaseModel):
+    reason: str
 
 
 @router.post("/login")
@@ -52,10 +57,10 @@ def admin_posts(
     return ok(admin_service.admin_posts(db, page, page_size, keyword, ai_status))
 
 
-@router.delete("/posts/{post_id}")
-def admin_delete_post(post_id: int, request: Request, db: Session = Depends(get_db), admin: Admin = Depends(admin_user)) -> dict:
-    """管理员删除帖子。"""
-    admin_service.admin_delete_post(post_id, request, db, admin)
+@router.post("/posts/{post_id}/delete")
+def admin_delete_post(post_id: int, payload: AdminDeletePostIn, request: Request, db: Session = Depends(get_db), admin: Admin = Depends(admin_user)) -> dict:
+    """管理员删除帖子（需提供删除理由，并通知作者）。"""
+    admin_service.admin_delete_post(post_id, payload.reason, request, db, admin)
     return ok()
 
 

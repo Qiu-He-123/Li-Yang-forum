@@ -4,6 +4,7 @@
  * 用于 PostCard 内嵌评论列表
  */
 import { computed, ref } from 'vue'
+import { useRouter } from 'vue-router'
 
 import { Icon } from '../native'
 import { toast } from '../native/Toast'
@@ -35,6 +36,7 @@ const emit = defineEmits<{
 const session = useSessionStore()
 const interactionStore = useInteractionStore()
 const uiStore = useUIStore()
+const router = useRouter()
 const likeLoading = ref(false)
 const deleteDialogVisible = ref(false)
 
@@ -109,19 +111,31 @@ function onReply() {
 }
 
 const isAuthor = () => props.comment.user_id != null && props.comment.user_id === session.userId
+
+/** 点击头像 / 昵称跳转到该用户主页 */
+function goProfile() {
+  if (props.comment.user_id == null) return
+  router.push(`/user/${props.comment.user_id}`)
+}
 </script>
 
 <template>
   <div class="comment-item" :class="{ 'is-reply': isReply }">
     <div class="comment-head">
-      <span class="comment-avatar" :style="comment.author_avatar_url ? {} : { background: avatarGradient }" aria-hidden="true">
+      <button
+        type="button"
+        class="comment-avatar"
+        :style="comment.author_avatar_url ? {} : { background: avatarGradient }"
+        :aria-label="`查看 ${comment.author} 的主页`"
+        @click="goProfile"
+      >
         <img v-if="comment.author_avatar_url" :src="comment.author_avatar_url" :alt="comment.author" />
         <span v-else>{{ authorInitial }}</span>
-      </span>
+      </button>
       <div class="comment-meta">
         <div class="comment-name-row">
           <BadgeIcon :badge="comment.author_badge" :size="13" />
-          <b class="comment-author">{{ comment.author }}</b>
+          <b class="comment-author" role="link" tabindex="0" @click="goProfile" @keydown.enter="goProfile">{{ comment.author }}</b>
           <AiStatusBadge :status="comment.ai_status" :reject-reason="comment.reject_reason" />
         </div>
         <span class="comment-time">{{ timeAgo(comment.created_at) }}</span>
@@ -195,6 +209,10 @@ const isAuthor = () => props.comment.user_id != null && props.comment.user_id ==
   font-size: 12px;
   font-weight: 600;
   overflow: hidden;
+  border: none;
+  padding: 0;
+  background: transparent;
+  cursor: pointer;
 }
 .comment-avatar img {
   width: 100%;
@@ -216,6 +234,11 @@ const isAuthor = () => props.comment.user_id != null && props.comment.user_id ==
 .comment-author {
   font-size: 13px;
   color: var(--text-800);
+  cursor: pointer;
+  transition: color 0.15s var(--ease-apple);
+}
+.comment-author:hover {
+  color: var(--brand-500);
 }
 .comment-time {
   font-size: 11px;

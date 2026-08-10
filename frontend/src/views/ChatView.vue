@@ -542,7 +542,10 @@ watch(friendId, async () => {
   font-size: 13px;
 }
 .chat-avatar--self {
-  background: #1482f0;
+  /* 用 background-color 而不是 background 简写，避免重置
+     .chat-avatar 中的 background-size: cover / background-position: center，
+     否则自己的头像会按原图尺寸只显示左上角（对方看到正常）。 */
+  background-color: #1482f0;
 }
 .chat-name-wrap {
   display: flex;

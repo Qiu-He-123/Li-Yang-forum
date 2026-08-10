@@ -322,6 +322,11 @@ const routes = [
         component: () => import('../views/Admin/WarningConfig.vue'),
       },
       {
+        path: 'system-settings',
+        name: 'admin-system-settings',
+        component: () => import('../views/Admin/SystemSettings.vue'),
+      },
+      {
         path: 'logs',
         name: 'admin-logs',
         component: () => import('../views/Admin/Logs.vue'),

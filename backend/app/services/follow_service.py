@@ -14,6 +14,14 @@ from app.models import Follow, School, User
 from app.services.notification_service import create_notification
 
 
+def _default_friend_id(db: Session) -> int | None:
+    """管理端配置的默认好友用户 ID（所有用户默认与其互关且不可取关，0/空=关闭）。"""
+    from app.services import settings_service
+
+    uid = settings_service.get_int(db, "default_friend_user_id", 0)
+    return uid if uid > 0 else None
+
+
 def follow_user(db: Session, follower: User, followee_id: int) -> dict:
     """关注用户（幂等）。
 
@@ -27,6 +35,16 @@ def follow_user(db: Session, follower: User, followee_id: int) -> dict:
     followee = db.get(User, followee_id)
     if not followee or not followee.is_active:
         raise HTTPException(status_code=404, detail=ErrorCode.USER_NOT_FOUND)
+
+    # 默认好友：隐式互关，无需落库
+    default_id = _default_friend_id(db)
+    if default_id and followee_id == default_id and follower.id != default_id:
+        return {
+            "user_id": followee_id,
+            "is_following": True,
+            "following_count": follower.following_count,
+            "followers_count": followee.followers_count,
+        }
 
     existing = db.scalar(
         select(Follow).where(
@@ -71,6 +89,10 @@ def unfollow_user(db: Session, follower: User, followee_id: int) -> dict:
     if not followee:
         raise HTTPException(status_code=404, detail=ErrorCode.USER_NOT_FOUND)
 
+    # 默认好友不可取关
+    if _default_friend_id(db) == followee_id:
+        raise HTTPException(status_code=400, detail="该用户是默认好友，不可取消关注")
+
     existing = db.scalar(
         select(Follow).where(
             Follow.follower_id == follower.id, Follow.followee_id == followee_id
@@ -97,6 +119,10 @@ def is_following(db: Session, user: User, target_id: int) -> dict:
     """查询当前用户是否已关注 target_id，同时返回互关状态。"""
     if user.id == target_id:
         return {"user_id": target_id, "is_following": False, "is_self": True, "is_mutual": False}
+    # 默认好友：所有用户与其默认互相关注
+    default_id = _default_friend_id(db)
+    if default_id and user.id != target_id and (user.id == default_id or target_id == default_id):
+        return {"user_id": target_id, "is_following": True, "is_self": False, "is_mutual": True}
     forward = db.scalar(
         select(Follow).where(
             Follow.follower_id == user.id, Follow.followee_id == target_id
@@ -119,6 +145,9 @@ def is_mutual_follow(db: Session, user_a_id: int, user_b_id: int) -> bool:
     """检查两个用户是否互相关注（双向关注）。"""
     if user_a_id == user_b_id:
         return False
+    default_id = _default_friend_id(db)
+    if default_id and (user_a_id == default_id or user_b_id == default_id):
+        return True
     forward = db.scalar(
         select(Follow).where(
             Follow.follower_id == user_a_id, Follow.followee_id == user_b_id
@@ -203,7 +232,15 @@ def _batch_following_ids(db: Session, current_user_id: int | None, target_ids: l
             Follow.followee_id.in_(target_ids),
         )
     ).all()
-    return set(rows)
+    result = set(rows)
+    # 默认好友：默认好友关注所有人；其他人视作已关注默认好友
+    default_id = _default_friend_id(db)
+    if default_id:
+        if current_user_id == default_id:
+            return set(target_ids)
+        if default_id in target_ids:
+            result.add(default_id)
+    return result
 
 
 def _follow_dict(u: User, created_at, following_set: set[int] | None = None) -> dict:

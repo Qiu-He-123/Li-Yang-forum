@@ -5,6 +5,7 @@ import { useRoute, useRouter } from 'vue-router'
 import AppHeader from '../components/header/AppHeader.vue'
 import EmptyState from '../components/common/EmptyState.vue'
 import BadgeIcon from '../components/common/BadgeIcon.vue'
+import MarkdownText from '../components/common/MarkdownText.vue'
 import { Icon } from '../components/native'
 import { toast } from '../components/native/Toast'
 import { listPosts } from '../api/post'
@@ -223,7 +224,7 @@ onMounted(async () => {
               </span>
               {{ post.title || post.content.slice(0, 50) }}
             </h3>
-            <p v-if="post.content && post.title" class="result-excerpt">{{ post.content }}</p>
+            <MarkdownText v-if="post.content && post.title" :content="post.content" class="result-excerpt" :clamp="2" />
             <div class="result-meta">
               <BadgeIcon v-if="!post.is_anonymous" :badge="post.author_badge" :size="13" />
               <span class="result-author">{{ post.is_anonymous ? '匿名' : post.author }}</span>

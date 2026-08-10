@@ -23,6 +23,11 @@ _DEFAULTS: dict[str, str] = {
     "deepseek_base_url": "https://api.deepseek.com/v1",
     "deepseek_model": "deepseek-chat",
     "audit_auto_delete_days": "0",
+    # 需要审核的内容范围：post 帖子 / comment 评论 / bottle 漂流瓶 / image 含图帖子转人工
+    "audit_scope": "post,comment,bottle,image",
+    # 转人工复核的触发条件：ai_unavailable / violation / high_severity / sensitive_category
+    "manual_review_triggers": "ai_unavailable",
+    "default_friend_user_id": "",
 }
 
 _DESC: dict[str, str] = {
@@ -31,6 +36,8 @@ _DESC: dict[str, str] = {
     "deepseek_base_url": "DeepSeek API 基础 URL",
     "deepseek_model": "DeepSeek 模型名",
     "audit_auto_delete_days": "审核失败内容自动删除天数（0=不自动删除）",
+    "audit_scope": "需要 AI 审核的内容范围（逗号分隔：post 帖子 / comment 评论 / bottle 漂流瓶 / image 含图帖子转人工审核）",
+    "manual_review_triggers": "转人工复核的触发条件（逗号分隔：ai_unavailable AI不可用 / violation AI判违规 / high_severity 中高严重度 / sensitive_category 敏感类别）",
 }
 
 
@@ -87,6 +94,32 @@ def get_int(db: Session, key: str, default: int = 0) -> int:
         return int(val)
     except (ValueError, TypeError):
         return default
+
+
+def get_set_list(db: Session, key: str, default: str = "") -> set[str]:
+    """读取逗号分隔的集合类设置（自动过滤空值）。"""
+    raw = get_setting(db, key, default)
+    return {s.strip() for s in raw.split(",") if s.strip()}
+
+
+def get_audit_scope(db: Session) -> set[str]:
+    """当前需要审核的内容范围：post / comment / bottle / image。"""
+    return get_set_list(db, "audit_scope", "post,comment,bottle,image")
+
+
+def get_manual_review_triggers(db: Session) -> set[str]:
+    """当前触发人工复核的条件集合。"""
+    return get_set_list(db, "manual_review_triggers", "ai_unavailable")
+
+
+def is_audit_scope_enabled(db: Session, key: str) -> bool:
+    """指定内容范围是否开启审核。"""
+    return key in get_audit_scope(db)
+
+
+def is_manual_review_trigger_enabled(db: Session, key: str) -> bool:
+    """指定人工复核触发条件是否开启。"""
+    return key in get_manual_review_triggers(db)
 
 
 def set_setting(db: Session, key: str, value: str) -> None:
@@ -155,6 +188,8 @@ def get_deepseek_config(db: Session) -> dict[str, Any]:
         "base_url": get_setting(db, "deepseek_base_url", "https://api.deepseek.com/v1"),
         "model": get_setting(db, "deepseek_model", "deepseek-chat"),
         "auto_delete_days": get_int(db, "audit_auto_delete_days", 0),
+        "audit_scope": sorted(get_audit_scope(db)),
+        "manual_review_triggers": sorted(get_manual_review_triggers(db)),
     }
 
 
@@ -171,5 +206,17 @@ def update_deepseek_config(db: Session, config: dict[str, Any]) -> None:
         items["deepseek_model"] = str(config["model"] or "")
     if "auto_delete_days" in config:
         items["audit_auto_delete_days"] = str(int(config["auto_delete_days"] or 0))
+    if "audit_scope" in config:
+        scope = config["audit_scope"] or []
+        if isinstance(scope, str):
+            scope = [s.strip() for s in scope.split(",") if s.strip()]
+        valid_scope = {"post", "comment", "bottle", "image"}
+        items["audit_scope"] = ",".join(sorted(k for k in scope if k in valid_scope))
+    if "manual_review_triggers" in config:
+        triggers = config["manual_review_triggers"] or []
+        if isinstance(triggers, str):
+            triggers = [t.strip() for t in triggers.split(",") if t.strip()]
+        valid_triggers = {"ai_unavailable", "violation", "high_severity", "sensitive_category"}
+        items["manual_review_triggers"] = ",".join(sorted(k for k in triggers if k in valid_triggers))
     if items:
         set_many(db, items)

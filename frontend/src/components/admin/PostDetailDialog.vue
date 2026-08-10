@@ -9,6 +9,7 @@ import { ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 
 import { adminGetPost, type AdminPost } from '../../api/admin'
+import MarkdownText from '../common/MarkdownText.vue'
 
 const props = defineProps<{
   modelValue: boolean
@@ -108,7 +109,7 @@ function imageUrl(path: string): string {
         <div v-if="post.title" class="post-title">{{ post.title }}</div>
 
         <!-- 正文 -->
-        <div class="post-content">{{ post.content }}</div>
+        <MarkdownText :content="post.content" class="post-content" />
 
         <!-- 图片 -->
         <div v-if="post.image_urls && post.image_urls.length" class="post-images">

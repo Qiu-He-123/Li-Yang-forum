@@ -136,16 +136,20 @@ async function reAuditByAI(row: AdminPost) {
 }
 
 async function remove(row: AdminPost) {
+  let reason = ''
   try {
-    await ElMessageBox.confirm(`确认删除帖子 #${row.id}？此操作不可恢复。`, '删除帖子', {
+    const { value } = await ElMessageBox.prompt('请输入删除理由（删除后会通知作者）', `删除帖子 #${row.id}`, {
       type: 'warning',
+      inputPlaceholder: '例如：广告 / 违规内容',
+      inputValidator: (v: string) => (v && v.trim() ? true : '删除理由不能为空'),
     })
+    reason = (value ?? '').trim()
   } catch {
     return
   }
   try {
-    await adminDeletePost(row.id)
-    ElMessage.success('已删除')
+    await adminDeletePost(row.id, reason)
+    ElMessage.success('已删除并通知作者')
     await load()
   } catch (error) {
     ElMessage.error((error as Error).message)

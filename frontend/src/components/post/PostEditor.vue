@@ -19,7 +19,8 @@ import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 
 import { Icon, Switch as NativeSwitch, Dialog as NativeDialog } from '../native'
 import { toast } from '../native/Toast'
-import { createPost, updatePost } from '../../api/post'
+import MarkdownText from '../common/MarkdownText.vue'
+import { createPost, deletePost, updatePost } from '../../api/post'
 import { uploadImage, listMyImages } from '../../api/image'
 import type { LoadingAxiosRequestConfig } from '../../api/http'
 import { searchTopics, hotTopics, type Topic } from '../../api/topic'
@@ -61,6 +62,8 @@ const session = useSessionStore()
 // 表单
 const title = ref(props.initialTitle ?? '')
 const content = ref(props.initialContent ?? '')
+/** 编辑 / Markdown 预览 切换 */
+const previewMode = ref(false)
 const category = ref(props.initialCategory ?? '校园圈')
 const schoolId = ref<number | undefined>(undefined)
 const isAnonymous = ref(props.initialIsAnonymous ?? false)
@@ -299,33 +302,6 @@ function onContentInput() {
     detectTopicTrigger()
     detectMentionTrigger()
   })
-}
-
-/** 高亮渲染：#话题名 和 @昵称 显示蓝色 */
-const highlightedContent = computed(() => {
-  const text = content.value
-  if (!text) return '<span style="color: transparent;">.</span>'
-  // HTML 转义
-  const escaped = text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-  // 高亮 #话题名（#后跟非空白字符，直到空白或行尾）
-  const withTopic = escaped.replace(/#([^\s#@]+)/g, '<span class="hl-topic">#$1</span>')
-  // 高亮 @昵称（@后跟非空白字符）
-  const withMention = withTopic.replace(/@([^\s#@]+)/g, '<span class="hl-mention">@$1</span>')
-  // 末尾换行符需要保留（否则高度不一致）
-  return withMention.replace(/\n/g, '<br>') + '<br>'
-})
-
-/** 同步 textarea 滚动到 highlight overlay */
-function syncScroll() {
-  const el = bodyRef.value
-  const hl = el?.parentElement?.querySelector('.body-highlight') as HTMLElement | null
-  if (el && hl) {
-    hl.scrollTop = el.scrollTop
-    hl.scrollLeft = el.scrollLeft
-  }
 }
 
 // ============ 光标位置计算 ============
@@ -1473,9 +1449,17 @@ async function doPublish(asDraft: boolean) {
         toast.success(asDraft ? '草稿已保存' : '发布成功，内容审核中')
       }
       if (!asDraft) {
+        // 修复：发布成功后删除自动保存的草稿，避免后台出现「草稿 + 正式帖」两遍
+        if (draftPostId.value) {
+          const draftId = draftPostId.value
+          draftPostId.value = null
+          try {
+            await deletePost(draftId)
+          } catch {
+            /* 删除失败不阻塞发布 */
+          }
+        }
         resetForm()
-        // 已发布的草稿 id 清理
-        draftPostId.value = null
         emit('published')
       }
     }
@@ -1532,25 +1516,24 @@ defineExpose({
         <span class="title-count" :class="{ 'is-max': titleIsMax }">{{ titleCount }}/{{ MAX_TITLE }}</span>
       </div>
 
-      <!-- 正文（带 highlight overlay：#话题 和 @用户 显示蓝色） -->
+      <!-- 正文（原生 textarea；#话题/@用户 蓝色高亮在预览与下方标签中显示） -->
       <div class="body-wrap">
-        <div class="body-highlight" aria-hidden="true" v-html="highlightedContent" />
         <textarea
+          v-if="!previewMode"
           ref="bodyRef"
           v-model="content"
-          class="body-input body-input-overlay"
-          :class="{ 'is-composing': isComposing }"
+          class="body-input"
           placeholder="分享你的校园生活..."
           aria-label="帖子正文"
           maxlength="5000"
           @input="onContentInput"
           @compositionstart="onCompositionStart"
           @compositionend="onCompositionEnd"
-          @scroll="syncScroll"
         />
-        <div class="body-counter" :class="{ 'is-max': content.length >= 5000 }">
+        <div v-if="!previewMode" class="body-counter" :class="{ 'is-max': content.length >= 5000 }">
           {{ content.length }} / 5000
         </div>
+        <MarkdownText v-else :content="content" class="markdown-preview" />
       </div>
 
       <!-- 工具条 -->
@@ -1573,6 +1556,15 @@ defineExpose({
         >
           <Icon :name="tool.icon" :size="22" />
           <span class="tool-label">{{ tool.label }}</span>
+        </button>
+        <button
+          class="tool-btn"
+          :class="{ 'is-active': previewMode }"
+          type="button"
+          @click="previewMode = !previewMode"
+        >
+          <Icon :name="previewMode ? 'pen-line' : 'eye'" :size="22" />
+          <span class="tool-label">{{ previewMode ? '编辑' : '预览' }}</span>
         </button>
       </div>
     </section>
@@ -2409,6 +2401,7 @@ defineExpose({
   font-family: inherit;
   font-size: 15px;
   line-height: 1.65;
+  letter-spacing: normal;
   color: var(--text-800);
   padding: 16px 18px;
   resize: none;
@@ -2418,45 +2411,8 @@ defineExpose({
   color: var(--text-500);
 }
 
-/* 正文高亮 overlay 容器：#话题 和 @用户 显示蓝色 */
 .body-wrap {
   position: relative;
-}
-.body-highlight {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  pointer-events: none;
-  color: var(--text-800);
-  font-family: inherit;
-  font-size: 15px;
-  line-height: 1.65;
-  padding: 16px 18px;
-  white-space: pre-wrap;
-  word-wrap: break-word;
-  overflow: hidden;
-  letter-spacing: normal;
-}
-/* textarea 文字透明、光标可见，覆盖在高亮层之上 */
-.body-input-overlay {
-  position: relative;
-  z-index: 1;
-  background: transparent;
-  color: transparent;
-  caret-color: var(--text-800);
-  /* 注意：不使用 -webkit-text-fill-color: transparent，否则会导致输入法拼音候选词也透明看不见 */
-}
-.body-input-overlay::placeholder {
-  color: var(--text-500);
-}
-/* 输入法输入中（composition 期间）：显示真实文本，避免拼音候选词消失 */
-.body-input-overlay.is-composing {
-  color: var(--text-800);
-}
-.body-input-overlay.is-composing::placeholder {
-  color: var(--text-500);
 }
 .body-counter {
   position: absolute;
@@ -2474,12 +2430,11 @@ defineExpose({
   color: #ef4444;
   font-weight: 600;
 }
-.body-highlight :deep(.hl-topic),
-.body-highlight :deep(.hl-mention) {
-  color: var(--brand-500);
-  font-weight: 500;
+/* Markdown 预览：与正文编辑区同尺寸，切换时不跳版 */
+.markdown-preview {
+  min-height: 200px;
+  padding: 16px 18px;
 }
-
 /* 工具条 */
 .toolbar {
   display: flex;

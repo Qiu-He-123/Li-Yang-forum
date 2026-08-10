@@ -3,6 +3,7 @@ import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 
 import { usePostStore } from '../../stores/post'
+import MarkdownText from '../common/MarkdownText.vue'
 
 const postStore = usePostStore()
 const router = useRouter()
@@ -38,7 +39,7 @@ function goDetail(id: number) {
           {{ i + 1 }}
         </span>
         <span class="min-w-0 flex-1">
-          <span class="line-clamp-1 text-[13px] leading-5 text-tie-text transition group-hover:text-tie-blue">{{ post.content }}</span>
+          <MarkdownText :content="post.content" class="line-clamp-1 text-[13px] leading-5 text-tie-text transition group-hover:text-tie-blue" :clamp="1" />
           <span class="mt-0.5 flex items-center gap-1 text-[11px] text-tie-sub">
             <span v-if="post.is_public === false" class="rounded-full bg-amber-100 px-1.5 py-0.5 font-semibold text-amber-700">已私密</span>
             <span>赞 {{ post.like_count }} · 回复 {{ post.comment_count }}</span>

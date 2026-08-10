@@ -19,6 +19,7 @@ import { toast } from '../components/native/Toast'
 import EmptyState from '../components/common/EmptyState.vue'
 import BadgeIcon from '../components/common/BadgeIcon.vue'
 import CircleDetailSkeleton from '../components/common/CircleDetailSkeleton.vue'
+import MarkdownText from '../components/common/MarkdownText.vue'
 import InfiniteScrollFooter from '../components/common/InfiniteScrollFooter.vue'
 import { useInfiniteScroll } from '../composables/useInfiniteScroll'
 import { useCircleStore } from '../stores/circle'
@@ -459,7 +460,7 @@ watch(slug, () => {
                 </button>
               </div>
               <h3 class="post-title">{{ post.title || post.content.slice(0, 50) }}</h3>
-              <p v-if="post.title" class="post-summary">{{ post.content }}</p>
+              <MarkdownText v-if="post.title" :content="post.content" class="post-summary" :clamp="3" />
               <div class="post-meta-row">
                 <span class="post-bar-tag">{{ circle?.name || post.category || '校园' }}</span>
                 <span class="post-meta-item">

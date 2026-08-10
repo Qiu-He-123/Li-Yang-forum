@@ -63,6 +63,7 @@ class ErrorCode:
     USERNAME_EXISTS = -306       # 用户名已被注册
 
     # ============ 兜底 ============
+    RATE_LIMITED = -400        # 请求过于频繁（反爬限流）
     PARAM_ERROR = -1000
     UNKNOWN_ERROR = -9999
 

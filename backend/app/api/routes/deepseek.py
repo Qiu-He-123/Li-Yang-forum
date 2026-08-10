@@ -35,6 +35,8 @@ def deepseek_status(
         "base_url": cfg["base_url"],
         "model": cfg["model"],
         "auto_delete_days": cfg["auto_delete_days"],
+        "audit_scope": cfg["audit_scope"],
+        "manual_review_triggers": cfg["manual_review_triggers"],
     })
 
 

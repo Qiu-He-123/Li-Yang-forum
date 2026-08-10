@@ -5,6 +5,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 
 import AppHeader from '../components/header/AppHeader.vue'
 import EmptyState from '../components/common/EmptyState.vue'
+import MarkdownText from '../components/common/MarkdownText.vue'
 import { fetchMyDrafts } from '../api/user'
 import { deletePost, updatePost } from '../api/post'
 import { useSessionStore } from '../stores/session'
@@ -115,7 +116,7 @@ onMounted(() => {
             <span>{{ post.category }} · {{ post.school }}</span>
             <span>{{ fmtTime(post.created_at) }}</span>
           </div>
-          <p class="m-0 mb-3 whitespace-pre-wrap break-all text-sm">{{ post.content }}</p>
+          <MarkdownText :content="post.content" class="m-0 mb-3 text-sm" :clamp="5" />
           <div class="flex gap-2">
             <el-button size="small" type="primary" @click="publish(post)">发布</el-button>
             <el-button size="small" @click="edit(post)">编辑</el-button>

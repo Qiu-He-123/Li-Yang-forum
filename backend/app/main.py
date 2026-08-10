@@ -14,10 +14,12 @@ from app.api.routes import (
     comments, deepseek, feedback, follows, images, interactions, match, messages, notifications,
     polls, posts, schools, search, stats, topics, users, ws,
 )
+from app.api.deps import extract_ip
 from app.core.config import get_settings
 from app.core.database import Base, SessionLocal, engine
 from app.core.errors import ErrorCode, error_response, get_error_message, pydantic_error_to_code
 from app.core.logger import setup_logger
+from app.services.rate_limit_service import check_rate_limit
 from app.models import Announcement, Badge, Category, CategoryAdmin, School, SeedInviteCode, WarningConfig, WarningLog  # noqa: F401  保证模型注册到 Base.metadata
 
 setup_logger()
@@ -67,6 +69,51 @@ async def rewrite_api_prefix(request: Request, call_next):
             scope = request.scope
             scope["path"] = new_path
             scope["raw_path"] = new_path.encode("utf-8")
+    return await call_next(request)
+
+
+# ============ 反爬：写接口按 IP 限流（60 秒窗口） ============
+# 只限写接口（POST/PUT/PATCH/DELETE），正常用户无验证码、无感；读取频率由 Nginx 层限制。
+_WRITE_LIMITS: dict[str, tuple[str, int]] = {
+    "/auth": ("auth", 10),
+    "/posts": ("post_create", 5),
+    "/comments": ("comment_create", 10),
+    "/checkin": ("checkin", 2),
+    "/bottles": ("bottle", 5),
+    "/messages": ("message_send", 20),
+    "/interactions": ("interaction", 20),
+    "/feedback": ("feedback", 5),
+    "/polls": ("poll", 10),
+    "/deepseek": ("ai", 5),
+    "/search": ("search", 30),
+    "/match": ("match", 10),
+    "/images": ("upload", 10),
+}
+
+
+def _write_limit_for(path: str) -> tuple[str, int]:
+    """按路径前缀返回 (动作名, 每分钟上限)，未匹配的写接口默认 30 次/分。"""
+    for prefix, spec in _WRITE_LIMITS.items():
+        if path.startswith(prefix):
+            return spec
+    return "write", 30
+
+
+@app.middleware("http")
+async def api_write_rate_limit(request: Request, call_next):
+    """反爬限流：同 IP 写接口超频直接返回 RATE_LIMITED（复用 SQLite rate_limits 表）。"""
+    if request.method in {"POST", "PUT", "PATCH", "DELETE"} and request.url.path.startswith("/api"):
+        ip = extract_ip(request)
+        if ip:
+            path = request.url.path[4:] if request.url.path != "/api" else "/"
+            action, max_requests = _write_limit_for(path)
+            with SessionLocal() as db:
+                allowed = check_rate_limit(db, f"rl:{ip}:{action}", max_requests)
+            if not allowed:
+                return JSONResponse(
+                    status_code=200,
+                    content={"code": ErrorCode.RATE_LIMITED, "msg": "操作太频繁，请稍后再试", "data": {}},
+                )
     return await call_next(request)
 
 

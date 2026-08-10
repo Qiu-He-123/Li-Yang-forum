@@ -37,7 +37,41 @@ const config = reactive<DeepSeekConfig>({
   base_url: 'https://api.deepseek.com/v1',
   model: 'deepseek-chat',
   auto_delete_days: 0,
+  audit_scope: ['post', 'comment', 'bottle', 'image'],
+  manual_review_triggers: ['ai_unavailable'],
 })
+
+// 审核范围选项
+const scopeOptions = [
+  { label: '帖子（标题 + 正文）', value: 'post', hint: '发布 / 编辑帖子时用 AI 审核标题与正文' },
+  { label: '评论', value: 'comment', hint: '发表评论时用 AI 审核' },
+  { label: '漂流瓶', value: 'bottle', hint: '投放漂流瓶时用 AI 审核内容' },
+  { label: '帖子图片', value: 'image', hint: '含图片的帖子直接转人工审核（AI 暂不支持图片识别）' },
+]
+
+// 人工复核触发条件选项
+const triggerOptions = [
+  {
+    label: 'AI 服务不可用',
+    value: 'ai_unavailable',
+    hint: '未开启 / 未配置 Key / 无额度 / 调用失败时转人工审核，不直接放行',
+  },
+  {
+    label: 'AI 判定违规',
+    value: 'violation',
+    hint: 'AI 判定违规时保留内容转人工复核，不自动拦截、不累计警告',
+  },
+  {
+    label: '中 / 高严重度违规',
+    value: 'high_severity',
+    hint: 'AI 判定为 high / medium 严重度时强制转人工复核',
+  },
+  {
+    label: '敏感类别',
+    value: 'sensitive_category',
+    hint: '涉及政治敏感 / 色情 / 暴力 / 违法 / 欺凌 / 自残 / 隐私等类别时强制转人工复核',
+  },
+]
 
 // 显示用脱敏 key（首次加载后展示，编辑时显示明文）
 const apiKeyMasked = ref('')
@@ -116,6 +150,10 @@ async function load() {
     config.base_url = cfg.base_url || 'https://api.deepseek.com/v1'
     config.model = cfg.model || 'deepseek-chat'
     config.auto_delete_days = Number(cfg.auto_delete_days || 0)
+    config.audit_scope = Array.isArray(cfg.audit_scope) ? [...cfg.audit_scope] : ['post', 'comment', 'bottle', 'image']
+    config.manual_review_triggers = Array.isArray(cfg.manual_review_triggers)
+      ? [...cfg.manual_review_triggers]
+      : ['ai_unavailable']
     // API Key 不回显明文，仅显示脱敏
     apiKeyMasked.value = maskKey(cfg.api_key || '')
     config.api_key = cfg.api_key || ''
@@ -141,6 +179,8 @@ async function onSave() {
       base_url: config.base_url,
       model: config.model,
       auto_delete_days: Number(config.auto_delete_days) || 0,
+      audit_scope: [...config.audit_scope],
+      manual_review_triggers: [...config.manual_review_triggers],
     }
     // 仅在编辑模式且输入了新 key 时才提交
     if (apiKeyEditing.value && config.api_key) {
@@ -269,7 +309,7 @@ onMounted(() => load())
       <el-form label-width="140px" label-position="right" class="config-form">
         <el-form-item label="启用 DeepSeek">
           <el-switch v-model="config.enabled" />
-          <span class="form-hint">开启后，新发布的帖子和评论将优先通过 DeepSeek 审核</span>
+          <span class="form-hint">开启后，按下方「审核范围」对帖子、评论、漂流瓶等内容进行 AI 审核</span>
         </el-form-item>
 
         <el-form-item label="API Key">
@@ -342,6 +382,48 @@ onMounted(() => load())
           >
             立即清理过期内容
           </el-button>
+        </el-form-item>
+      </el-form>
+    </div>
+
+    <!-- 审核范围与人工复核策略 -->
+    <div class="form-card">
+      <div class="card-title">
+        <span class="title-text">审核范围与人工复核策略</span>
+        <span class="form-hint">控制哪些内容需要审核、哪些情况转人工复核</span>
+      </div>
+
+      <el-form label-width="140px" label-position="right" class="config-form">
+        <el-form-item label="需要审核的内容">
+          <div class="scope-group">
+            <el-checkbox-group v-model="config.audit_scope">
+              <el-checkbox v-for="opt in scopeOptions" :key="opt.value" :value="opt.value">
+                <div class="opt-label">{{ opt.label }}</div>
+                <div class="opt-hint">{{ opt.hint }}</div>
+              </el-checkbox>
+            </el-checkbox-group>
+            <div v-if="!config.audit_scope.length" class="scope-empty">
+              未选择任何范围 = 全部内容免审直接放行（不推荐）
+            </div>
+          </div>
+        </el-form-item>
+
+        <el-form-item label="转人工复核">
+          <div class="scope-group">
+            <el-checkbox-group v-model="config.manual_review_triggers">
+              <el-checkbox v-for="opt in triggerOptions" :key="opt.value" :value="opt.value">
+                <div class="opt-label">{{ opt.label }}</div>
+                <div class="opt-hint">{{ opt.hint }}</div>
+              </el-checkbox>
+            </el-checkbox-group>
+            <div class="scope-note">
+              除以上可配置条件外，以下情况固定进入人工审核，无法关闭：管理员手动审核操作、后台审核流程异常。
+            </div>
+          </div>
+        </el-form-item>
+
+        <el-form-item>
+          <el-button type="primary" :loading="saving" @click="onSave">保存配置</el-button>
         </el-form-item>
       </el-form>
     </div>
@@ -528,6 +610,54 @@ onMounted(() => load())
   display: flex;
   gap: 8px;
   width: 100%;
+}
+.scope-group {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.scope-group :deep(.el-checkbox-group) {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+}
+.scope-group :deep(.el-checkbox) {
+  height: auto;
+  margin-right: 0;
+  align-items: flex-start;
+}
+.scope-group :deep(.el-checkbox__label) {
+  white-space: normal;
+  line-height: 1.4;
+}
+.opt-label {
+  font-size: 14px;
+  color: #262626;
+  font-weight: 500;
+}
+.opt-hint {
+  font-size: 12px;
+  color: #8c8c8c;
+  margin-top: 2px;
+}
+.scope-empty {
+  font-size: 12px;
+  color: #fa541c;
+  padding: 6px 10px;
+  background: #fff7e6;
+  border-radius: 6px;
+  display: inline-block;
+}
+.scope-note {
+  font-size: 12px;
+  color: #8c8c8c;
+  background: #fafafa;
+  border: 1px dashed #e8e8e8;
+  border-radius: 6px;
+  padding: 8px 12px;
+  line-height: 1.6;
 }
 .result-body {
   font-size: 14px;

@@ -10,6 +10,7 @@ import AiStatusBadge from '../components/common/AiStatusBadge.vue'
 import BadgeIcon from '../components/common/BadgeIcon.vue'
 import PostListSkeleton from '../components/post/PostListSkeleton.vue'
 import ProfileSkeleton from '../components/common/ProfileSkeleton.vue'
+import MarkdownText from '../components/common/MarkdownText.vue'
 import InfiniteScrollFooter from '../components/common/InfiniteScrollFooter.vue'
 import { Dialog as NativeDialog, Icon, Select as NativeSelect } from '../components/native'
 import { toast } from '../components/native/Toast'
@@ -927,7 +928,7 @@ onMounted(async () => {
             </span>
             {{ post.title || post.content.slice(0, 50) }}
           </h3>
-          <p v-if="post.content && post.title" class="post-excerpt">{{ post.content }}</p>
+          <MarkdownText v-if="post.content && post.title" :content="post.content" class="post-excerpt" :clamp="3" />
           <img
             v-if="post.image_urls?.length"
             class="post-thumb"

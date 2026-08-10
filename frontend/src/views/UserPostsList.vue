@@ -9,6 +9,7 @@ import { useRoute, useRouter } from 'vue-router'
 
 import EmptyState from '../components/common/EmptyState.vue'
 import PostListSkeleton from '../components/post/PostListSkeleton.vue'
+import MarkdownText from '../components/common/MarkdownText.vue'
 import { Icon } from '../components/native'
 import { toast } from '../components/native/Toast'
 import { fetchUser, fetchUserPosts } from '../api/user'
@@ -137,7 +138,8 @@ watch(userId, () => {
             <Icon name="image" :size="24" />
           </div>
           <div class="post-body">
-            <p class="post-content">{{ post.title || post.content }}</p>
+            <p v-if="post.title" class="post-content">{{ post.title }}</p>
+            <MarkdownText v-else :content="post.content" class="post-content" :clamp="4" />
             <div class="post-meta">
               <span class="post-cat">#{{ post.category || '校园' }}</span>
               <span v-if="post.is_public === false" class="private-badge">

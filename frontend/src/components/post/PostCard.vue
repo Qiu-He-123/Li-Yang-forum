@@ -10,6 +10,7 @@ import { Icon } from '../native'
 import { toast } from '../native/Toast'
 import { Dialog as NativeDialog } from '../native'
 import PostImages from './PostImages.vue'
+import MarkdownText from '../common/MarkdownText.vue'
 import CommentList from '../comment/CommentList.vue'
 import AiStatusBadge from '../common/AiStatusBadge.vue'
 import BadgeIcon from '../common/BadgeIcon.vue'
@@ -236,7 +237,7 @@ function goTagSearch(tag: string) {
         </span>
         <span class="title-text">{{ firstLine }}</span>
       </h3>
-      <p v-if="restText" class="post-summary">{{ restText }}</p>
+      <MarkdownText v-if="restText" :content="restText" class="post-summary" :clamp="3" />
     </a>
 
     <!-- 缩略图 -->

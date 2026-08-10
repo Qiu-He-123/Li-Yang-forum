@@ -53,6 +53,9 @@ services:
       - minio
     ports:
       - "80:80"
+    volumes:
+      # 让宿主机 fail2ban 能读取 nginx 访问/错误日志（logs/ 已在 .gitignore）
+      - ../logs/nginx:/var/log/nginx
     restart: unless-stopped
 
 volumes:

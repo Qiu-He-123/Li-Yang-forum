@@ -187,8 +187,8 @@ def test_admin_delete_post(client):
     # 切到管理员
     client.post("/auth/logout")
     _admin_login(client)
-    # admin 删除帖子
-    resp = client.delete(f"/admin/posts/{post_id}").json()
+    # admin 删除帖子（必须携带删除理由）
+    resp = client.post(f"/admin/posts/{post_id}/delete", json={"reason": "测试删除"}).json()
     assert resp["code"] == 0
 
 

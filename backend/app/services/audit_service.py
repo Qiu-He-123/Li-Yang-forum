@@ -26,6 +26,26 @@ from app.models import AuditLog, Notification, Post, Comment, User
 from app.services import ai_service, deepseek_service, settings_service
 
 
+# ============ 审核范围 / 人工复核触发条件 ============
+
+# 可选的审核内容范围
+AUDIT_SCOPE_KEYS = ("post", "comment", "bottle", "image")
+
+# 可选的转人工复核触发条件
+MANUAL_REVIEW_TRIGGER_KEYS = ("ai_unavailable", "violation", "high_severity", "sensitive_category")
+
+# AI 判定为这些类别时属于高敏感内容（涉及未成年人保护 / 法律风险），建议强制人工复核
+SENSITIVE_CATEGORIES = {
+    "政治敏感",
+    "色情低俗",
+    "暴力血腥",
+    "违法犯罪",
+    "校园欺凌",
+    "自残自杀",
+    "隐私泄露",
+}
+
+
 def is_ai_audit_available(db: Session) -> bool:
     """检查是否有任一 AI 审核服务可用（DeepSeek 或 OpenAI）。
 
@@ -44,6 +64,24 @@ def is_ai_audit_available(db: Session) -> bool:
             return True
     except Exception:
         pass
+    return False
+
+
+def should_route_violation_to_manual(db: Session, audit: dict[str, Any]) -> bool:
+    """AI 判定违规后，是否转人工复核（而非直接按违规处理）。
+
+    触发条件（任一命中即转人工复核）：
+    - violation：AI 判定违规即保留内容转人工复核
+    - high_severity：AI 判定 high / medium 严重度
+    - sensitive_category：涉及敏感类别
+    """
+    triggers = settings_service.get_manual_review_triggers(db)
+    if "violation" in triggers:
+        return True
+    if "high_severity" in triggers and audit.get("severity") in ("high", "medium"):
+        return True
+    if "sensitive_category" in triggers and audit.get("category") in SENSITIVE_CATEGORIES:
+        return True
     return False
 
 
@@ -269,13 +307,18 @@ async def audit_post_background(post_id: int) -> None:
             _record_audit_log(db, "post", post_id, post.author_id, audit, content)
 
             if audit.get("skipped"):
-                # AI 不可用/调用失败 → 不直接放行，转人工审核
-                post.ai_status = "manual_review"
-                post.reject_reason = "AI 审核服务不可用，已转人工审核"
-                _send_manual_review_notification(
-                    db, post.author_id, "post", post.id,
-                    reason="AI 审核服务暂不可用（未开启/无余额/调用失败）",
-                )
+                if settings_service.is_manual_review_trigger_enabled(db, "ai_unavailable"):
+                    # AI 不可用/调用失败 → 不直接放行，转人工审核
+                    post.ai_status = "manual_review"
+                    post.reject_reason = "AI 审核服务不可用，已转人工审核"
+                    _send_manual_review_notification(
+                        db, post.author_id, "post", post.id,
+                        reason="AI 审核服务暂不可用（未开启/无余额/调用失败）",
+                    )
+                else:
+                    # 管理员配置：AI 不可用时直接放行（免审兜底）
+                    post.ai_status = "approved"
+                    post.reject_reason = None
             elif audit.get("pass", True):
                 post.ai_status = "approved"
                 post.reject_reason = None
@@ -313,13 +356,22 @@ async def audit_post_background(post_id: int) -> None:
             else:
                 # AI 判定违规
                 reason = audit.get("reason", "内容违反社区规范")
-                post.ai_status = "rejected"
-                post.reject_reason = reason
+                if should_route_violation_to_manual(db, audit):
+                    # 命中人工复核触发条件：保留内容，转人工复核，不自动累计警告
+                    post.ai_status = "manual_review"
+                    post.reject_reason = f"AI 判定违规，已转人工复核：{reason}"
+                    _send_manual_review_notification(
+                        db, post.author_id, "post", post.id,
+                        reason="AI 判定内容违规，待人工复核",
+                    )
+                else:
+                    post.ai_status = "rejected"
+                    post.reject_reason = reason
 
-                # 处理违规（增加警告值 + 阈值判定 + 通知/封号）
-                content_preview = (post.title or post.content or "")[:30]
-                severity = audit.get("severity", "medium")
-                _handle_violation(db, post.author_id, "post", post.id, reason, content_preview, severity=severity)
+                    # 处理违规（增加警告值 + 阈值判定 + 通知/封号）
+                    content_preview = (post.title or post.content or "")[:30]
+                    severity = audit.get("severity", "medium")
+                    _handle_violation(db, post.author_id, "post", post.id, reason, content_preview, severity=severity)
 
             db.commit()
     except Exception as exc:
@@ -349,15 +401,20 @@ async def audit_comment_background(comment_id: int) -> None:
             audit = await run_audit_async(comment.content)
 
             # 写入审核日志
-            _record_audit_log(db, "comment", comment_id, comment.user_id, audit, content)
+            _record_audit_log(db, "comment", comment_id, comment.user_id, audit, comment.content)
 
             if audit.get("skipped"):
-                comment.ai_status = "manual_review"
-                comment.reject_reason = "AI 审核服务不可用，已转人工审核"
-                _send_manual_review_notification(
-                    db, comment.user_id, "comment", comment.id,
-                    reason="AI 审核服务暂不可用（未开启/无余额/调用失败）",
-                )
+                if settings_service.is_manual_review_trigger_enabled(db, "ai_unavailable"):
+                    comment.ai_status = "manual_review"
+                    comment.reject_reason = "AI 审核服务不可用，已转人工审核"
+                    _send_manual_review_notification(
+                        db, comment.user_id, "comment", comment.id,
+                        reason="AI 审核服务暂不可用（未开启/无余额/调用失败）",
+                    )
+                else:
+                    # 管理员配置：AI 不可用时直接放行
+                    comment.ai_status = "approved"
+                    comment.reject_reason = None
             elif audit.get("pass", True):
                 comment.ai_status = "approved"
                 comment.reject_reason = None
@@ -407,13 +464,22 @@ async def audit_comment_background(comment_id: int) -> None:
                     pass
             else:
                 reason = audit.get("reason", "内容违反社区规范")
-                comment.ai_status = "rejected"
-                comment.reject_reason = reason
+                if should_route_violation_to_manual(db, audit):
+                    # 命中人工复核触发条件：保留内容，转人工复核，不自动累计警告
+                    comment.ai_status = "manual_review"
+                    comment.reject_reason = f"AI 判定违规，已转人工复核：{reason}"
+                    _send_manual_review_notification(
+                        db, comment.user_id, "comment", comment.id,
+                        reason="AI 判定内容违规，待人工复核",
+                    )
+                else:
+                    comment.ai_status = "rejected"
+                    comment.reject_reason = reason
 
-                # 处理违规（增加警告值 + 阈值判定 + 通知/封号）
-                content_preview = (comment.content or "")[:30]
-                severity = audit.get("severity", "medium")
-                _handle_violation(db, comment.user_id, "comment", comment.id, reason, content_preview, severity=severity)
+                    # 处理违规（增加警告值 + 阈值判定 + 通知/封号）
+                    content_preview = (comment.content or "")[:30]
+                    severity = audit.get("severity", "medium")
+                    _handle_violation(db, comment.user_id, "comment", comment.id, reason, content_preview, severity=severity)
 
             db.commit()
     except Exception as exc:

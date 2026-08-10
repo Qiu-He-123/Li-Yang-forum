@@ -195,21 +195,32 @@ async def create_post(payload: PostCreate, request: Request, db: Session, user: 
     if ban_status["is_banned"]:
         raise HTTPException(status_code=403, detail=ErrorCode.USER_BANNED)
 
-    # 审核策略：
-    # 1. 含图片 → 图片不走 AI 审核，一律人工审核（帖子同步转人工审核）
-    # 2. 无图片且 AI 可用 → 后台异步 AI 审核（pending）
-    # 3. 无图片且 AI 不可用（未开启/无余额/调用失败）→ 不直接放行，转人工审核
-    from app.services import audit_service
+    # 审核策略（受后台「AI 审核配置 - 审核范围 / 人工复核触发」控制）：
+    # 1. 含图片且开启 image 范围 → 图片不走 AI 审核，一律人工审核（帖子同步转人工审核）
+    # 2. 未开启 post 范围 → 帖子免审，直接放行
+    # 3. 开启 post 且 AI 可用 → 后台异步 AI 审核（pending）
+    # 4. 开启 post 且 AI 不可用（未开启/无余额/调用失败）→
+    #    - 开启 ai_unavailable 触发 → 转人工审核
+    #    - 未开启 → 直接放行
+    from app.services import audit_service, settings_service
     from app.services.notification_service import create_notification
-    if payload.image_urls:
+    scope = settings_service.get_audit_scope(db)
+    triggers = settings_service.get_manual_review_triggers(db)
+    if payload.image_urls and "image" in scope:
         initial_ai_status = "manual_review"
         manual_reason = "图片内容需人工审核"
+    elif "post" not in scope:
+        initial_ai_status = "approved"
+        manual_reason = None
     elif audit_service.is_ai_audit_available(db):
         initial_ai_status = "pending"
         manual_reason = None
-    else:
+    elif "ai_unavailable" in triggers:
         initial_ai_status = "manual_review"
         manual_reason = "AI 审核服务暂不可用，已转人工审核"
+    else:
+        initial_ai_status = "approved"
+        manual_reason = None
 
     # 阶段二：处理话题（草稿也支持）
     topic_id: int | None = None
@@ -337,18 +348,26 @@ async def update_post(post_id: int, payload: PostUpdate, request: Request, db: S
         raise HTTPException(status_code=400, detail=ErrorCode.SCHOOL_NOT_FOUND)
     if "content" in changes:
         post.content = changes.pop("content")
-        # 内容变更需重新审核：标记 pending（AI 可用时）或人工审核（AI 不可用/含图）
-        from app.services import audit_service
+        # 内容变更需重新审核：受后台「审核范围 / 人工复核触发」控制
+        from app.services import audit_service, settings_service
         from app.services.notification_service import create_notification
-        if post.image_urls and json.loads(post.image_urls or "[]"):
+        scope = settings_service.get_audit_scope(db)
+        triggers = settings_service.get_manual_review_triggers(db)
+        if post.image_urls and json.loads(post.image_urls or "[]") and "image" in scope:
             post.ai_status = "manual_review"
             post.reject_reason = "图片内容需人工审核"
+        elif "post" not in scope:
+            post.ai_status = "approved"
+            post.reject_reason = None
         elif audit_service.is_ai_audit_available(db):
             post.ai_status = "pending"
             post.reject_reason = None
-        else:
+        elif "ai_unavailable" in triggers:
             post.ai_status = "manual_review"
             post.reject_reason = "AI 审核服务暂不可用，已转人工审核"
+        else:
+            post.ai_status = "approved"
+            post.reject_reason = None
         # 编辑后清空旧标签，等审核通过后由后台重新生成
         post.tags = json.dumps([], ensure_ascii=False)
     if "image_urls" in changes:

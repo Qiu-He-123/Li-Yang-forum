@@ -10,6 +10,7 @@ import { Dialog as NativeDialog } from '../components/native'
 import { toast } from '../components/native/Toast'
 import PostEditor from '../components/post/PostEditor.vue'
 import PostImages from '../components/post/PostImages.vue'
+import MarkdownText from '../components/common/MarkdownText.vue'
 import CommentList from '../components/comment/CommentList.vue'
 import {
   deletePost,
@@ -681,7 +682,7 @@ onMounted(() => {
               <PostImages v-if="post.image_urls?.length" :urls="post.image_urls" :thumb="false" />
 
               <div v-if="post.content" class="post-body">
-                <p v-for="(para, idx) in post.content.split('\n').filter((l) => l.trim())" :key="idx">{{ para }}</p>
+                <MarkdownText :content="post.content" />
               </div>
 
               <!-- 标签 -->

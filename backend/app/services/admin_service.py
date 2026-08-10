@@ -274,12 +274,30 @@ def admin_get_comment_detail(comment_id: int, db: Session) -> dict:
     return _comment_dict(c, db)
 
 
-def admin_delete_post(post_id: int, request: Request, db: Session, admin: Admin) -> None:
+def admin_delete_post(post_id: int, reason: str, request: Request, db: Session, admin: Admin) -> None:
     post = db.get(Post, post_id)
     if not post:
         raise HTTPException(status_code=404, detail=ErrorCode.POST_NOT_FOUND)
+    reason = (reason or "").strip()
+    if not reason:
+        raise HTTPException(status_code=400, detail="删除理由不能为空")
+    # 先写通知再删除帖子（保留引用信息），通知作者删除原因
+    if post.author_id:
+        snippet = post.title or (post.content[:20] + ("…" if len(post.content) > 20 else "") if post.content else "")
+        db.add(Notification(
+            user_id=post.author_id,
+            title="帖子已被删除",
+            content=f"你的帖子「{snippet}」已被管理员删除。删除理由：{reason}",
+            type="system",
+            reference_type="post",
+            reference_id=post_id,
+        ))
     db.delete(post)
-    log_admin_action(db, admin.id, "delete_post", json.dumps({"post_id": post_id}, ensure_ascii=False), _extract_ip(request))
+    log_admin_action(
+        db, admin.id, "delete_post",
+        json.dumps({"post_id": post_id, "reason": reason}, ensure_ascii=False),
+        _extract_ip(request),
+    )
     db.commit()
 
 
@@ -935,6 +953,8 @@ def admin_get_deepseek_config(db: Session) -> dict:
         "base_url": cfg["base_url"],
         "model": cfg["model"],
         "auto_delete_days": cfg["auto_delete_days"],
+        "audit_scope": cfg["audit_scope"],
+        "manual_review_triggers": cfg["manual_review_triggers"],
     }
 
 

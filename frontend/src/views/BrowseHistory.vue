@@ -12,6 +12,7 @@ import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 
 import EmptyState from '../components/common/EmptyState.vue'
+import MarkdownText from '../components/common/MarkdownText.vue'
 import { Icon } from '../components/native'
 import { toast } from '../components/native/Toast'
 import { clearHistory, deleteHistoryItem, listHistory, type HistoryItem } from '../api/history'
@@ -165,7 +166,7 @@ onMounted(() => {
           <div class="item-main" @click="openPost(item)">
             <div class="item-body">
               <h3 class="item-title">{{ item.title || item.content.slice(0, 40) || '无标题' }}</h3>
-              <p v-if="item.title && item.content" class="item-excerpt">{{ item.content }}</p>
+              <MarkdownText v-if="item.title && item.content" :content="item.content" class="item-excerpt" :clamp="2" />
               <div class="item-meta">
                 <span class="meta-cat">#{{ item.category || '校园' }}</span>
                 <span class="meta-dot">·</span>

@@ -167,10 +167,21 @@ def create_bottle(
     if bottle_gender not in ("male", "female", "unknown"):
         bottle_gender = "unknown"
 
-    # 审核策略：AI 可用 → 后台异步 AI 审核；AI 不可用 → 转人工审核（不直接放行）
-    from app.services import audit_service
-    ai_available = audit_service.is_ai_audit_available(db)
-    initial_audit_status = "pending" if ai_available else "manual_review"
+    # 审核策略（受后台「AI 审核配置 - 审核范围 / 人工复核触发」控制）：
+    # - 未开启 bottle 范围 → 漂流瓶免审，直接放行
+    # - 开启且 AI 可用 → 后台异步审核（pending）
+    # - 开启且 AI 不可用 → 开启 ai_unavailable 触发则转人工审核，否则直接放行
+    from app.services import audit_service, settings_service
+    scope = settings_service.get_audit_scope(db)
+    triggers = settings_service.get_manual_review_triggers(db)
+    if "bottle" not in scope:
+        initial_audit_status = "approved"
+    elif audit_service.is_ai_audit_available(db):
+        initial_audit_status = "pending"
+    elif "ai_unavailable" in triggers:
+        initial_audit_status = "manual_review"
+    else:
+        initial_audit_status = "approved"
 
     bottle = Bottle(
         author_id=user.id,
@@ -549,7 +560,7 @@ async def audit_bottle_background(bottle_id: int) -> None:
     - AI 不可用   → audit_status=manual_review（不直接放行，转人工审核）
     """
     from app.core.database import SessionLocal
-    from app.services import audit_service
+    from app.services import audit_service, settings_service
     from app.services import warning_service
 
     try:
@@ -563,33 +574,52 @@ async def audit_bottle_background(bottle_id: int) -> None:
             )
 
             if audit.get("skipped"):
-                bottle.audit_status = "manual_review"
-                bottle.reject_reason = "AI 审核服务不可用，已转人工审核"
-                create_notification(
-                    db,
-                    bottle.author_id,
-                    "漂流瓶已进入人工审核",
-                    "您的漂流瓶当前进入人工审核（AI 审核服务暂不可用，未开启/无余额/调用失败）。审核可能较慢，请耐心等待。",
-                    ntype="system",
-                    reference_type="bottle",
-                    reference_id=bottle.id,
-                )
+                if settings_service.is_manual_review_trigger_enabled(db, "ai_unavailable"):
+                    bottle.audit_status = "manual_review"
+                    bottle.reject_reason = "AI 审核服务不可用，已转人工审核"
+                    create_notification(
+                        db,
+                        bottle.author_id,
+                        "漂流瓶已进入人工审核",
+                        "您的漂流瓶当前进入人工审核（AI 审核服务暂不可用，未开启/无余额/调用失败）。审核可能较慢，请耐心等待。",
+                        ntype="system",
+                        reference_type="bottle",
+                        reference_id=bottle.id,
+                    )
+                else:
+                    # 管理员配置：AI 不可用时直接放行
+                    bottle.audit_status = "approved"
+                    bottle.reject_reason = None
             elif audit.get("pass", True):
                 bottle.audit_status = "approved"
                 bottle.reject_reason = None
             else:
                 reason = audit.get("reason", "内容违反社区规范")
-                bottle.audit_status = "rejected"
-                bottle.reject_reason = reason
-                # 违规：累计警告值（灌水等轻微违规 severity=low 扣分少）
-                author = db.get(User, bottle.author_id)
-                if author:
-                    warning_service.handle_violation(
-                        db, author, reason=reason,
-                        content_preview=(bottle.content or "")[:30],
-                        target_type="bottle", target_id=bottle.id,
-                        severity=audit.get("severity", "medium"),
+                if audit_service.should_route_violation_to_manual(db, audit):
+                    # 命中人工复核触发条件：保留内容转人工复核，不自动累计警告
+                    bottle.audit_status = "manual_review"
+                    bottle.reject_reason = f"AI 判定违规，已转人工复核：{reason}"
+                    create_notification(
+                        db,
+                        bottle.author_id,
+                        "漂流瓶已进入人工审核",
+                        "您的漂流瓶被 AI 判定违规，当前进入人工复核，请耐心等待管理员处理。",
+                        ntype="system",
+                        reference_type="bottle",
+                        reference_id=bottle.id,
                     )
+                else:
+                    bottle.audit_status = "rejected"
+                    bottle.reject_reason = reason
+                    # 违规：累计警告值（灌水等轻微违规 severity=low 扣分少）
+                    author = db.get(User, bottle.author_id)
+                    if author:
+                        warning_service.handle_violation(
+                            db, author, reason=reason,
+                            content_preview=(bottle.content or "")[:30],
+                            target_type="bottle", target_id=bottle.id,
+                            severity=audit.get("severity", "medium"),
+                        )
             db.commit()
     except Exception as exc:
         from loguru import logger
