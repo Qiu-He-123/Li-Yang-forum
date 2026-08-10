@@ -100,6 +100,51 @@ export function adminUpdateSettings(settings: Record<string, string>) {
   return http.put('/admin/settings', { settings })
 }
 
+// ============ 推荐探索 ============
+
+export interface ExploreSummary {
+  impressions: number
+  click_count: number
+  ctr: number
+  like_count: number
+  comment_count: number
+  interaction_count: number
+  interaction_rate: number
+}
+
+export interface ExploreTopPost {
+  post_id: number
+  title: string | null
+  category: string
+  impressions: number
+  click_count: number
+  like_count: number
+  comment_count: number
+  ctr: number
+}
+
+export interface ExploreImpressionLog {
+  id: number
+  post_id: number
+  target_id: number | null
+  title: string | null
+  user_id: number | null
+  nickname: string | null
+  scene: string
+  page: number
+  created_at: string
+}
+
+export interface ExploreStats {
+  summary: ExploreSummary
+  top_posts: ExploreTopPost[]
+  recent_logs: ExploreImpressionLog[]
+}
+
+export function adminExploreStats() {
+  return http.get<unknown, { data: { code: number; msg: string; data: ExploreStats } }>('/admin/explore/stats')
+}
+
 export function adminAuditPost(postId: number, aiStatus: string, rejectReason?: string) {
   return http.patch(`/admin/posts/${postId}/audit`, { ai_status: aiStatus, reject_reason: rejectReason })
 }
@@ -328,6 +373,8 @@ export interface DeepSeekAuditResult {
   category: string
   severity: string
   skipped?: boolean
+  /** 使用的审核场景：post / comment / bottle / generic */
+  content_type?: string
 }
 
 export function adminGetDeepSeekConfig() {
@@ -345,9 +392,16 @@ export function adminDeepSeekTest() {
   return http.post<unknown, { data: { code: number; msg: string; data: DeepSeekTestResult } }>('/deepseek/test')
 }
 
-export function adminDeepSeekAuditText(content: string) {
+export function adminGetDeepSeekPrompts() {
+  return http.get<unknown, { data: { code: number; msg: string; data: { prompts: Record<string, string>; labels: Record<string, string> } } }>(
+    '/deepseek/prompts',
+  )
+}
+
+export function adminDeepSeekAuditText(content: string, contentType = 'generic') {
   return http.post<unknown, { data: { code: number; msg: string; data: DeepSeekAuditResult } }>('/deepseek/audit', {
     content,
+    content_type: contentType,
   })
 }
 
@@ -439,7 +493,15 @@ export interface AuditLog {
   created_at: string
 }
 
-export function adminListAuditLogs(params: { page?: number; page_size?: number; target_type?: string; result?: string; user_id?: number } = {}) {
+export function adminListAuditLogs(params: {
+  page?: number
+  page_size?: number
+  target_type?: string
+  result?: string
+  user_id?: number
+  category?: string
+  severity?: string
+} = {}) {
   return http.get<unknown, { data: { code: number; msg: string; data: PageResp<AuditLog> } }>('/admin/audit-logs', { params })
 }
 

@@ -18,6 +18,7 @@ import {
   adminCleanupAudit,
   adminDeepSeekAuditText,
   adminDeepSeekTest,
+  adminGetDeepSeekPrompts,
   adminGetDeepSeekConfig,
   adminUpdateDeepSeekConfig,
   type DeepSeekAuditResult,
@@ -82,69 +83,33 @@ const auditInput = ref('')
 const auditResult = ref<DeepSeekAuditResult | null>(null)
 const cleanupResult = ref<{ enabled: boolean; days: number; deleted_posts: number; deleted_comments: number } | null>(null)
 
-// AI 审核人设（仅供展示，不可编辑）
-const systemPrompt = `# 角色定义
-你是「立洋校园社区 AI 内容审核官」，代号 LY-Moderator。
-你的职责是审核校园社区用户发布的帖子和评论内容，判断是否违规，
-并给出结构化审核结果，辅助管理员进行内容治理决策。
+// AI 审核人设（从后端接口实时获取，与线上使用保持一致）
+const prompts = ref<Record<string, string>>({})
+const promptLabels: Record<string, string> = {
+  post: '帖子（标题+正文）',
+  comment: '评论',
+  bottle: '漂流瓶',
+  generic: '通用文本',
+}
+const activePromptTab = ref('post')
 
-# 审核场景
-- 立洋校园社区是一个面向中小学校园的社交平台
-- 用户主要是中小学生、教师和家长
-- 内容以校园生活、学习交流、兴趣分享为主
-- 对未成年人保护要求极高，任何不适内容必须拦截
-
-# 审核维度（10 类违规）
-1. 辱骂人身攻击：脏话、侮辱性词汇、网络暴力、对他人的人格攻击
-2. 色情低俗：色情暗示、低俗段子、不当性描述、性骚扰言论
-3. 诈骗广告：虚假广告、引流推广、兼职刷单、虚假中奖、外链诱导
-4. 暴力血腥：打架斗殴描述、暴力威胁、血腥画面描述、自残自杀诱导
-5. 政治敏感：政治不当言论、敏感事件讨论、意识形态攻击
-6. 隐私泄露：泄露他人手机号、地址、身份证、照片等个人隐私
-7. 违法犯罪：毒品、赌博、违禁品交易、教唆犯罪、违法活动描述
-8. 校园暴力/欺凌：排挤同学、集体嘲讽、恶意传播他人隐私、网络霸凌
-9. 自残自杀：自残倾向描述、自杀方法讨论、诱导他人自伤
-10. 不实信息：谣言传播、虚假信息、捏造事实诽谤他人
-
-# 判定原则
-- 未成年人保护优先：涉及未成年人的违规一律从重判定
-- 语境理解：结合上下文判断，避免误判正常交流中的口语化表达
-- 宽容边界：正常的吐槽、玩笑、情绪宣泄不属违规，但攻击他人则违规
-- 教育导向：对青少年不当言论以"提醒"为主，严重违规才"拦截"
-- 零容忍：色情、暴力、诈骗、自残自杀、校园欺凌零容忍
-
-# 输出格式（严格 JSON）
-{"pass": true, "reason": "", "category": "none", "severity": "none"}
-
-字段说明：
-- pass: boolean，true=通过，false=拦截
-- reason: string，违规原因说明（pass=true 时为空字符串）
-- category: string，违规类别（pass=true 时为"none"）
-  可选值: 骂人攻击/色情低俗/诈骗广告/暴力血腥/政治敏感/隐私泄露/违法犯罪/校园欺凌/自残自杀/不实信息/none
-- severity: string，严重程度（pass=true 时为"none"）
-  可选值: high(严重违规)/medium(中等违规)/low(轻微违规)/none
-
-# 审核示例
-输入: "今天天气真好，心情不错"
-输出: {"pass": true, "reason": "", "category": "none", "severity": "none"}
-
-输入: "你这个傻逼，怎么不去死"
-输出: {"pass": false, "reason": "包含辱骂性词汇'傻逼'，并带有'去死'的生命威胁", "category": "骂人攻击", "severity": "high"}
-
-输入: "加我微信 xxxxx 领红包，兼职刷单日入百元"
-输出: {"pass": false, "reason": "包含刷单广告和外部引流，疑似诈骗", "category": "诈骗广告", "severity": "high"}
-
-输入: "我讨厌数学老师，作业太多了"
-输出: {"pass": true, "reason": "", "category": "none", "severity": "none"}
-
-输入: "三班那个胖子真恶心，大家别理他"
-输出: {"pass": false, "reason": "针对特定同学的侮辱性言论，构成校园欺凌", "category": "校园欺凌", "severity": "medium"}
-`
+// 在线试审的场景选择（决定用哪套 prompt）
+const auditScenario = ref('generic')
+const auditScenarioOptions = [
+  { value: 'post', label: '帖子（标题+正文）' },
+  { value: 'comment', label: '评论' },
+  { value: 'bottle', label: '漂流瓶' },
+  { value: 'generic', label: '通用文本' },
+]
 
 async function load() {
   loading.value = true
   try {
-    const { data } = await adminGetDeepSeekConfig()
+    const [cfgResp, promptsResp] = await Promise.all([
+      adminGetDeepSeekConfig(),
+      adminGetDeepSeekPrompts(),
+    ])
+    const { data } = cfgResp
     const cfg = data.data
     config.enabled = !!cfg.enabled
     config.base_url = cfg.base_url || 'https://api.deepseek.com/v1'
@@ -158,6 +123,10 @@ async function load() {
     apiKeyMasked.value = maskKey(cfg.api_key || '')
     config.api_key = cfg.api_key || ''
     apiKeyEditing.value = false
+
+    prompts.value = promptsResp.data.data.prompts || {}
+    const labels = promptsResp.data.data.labels || {}
+    Object.assign(promptLabels, labels)
   } catch (error) {
     ElMessage.error((error as Error).message)
   } finally {
@@ -224,7 +193,7 @@ async function onAudit() {
   auditing.value = true
   auditResult.value = null
   try {
-    const { data } = await adminDeepSeekAuditText(auditInput.value)
+    const { data } = await adminDeepSeekAuditText(auditInput.value, auditScenario.value)
     auditResult.value = data.data
   } catch (error) {
     ElMessage.error((error as Error).message)
@@ -478,7 +447,19 @@ onMounted(() => load())
     <div class="form-card">
       <div class="card-title">
         <span class="title-text">在线试审</span>
-        <span class="form-hint">输入文本，立即调用 DeepSeek 进行审核</span>
+        <span class="form-hint">选择场景后输入文本，立即调用 DeepSeek 按对应 prompt 审核</span>
+      </div>
+      <div class="audit-scenario">
+        <span class="audit-label">审核场景：</span>
+        <el-select v-model="auditScenario" style="width: 200px">
+          <el-option
+            v-for="opt in auditScenarioOptions"
+            :key="opt.value"
+            :label="opt.label"
+            :value="opt.value"
+          />
+        </el-select>
+        <span class="form-hint">不同场景使用不同审核规则（如评论不把“是的”“好”当灌水）</span>
       </div>
       <el-input
         v-model="auditInput"
@@ -522,6 +503,9 @@ onMounted(() => load())
           >
             {{ auditResult.category }}
           </el-tag>
+          <el-tag v-if="auditResult.content_type" type="info" size="default" style="margin-left: 8px">
+            {{ promptLabels[auditResult.content_type] || auditResult.content_type }}
+          </el-tag>
         </div>
         <div v-if="auditResult.reason" class="audit-row">
           <span class="audit-label">违规原因：</span>
@@ -538,9 +522,18 @@ onMounted(() => load())
     <div class="form-card">
       <div class="card-title">
         <span class="title-text">AI 审核人设（System Prompt）</span>
-        <span class="form-hint">只读，由系统内置，确保审核一致性</span>
+        <span class="form-hint">只读，按内容场景分开设置，由系统内置，确保审核一致性</span>
       </div>
-      <pre class="prompt-box">{{ systemPrompt }}</pre>
+      <el-tabs v-model="activePromptTab">
+        <el-tab-pane
+          v-for="opt in auditScenarioOptions"
+          :key="opt.value"
+          :label="opt.label"
+          :name="opt.value"
+        >
+          <pre class="prompt-box">{{ prompts[opt.value] || '（加载中…）' }}</pre>
+        </el-tab-pane>
+      </el-tabs>
     </div>
   </div>
 </template>
@@ -691,6 +684,15 @@ onMounted(() => load())
   margin-top: 12px;
   display: flex;
   gap: 8px;
+}
+.audit-scenario {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.audit-scenario .form-hint {
+  margin-left: 4px;
 }
 .audit-result {
   margin-top: 16px;

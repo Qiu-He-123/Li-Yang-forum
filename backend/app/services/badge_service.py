@@ -17,7 +17,7 @@ from sqlalchemy import desc, func, select
 from sqlalchemy.orm import Session
 
 from app.core.errors import ErrorCode
-from app.core.time_utils import to_iso_zh
+from app.core.time_utils import now_utc, to_iso_zh
 from app.models import Admin, Badge, BadgeCode, BadgeRule, User, UserBadge
 from app.services.audit_log import log_admin_action, log_user_action
 from app.services.notification_service import create_notification
@@ -177,7 +177,7 @@ def claim_badge_by_code(db: Session, user: User, code: str, request: Request) ->
 
     db.add(UserBadge(user_id=user.id, badge_id=badge.id))
     row.used_by = user.id
-    row.used_at = datetime.now()
+    row.used_at = now_utc()
     # 领取后默认自动佩戴（如果当前没佩戴任何徽章）
     if not user.wearing_badge_id:
         user.wearing_badge_id = badge.id

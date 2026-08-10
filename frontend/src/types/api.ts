@@ -56,6 +56,8 @@ export interface Post {
   view_count?: number
   share_count?: number
   last_reply_at?: string | null
+  /** 推荐探索：该条是否为「探索位」随机曝光（冷启动内容） */
+  explored?: boolean
   tags: string[]
   ai_status?: AiStatus
   reject_reason?: string | null
@@ -89,6 +91,8 @@ export interface CommentItem {
   like_count: number
   ai_status?: AiStatus
   reject_reason?: string | null
+  /** 推荐探索：该条是否为「探索位」随机曝光 */
+  explored?: boolean
   created_at?: string | null
 }
 

@@ -49,6 +49,7 @@ const menuGroups = computed<MenuGroup[]>(() => [
       { index: '/admin/badge-rules', label: '徽章自动发放', icon: '🤖' },
       { index: '/admin/images-audit', label: '图片审核', icon: '🖼️' },
       { index: '/admin/bottles-audit', label: '漂流瓶审核', icon: '🍾' },
+      { index: '/admin/explore', label: '推荐探索', icon: '🚀' },
     ],
   },
   {

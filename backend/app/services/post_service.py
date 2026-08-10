@@ -13,6 +13,7 @@ from app.models import Category, Comment, Post, School, User
 from app.schemas.post import CATEGORIES, PostCreate, PostUpdate
 from app.services.ai_service import ai_service
 from app.services.audit_log import log_user_action
+from app.services import explore_service
 
 
 def _is_valid_category(db: Session, category: str) -> bool:
@@ -35,7 +36,12 @@ def _is_valid_category(db: Session, category: str) -> bool:
     return exists is not None
 
 
-def post_dict(post: Post, comment_count: int | None = None, db: Session | None = None) -> dict:
+def post_dict(
+    post: Post,
+    comment_count: int | None = None,
+    db: Session | None = None,
+    explored: bool = False,
+) -> dict:
     """序列化帖子为前端响应字典。
 
     Args:
@@ -75,6 +81,8 @@ def post_dict(post: Post, comment_count: int | None = None, db: Session | None =
         "view_count": post.view_count,
         "share_count": post.share_count,
         "last_reply_at": to_iso_zh(post.last_reply_at),
+        # 推荐探索：该条是否为「探索位」随机曝光（前台可展示角标）
+        "explored": bool(explored),
         # 阶段二新增字段
         "topic_id": post.topic_id,
         "topic_name": None,
@@ -146,6 +154,65 @@ def list_posts(
     page_size = max(1, min(100, page_size))
     posts = db.scalars(query.offset((page - 1) * page_size).limit(page_size)).all()
 
+    # ============ 推荐探索（Explore-Exploit）：热门流插入冷启动帖子 ============
+    explored_ids: set[int] = set()
+    if view == "hot" and not q:
+        try:
+            cfg = explore_service.get_explore_config(db)
+            if cfg["feed_explore_enabled"]:
+                items = list(posts)
+                # 1) MMR 类别多样性：同圈子内容超上限时裁剪
+                if cfg["feed_mmr_enabled"]:
+                    items = explore_service.mmr_dedupe(items, cfg["feed_mmr_max_per_category"])
+                # 2) 探索槽位：每页按 ε 比例抽取冷启动帖子
+                slots = explore_service.explore_slot_count(page_size, cfg["feed_explore_rate"])
+                if slots > 0 and items:
+                    # 探索槽位不能挤掉全部热门内容：最多占 len(items)-1
+                    slots = min(slots, max(0, len(items) - 1) if len(items) > 1 else 0)
+                if slots > 0 and items:
+                    # 保留最热的前 N 条，其余槽位从「探索池」补充
+                    keep_count = max(0, len(items) - slots)
+                    hot_ids = {p.id for p in items[:keep_count]}
+                    pool = explore_service.pick_explore_posts(
+                        db,
+                        user,
+                        slots,
+                        cfg,
+                        exclude_ids=hot_ids,
+                    )
+                    if not pool:
+                        # 帖子总量不足一页时，探索池内容已在页面内：
+                        # 直接把页尾低互动帖子标记为探索位，保证冷启动内容获得曝光
+                        tail = [
+                            p for p in items[keep_count:]
+                            if (p.like_count or 0) <= cfg["feed_explore_max_likes"]
+                        ]
+                        pool = tail[:slots]
+                    if pool:
+                        merged = explore_service.merge_explore(
+                            items[: max(0, len(items) - len(pool))],
+                            pool,
+                            user,
+                            page,
+                        )
+                        explored_ids = {p.id for p in pool}
+                        posts = merged
+                        # 3) 曝光埋点（失败不影响热门流）
+                        explore_service.record_feed_impressions(
+                            db,
+                            list(explored_ids),
+                            user.id if user else None,
+                            explore_service.SCENE_POST_FEED,
+                            page,
+                        )
+        except Exception as exc:  # noqa: BLE001
+            from loguru import logger
+            logger.warning("[EXPLORE] list_posts explore failed: {}", exc)
+            try:
+                db.rollback()
+            except Exception:
+                pass
+
     # 搜索时记录历史 + 更新热搜（仅登录用户）
     if q and user is not None:
         try:
@@ -158,7 +225,7 @@ def list_posts(
             db.rollback()
 
     return {
-        "items": [post_dict(post) for post in posts],
+        "items": [post_dict(post, explored=post.id in explored_ids) for post in posts],
         "total": total,
         "page": page,
         "page_size": page_size,
@@ -481,6 +548,14 @@ def delete_post(post_id: int, request: Request, db: Session, user: User) -> None
         if topic_row and topic_row.post_count and topic_row.post_count > 0:
             topic_row.post_count -= 1
     db.delete(post)
+    # 清理该帖及其评论的关联通知（点赞/收藏/@提及/收到评论等）
+    from app.services.notification_service import (
+        cleanup_notifications_for_deleted_comments,
+        cleanup_notifications_for_deleted_posts,
+    )
+    comment_ids = db.scalars(select(Comment.id).where(Comment.post_id == post_id)).all()
+    cleanup_notifications_for_deleted_comments(db, list(comment_ids))
+    cleanup_notifications_for_deleted_posts(db, post_id)
     log_user_action(db, user.id, "delete_post", json.dumps({"post_id": post_id}, ensure_ascii=False), _extract_ip(request))
     db.commit()
 
@@ -663,6 +738,8 @@ def view_post(post_id: int, db: Session) -> dict:
     if row is None:
         raise HTTPException(status_code=404, detail=ErrorCode.POST_NOT_FOUND)
     db.commit()
+    # 探索点击埋点：若该帖近期在探索位曝光过，click_count + 1
+    explore_service.record_post_click(db, post_id)
     return {"id": post_id, "view_count": row[0]}
 
 

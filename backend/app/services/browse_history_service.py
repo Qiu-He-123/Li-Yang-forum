@@ -5,13 +5,12 @@
 - clear_history: 清空浏览历史
 - delete_one: 删除单条浏览记录
 """
-from datetime import datetime
 
 from fastapi import HTTPException
 from sqlalchemy import desc, select
 from sqlalchemy.orm import Session, selectinload
 
-from app.core.time_utils import to_iso_zh
+from app.core.time_utils import now_utc, to_iso_zh
 from app.models import BrowseHistory, Post, User
 
 
@@ -33,9 +32,9 @@ def record_view(db: Session, user_id: int, post_id: int) -> dict:
         )
     )
     if existing:
-        existing.viewed_at = datetime.now()
+        existing.viewed_at = now_utc()
     else:
-        record = BrowseHistory(user_id=user_id, post_id=post_id, viewed_at=datetime.now())
+        record = BrowseHistory(user_id=user_id, post_id=post_id, viewed_at=now_utc())
         db.add(record)
     db.commit()
     return {"recorded": True}

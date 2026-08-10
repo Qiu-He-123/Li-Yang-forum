@@ -25,7 +25,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.core.errors import ErrorCode
-from app.core.time_utils import to_iso_zh
+from app.core.time_utils import beijing_today_start, now_utc, to_iso_zh
 from app.models import (
     Admin,
     Image,
@@ -120,7 +120,7 @@ def submit_verification(
         raise HTTPException(status_code=400, detail="你已有一个待审核的申请，请等待管理员审核")
 
     # 防刷：每天最多 3 次（含已 rejected 的）
-    today_start = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+    today_start = beijing_today_start()
     today_count = db.scalar(
         select(func.count())
         .select_from(StudentVerification)
@@ -230,17 +230,17 @@ def admin_review_verification(
             batch_no=f"verify-{v.id}",
             status="used",
             used_by=user.id,
-            used_at=datetime.now(),
+            used_at=now_utc(),
         )
         db.add(seed_record)
 
         # 用户变为 verified
         v.status = "approved"
         v.reviewer_id = admin.id
-        v.reviewed_at = datetime.now()
+        v.reviewed_at = now_utc()
         v.granted_invite_code = seed_code
         user.verification_status = "verified"
-        user.verified_at = datetime.now()
+        user.verified_at = now_utc()
         # 若用户没有邀请码，分配一个
         if not user.invite_code:
             _assign_invite_code(db, user)
@@ -264,7 +264,7 @@ def admin_review_verification(
             raise HTTPException(status_code=400, detail=ErrorCode.PARAM_ERROR)
         v.status = "rejected"
         v.reviewer_id = admin.id
-        v.reviewed_at = datetime.now()
+        v.reviewed_at = now_utc()
         v.reject_reason = reject_reason
 
         log_admin_action(
@@ -466,7 +466,7 @@ def admin_reserve_seed_codes(
     for s in rows:
         s.status = "reserved"
         s.reserved_by = admin.id
-        s.reserved_at = datetime.now()
+        s.reserved_at = now_utc()
         if note:
             prefix = f"{s.note}｜" if s.note else ""
             s.note = f"{prefix}待使用：{note}"[:100]

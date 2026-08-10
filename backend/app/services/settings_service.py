@@ -29,6 +29,16 @@ _DEFAULTS: dict[str, str] = {
     "manual_review_triggers": "ai_unavailable",
     "default_friend_user_id": "",
     "default_friend_user_ids": "",
+    # ============ 推荐探索（Explore-Exploit）配置 ============
+    "feed_explore_enabled": "true",
+    "feed_explore_rate": "0.15",
+    "feed_explore_hours": "48",
+    "feed_explore_max_likes": "10",
+    "feed_explore_mode": "thompson",
+    "feed_mmr_enabled": "true",
+    "feed_mmr_max_per_category": "6",
+    "comment_explore_enabled": "true",
+    "comment_explore_rate": "0.15",
 }
 
 _DESC: dict[str, str] = {
@@ -41,6 +51,15 @@ _DESC: dict[str, str] = {
     "manual_review_triggers": "转人工复核的触发条件（逗号分隔：ai_unavailable AI不可用 / violation AI判违规 / high_severity 中高严重度 / sensitive_category 敏感类别）",
     "default_friend_user_id": "默认好友（官方账号）用户 ID（旧配置，建议改用 default_friend_user_ids 支持多人）",
     "default_friend_user_ids": "默认好友（官方账号）用户 ID 列表（逗号分隔，可配置多人，留空关闭）",
+    "feed_explore_enabled": "是否启用推荐探索：热门页按比例插入冷启动帖子，避免低权重内容永远沉底",
+    "feed_explore_rate": "探索比例 ε（0-0.5，默认 0.15）：每页约 15% 的位置给低互动新帖随机曝光",
+    "feed_explore_hours": "探索窗口（小时，默认 48）：只探索最近 N 小时内发布、尚未破圈的内容",
+    "feed_explore_max_likes": "冷启动点赞上限（默认 10）：点赞数超过该值的帖子不再进入探索池",
+    "feed_explore_mode": "探索采样算法：uniform 均匀随机 / weighted 按新鲜度+低互动加权 / thompson Thompson 采样（有反馈自动调整，推荐）",
+    "feed_mmr_enabled": "是否启用 MMR 类别多样性：热门页同圈子内容超过上限时自动穿插其他圈子",
+    "feed_mmr_max_per_category": "热门页单圈子最多展示条数（默认 6，防止热门页被单一圈子刷屏）",
+    "comment_explore_enabled": "是否启用评论探索：帖子「最热」评论页按比例插入低赞新评论",
+    "comment_explore_rate": "评论探索比例 ε（0-0.5，默认 0.15）",
 }
 
 

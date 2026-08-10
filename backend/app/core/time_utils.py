@@ -25,7 +25,28 @@ def now_utc() -> datetime:
 
     用于写入数据库，保持与 SQLite func.now() 一致（都是 UTC naive）。
     """
-    return datetime.utcnow()
+    return datetime.now(UTC_TZ).replace(tzinfo=None)
+
+
+def beijing_today_start() -> datetime:
+    """返回北京时间“今天 0 点”对应的 naive UTC datetime。
+
+    数据库中 created_at 等字段按 UTC naive 存储；按“今日”统计或限流时，
+    以北京时间的日期边界为准，避免按 UTC 0 点切割导致北京上午 8 点前的
+    数据被归入前一天。
+    """
+    now_bj = datetime.now(UTC_TZ).astimezone(BEIJING_TZ)
+    return now_bj.replace(hour=0, minute=0, second=0, microsecond=0).astimezone(UTC_TZ).replace(tzinfo=None)
+
+
+def beijing_wall_midnight() -> datetime:
+    """返回北京时间“今天 0 点”的墙钟时间（naive，无 tzinfo）。
+
+    仅用于以“日期”为语义的字段（如签到 check_in_date），存储的是北京日期
+    的 00:00 标记而非 UTC 时间点；API 直接输出该墙钟时间供前端按本地日期展示。
+    """
+    now_bj = datetime.now(UTC_TZ).astimezone(BEIJING_TZ)
+    return now_bj.replace(hour=0, minute=0, second=0, microsecond=0).replace(tzinfo=None)
 
 
 def to_beijing(dt: datetime | None) -> datetime | None:

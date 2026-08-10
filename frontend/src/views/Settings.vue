@@ -457,14 +457,27 @@ onMounted(async () => {
               </div>
             </el-form-item>
             <el-form-item label="背景图">
-              <el-upload
-                :show-file-list="false"
-                :http-request="(o: { file: File }) => uploadBackground(o.file)"
-                accept="image/*"
+              <div
+                v-if="form.background_url"
+                class="mb-2 overflow-hidden rounded-lg border border-slate-200 bg-slate-100"
+                style="width: 100%; max-width: 320px; height: 120px"
               >
-                <el-button>上传背景图</el-button>
-              </el-upload>
-              <p v-if="form.background_url" class="m-0 mt-1 text-xs text-slate-500">已上传</p>
+                <div
+                  class="h-full w-full bg-cover bg-center"
+                  :style="{ backgroundImage: `url(${form.background_url})` }"
+                />
+              </div>
+              <div class="flex items-center gap-2">
+                <el-upload
+                  :show-file-list="false"
+                  :http-request="(o: { file: File }) => uploadBackground(o.file)"
+                  accept="image/*"
+                >
+                  <el-button>{{ form.background_url ? '更换背景图' : '上传背景图' }}</el-button>
+                </el-upload>
+                <el-button v-if="form.background_url" @click="form.background_url = ''">移除</el-button>
+              </div>
+              <p class="m-0 mt-1 text-xs text-slate-400">建议上传横向图片，将展示在个人主页顶部。</p>
             </el-form-item>
             <el-form-item label="简介">
               <el-input v-model="form.bio" type="textarea" :rows="3" />

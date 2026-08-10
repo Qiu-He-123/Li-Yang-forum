@@ -16,16 +16,18 @@ def list_comments(
     post_id: int,
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
+    sort: str = Query(default="latest", pattern="^(latest|hot)$"),
     db: Session = Depends(get_db),
     user: User | None = Depends(optional_user),
 ) -> dict:
     """查询帖子评论列表（按楼层分页，匿名用户也可查看）。
 
+    sort: latest 最新 / hot 最热（最热首页会按比例插入低赞新评论探索位）
     AI 审核可见性：
     - 匿名用户：只见 ai_status=approved 的评论
     - 登录用户：可见 approved；自己发的 pending/rejected 也可见
     """
-    return ok(comment_service.list_comments(post_id, db, page, page_size, user))
+    return ok(comment_service.list_comments(post_id, db, page, page_size, user, sort))
 
 
 @router.post("")

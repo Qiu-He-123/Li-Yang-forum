@@ -317,6 +317,11 @@ const routes = [
         component: () => import('../views/Admin/DeepSeek.vue'),
       },
       {
+        path: 'explore',
+        name: 'admin-explore',
+        component: () => import('../views/Admin/Explore.vue'),
+      },
+      {
         path: 'warning-config',
         name: 'admin-warning-config',
         component: () => import('../views/Admin/WarningConfig.vue'),

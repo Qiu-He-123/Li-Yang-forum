@@ -342,13 +342,13 @@ def get_ban_status(user: User, db: Session) -> dict:
     同时返回警告值阈值，供前端 Banned.vue 在 warningStatus 加载失败时仍有阈值兜底，
     避免 0/100 误导（perm_ban_threshold fallback 硬编码）。
     """
-    from datetime import datetime
+    from app.core.time_utils import now_utc
     from app.services import warning_service
     is_banned = False
     ban_until = None
     ban_reason = None
     if user.ban_until:
-        if user.ban_until > datetime.now():
+        if user.ban_until > now_utc():
             is_banned = True
             ban_until = to_iso_zh(user.ban_until)
             ban_reason = user.ban_reason

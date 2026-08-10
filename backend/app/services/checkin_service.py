@@ -10,12 +10,13 @@ from fastapi import HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.core.time_utils import beijing_wall_midnight
 from app.models import CheckIn, User
 
 
 def _today_start() -> datetime:
     """返回今天 0 点的 datetime。"""
-    return datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+    return beijing_wall_midnight()
 
 
 def _calc_reward(consecutive_days: int) -> int:

@@ -40,6 +40,17 @@ def deepseek_status(
     })
 
 
+@router.get("/prompts")
+def deepseek_prompts(
+    _: Admin = Depends(admin_user),
+) -> dict:
+    """返回各内容场景使用的审核 System Prompt（后台只读展示）。"""
+    return ok({
+        "prompts": deepseek_service.SYSTEM_PROMPTS,
+        "labels": deepseek_service.SCENARIO_LABELS,
+    })
+
+
 @router.post("/test")
 def deepseek_test(
     db: Session = Depends(get_db),
@@ -58,12 +69,14 @@ def deepseek_audit_text(
 ) -> dict:
     """审核单条文本内容（管理员测试用）。
 
-    payload: {"content": "待审核文本"}
+    payload: {"content": "待审核文本", "content_type": "post|comment|bottle|generic"}
     """
     content = (payload or {}).get("content", "")
     if not content.strip():
         raise HTTPException(status_code=400, detail="content 不能为空")
-    result = deepseek_service.audit_content(db, content)
+    content_type = str((payload or {}).get("content_type", "generic"))
+    result = deepseek_service.audit_content(db, content, content_type)
+    result["content_type"] = content_type if content_type in deepseek_service.SYSTEM_PROMPTS else "generic"
     return ok(result)
 
 
@@ -85,7 +98,8 @@ def deepseek_audit_post(
     if not post:
         raise HTTPException(status_code=404, detail="帖子不存在")
 
-    result = deepseek_service.audit_content(db, post.content)
+    title_part = f"标题：{post.title}\n" if post.title else ""
+    result = deepseek_service.audit_content(db, f"{title_part}内容：{post.content}", "post")
     new_status = None
     if not result.get("skipped"):
         new_status = "approved" if result["pass"] else "rejected"
@@ -121,7 +135,7 @@ def deepseek_audit_comment(
     if not comment:
         raise HTTPException(status_code=404, detail="评论不存在")
 
-    result = deepseek_service.audit_content(db, comment.content)
+    result = deepseek_service.audit_content(db, comment.content, "comment")
     if not result.get("skipped"):
         comment.ai_status = "approved" if result["pass"] else "rejected"
         db.commit()

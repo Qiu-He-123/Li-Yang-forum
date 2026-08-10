@@ -12,7 +12,7 @@ from app.models import Admin
 from app.schemas.auth import AdminLoginIn
 from app.schemas.common import ok
 from app.schemas.interactions import AnnouncementCreate
-from app.services import admin_service, badge_service, circle_apply_service
+from app.services import admin_service, badge_service, circle_apply_service, explore_service
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -373,6 +373,15 @@ def admin_update_settings(
     return ok(admin_service.admin_update_settings(payload, request, db, admin))
 
 
+@router.get("/explore/stats")
+def admin_explore_stats(
+    db: Session = Depends(get_db),
+    _: Admin = Depends(admin_user),
+) -> dict:
+    """推荐探索效果统计：曝光 / 点击 / CTR / 互动 + Top 探索帖 + 最近曝光日志。"""
+    return ok(explore_service.explore_stats(db))
+
+
 @router.get("/deepseek/config")
 def admin_get_deepseek_config(
     db: Session = Depends(get_db),
@@ -535,14 +544,16 @@ def admin_review_appeal(
 def admin_audit_logs(
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
-    target_type: str | None = Query(default=None, pattern="^(post|comment)$"),
+    target_type: str | None = Query(default=None, pattern="^(post|comment|bottle)$"),
     result: str | None = Query(default=None, pattern="^(approved|rejected|error)$"),
     user_id: int | None = Query(default=None),
+    category: str | None = Query(default=None),
+    severity: str | None = Query(default=None, pattern="^(high|medium|low|none)$"),
     db: Session = Depends(get_db),
     _: Admin = Depends(admin_user),
 ) -> dict:
     """AI 审核日志列表（分页 + 过滤）。"""
-    return ok(admin_service.admin_audit_logs(db, page, page_size, target_type, result, user_id))
+    return ok(admin_service.admin_audit_logs(db, page, page_size, target_type, result, user_id, category, severity))
 
 
 # ============ 警告值系统管理 ============

@@ -185,6 +185,8 @@ function formatCooldown(sec: number): string {
 // ============ 我的页直接编辑（点头像/名字/校区） ============
 const avatarUploading = ref(false)
 const avatarInputRef = ref<HTMLInputElement | null>(null)
+const bgUploading = ref(false)
+const bgInputRef = ref<HTMLInputElement | null>(null)
 
 const nameDialogVisible = ref(false)
 const nameSaving = ref(false)
@@ -197,6 +199,37 @@ const selectedSchoolId = ref<number>(0)
 function onAvatarClick() {
   if (!isMe.value) return
   avatarInputRef.value?.click()
+}
+
+function onHeroBgClick(e: MouseEvent) {
+  if (!isMe.value || bgUploading.value) return
+  const target = e.target as HTMLElement
+  if (target.closest('button')) return
+  bgInputRef.value?.click()
+}
+
+function openBgPicker() {
+  if (!isMe.value || bgUploading.value) return
+  bgInputRef.value?.click()
+}
+
+async function onBgFileChange(e: Event) {
+  const input = e.target as HTMLInputElement
+  const file = input.files?.[0]
+  input.value = ''
+  if (!file) return
+  bgUploading.value = true
+  try {
+    const { data } = await uploadImage(file)
+    await updateMe({ background_url: data.data.url })
+    await userStore.loadProfile()
+    profile.value = userStore.profile
+    toast.success('背景图已更新')
+  } catch (err) {
+    toast.error((err as Error).message)
+  } finally {
+    bgUploading.value = false
+  }
 }
 
 async function onAvatarFileChange(e: Event) {
@@ -607,7 +640,12 @@ onMounted(async () => {
   <ProfileSkeleton v-if="pageLoading" />
   <main v-else class="page-me">
     <!-- Hero 区 -->
-    <section class="profile-hero">
+    <section
+      class="profile-hero"
+      :class="{ 'has-bg': !!profile?.background_url }"
+      :style="profile?.background_url ? { backgroundImage: `url(${profile.background_url})` } : undefined"
+      @click="onHeroBgClick"
+    >
       <div class="hero-topbar">
         <button class="icon-btn" type="button" aria-label="返回" @click="goBack">
           <Icon name="arrow-left" :size="20" />
@@ -717,6 +755,16 @@ onMounted(async () => {
           </button>
         </div>
       </div>
+      <button
+        v-if="isMe"
+        class="hero-bg-edit"
+        type="button"
+        :disabled="bgUploading"
+        @click.stop="openBgPicker"
+      >
+        <Icon name="camera" :size="13" />
+        {{ bgUploading ? '上传中…' : profile?.background_url ? '更换背景图' : '设置背景图' }}
+      </button>
     </section>
 
     <!-- 邀请码卡片（填写 / 分享，仅自己可见） -->
@@ -841,6 +889,15 @@ onMounted(async () => {
       type="file"
       accept="image/*"
       @change="onAvatarFileChange"
+    />
+
+    <!-- 隐藏的背景图文件选择（点击个人主页顶部背景直接触发） -->
+    <input
+      ref="bgInputRef"
+      class="hidden-file-input"
+      type="file"
+      accept="image/*"
+      @change="onBgFileChange"
     />
 
     <!-- 警告值状态卡片（仅自己可见） -->
@@ -1001,16 +1058,39 @@ onMounted(async () => {
 
 /* Hero */
 .profile-hero {
+  position: relative;
   background: linear-gradient(180deg, var(--brand-50) 0%, var(--bg-50) 100%);
+  background-size: cover;
+  background-position: center;
+  overflow: hidden;
   padding-bottom: 20px;
 }
+.profile-hero::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background: linear-gradient(180deg, rgba(15, 23, 42, 0.34) 0%, rgba(15, 23, 42, 0.58) 100%);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  pointer-events: none;
+}
+.profile-hero.has-bg::before {
+  opacity: 1;
+}
 .hero-topbar {
+  position: relative;
+  z-index: 1;
   max-width: 640px;
   margin: 0 auto;
   padding: 12px 16px;
   display: flex;
   align-items: center;
   justify-content: space-between;
+}
+.hero-body {
+  position: relative;
+  z-index: 1;
 }
 .hero-title {
   font-size: 17px;
@@ -1144,6 +1224,95 @@ onMounted(async () => {
 .school-edit-hint {
   display: inline-flex;
   align-items: center;
+}
+.hero-bg-edit {
+  position: absolute;
+  top: 68px;
+  right: 16px;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: none;
+  background: rgba(15, 23, 42, 0.35);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  transition: background 0.15s;
+}
+.hero-bg-edit:hover {
+  background: rgba(15, 23, 42, 0.55);
+}
+.hero-bg-edit:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+/* 有背景图时：加深遮罩 + 白色文字，保证可读性 */
+.profile-hero.has-bg .icon-btn {
+  color: #fff;
+}
+.profile-hero.has-bg .icon-btn:hover {
+  background: rgba(255, 255, 255, 0.16);
+}
+.profile-hero.has-bg .hero-title {
+  color: #fff;
+}
+.profile-hero.has-bg .hero-name {
+  color: #fff;
+}
+.profile-hero.has-bg .name-edit-hint {
+  color: rgba(255, 255, 255, 0.75);
+}
+.profile-hero.has-bg .grade-pill {
+  background: rgba(255, 255, 255, 0.92);
+  color: var(--brand-600);
+}
+.profile-hero.has-bg .hero-school {
+  color: rgba(255, 255, 255, 0.92);
+}
+.profile-hero.has-bg .hero-school.is-editable:hover {
+  background: rgba(255, 255, 255, 0.16);
+  color: #fff;
+}
+.profile-hero.has-bg .school-edit-hint {
+  color: rgba(255, 255, 255, 0.75);
+}
+.profile-hero.has-bg .hero-bio {
+  color: rgba(255, 255, 255, 0.92);
+}
+.profile-hero.has-bg .wearing-badge-row {
+  border-color: rgba(255, 255, 255, 0.55);
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
+}
+.profile-hero.has-bg .wearing-badge-row:hover {
+  background: rgba(255, 255, 255, 0.22);
+}
+.profile-hero.has-bg .wearing-badge-action {
+  color: #fff;
+}
+.profile-hero.has-bg .stat-num {
+  color: #fff;
+}
+.profile-hero.has-bg .stat-label {
+  color: rgba(255, 255, 255, 0.8);
+}
+.profile-hero.has-bg .stat-divider {
+  background: rgba(255, 255, 255, 0.35);
+}
+.profile-hero.has-bg .btn-pill--outline {
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.55);
+}
+.profile-hero.has-bg .btn-pill--outline:hover {
+  background: rgba(255, 255, 255, 0.16);
 }
 .wearing-badge-row {
   display: inline-flex;

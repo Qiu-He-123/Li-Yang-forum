@@ -906,3 +906,43 @@ class StudentVerification(Base):
     # 审核通过时自动生成的邀请码（便于追溯）
     granted_invite_code: Mapped[str | None] = mapped_column(String(16), default=None)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+
+class PostExploreStat(Base):
+    """帖子探索推荐统计（曝光 → 互动反馈闭环）。
+
+    探索推荐（Explore-Exploit）闭环：
+    - 热门页按 ε 比例插入冷启动帖子（探索池），每次曝光 impressions + 1
+    - 用户在探索曝光后点击详情 → click_count + 1
+    - 用户在探索曝光后点赞/评论 → like_count / comment_count + 1（奖励信号）
+    - Thompson 采样时：α = 互动数，β = 曝光数 - 互动数（下限 0）
+    """
+
+    __tablename__ = "post_explore_stats"
+
+    post_id: Mapped[int] = mapped_column(ForeignKey("posts.id"), primary_key=True)
+    # 探索曝光次数（在推荐流中以探索位展示的次数）
+    impressions: Mapped[int] = mapped_column(Integer, default=0)
+    # 点击进入详情次数（CTR = click_count / impressions）
+    click_count: Mapped[int] = mapped_column(Integer, default=0)
+    # 探索曝光后获得的点赞 / 评论数（奖励信号）
+    like_count: Mapped[int] = mapped_column(Integer, default=0)
+    comment_count: Mapped[int] = mapped_column(Integer, default=0)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
+
+
+class FeedImpressionLog(Base):
+    """Feed 探索曝光日志（后台效果分析与审计用）。"""
+
+    __tablename__ = "feed_impression_logs"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    post_id: Mapped[int] = mapped_column(ForeignKey("posts.id"), index=True)
+    # 场景内目标（comment 场景 = 评论 id；帖子场景为 None）
+    target_id: Mapped[int | None] = mapped_column(Integer, default=None, index=True)
+    # 匿名用户为 None
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), default=None, index=True)
+    # 曝光场景：post_feed(帖子热门流) / comment(评论热门)
+    scene: Mapped[str] = mapped_column(String(20), default="post_feed", index=True)
+    page: Mapped[int] = mapped_column(Integer, default=1)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), index=True)

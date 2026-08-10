@@ -13,14 +13,13 @@
 - 消息历史
 - 私信权限管理
 """
-from datetime import datetime
 
 from fastapi import HTTPException
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session, selectinload
 
 from app.core.errors import ErrorCode
-from app.core.time_utils import to_iso_zh
+from app.core.time_utils import beijing_today_start, to_iso_zh
 from app.models import Follow, FriendRequest, Message, User
 from app.services.follow_service import _default_friend_ids, is_mutual_follow
 
@@ -127,7 +126,7 @@ def check_can_send(db: Session, sender: User, receiver_id: int) -> dict:
 
 def _remaining_stranger_messages(db: Session, sender_id: int, receiver_id: int) -> int:
     """陌生人每日剩余可发条数（stranger_once 模式下固定 1 条/天）。"""
-    today_start = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+    today_start = beijing_today_start()
     sent_today = db.scalar(
         select(func.count(Message.id)).where(
             Message.sender_id == sender_id,
@@ -145,7 +144,7 @@ def _has_bidirectional_conversation_today(db: Session, user_a_id: int, user_b_id
     stranger_once 的每日 1 条限制。这样匹配实际社交直觉：陌生人破冰后
     应当允许继续沟通，而不是被强制等到第二天。
     """
-    today_start = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+    today_start = beijing_today_start()
     # A -> B 今日已发
     a_to_b = db.scalar(
         select(func.count(Message.id)).where(

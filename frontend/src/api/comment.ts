@@ -6,11 +6,12 @@ export function listComments(
   postId: number,
   page = 1,
   pageSize = 20,
+  sort: 'latest' | 'hot' = 'latest',
   config: LoadingAxiosRequestConfig = {},
 ) {
   return http.get<unknown, { data: { code: number; msg: string; data: { items: CommentItem[]; total: number; page: number; page_size: number } } }>(
     `/posts/${postId}/comments`,
-    { ...config, params: { page, page_size: pageSize } },
+    { ...config, params: { page, page_size: pageSize, sort } },
   )
 }
 

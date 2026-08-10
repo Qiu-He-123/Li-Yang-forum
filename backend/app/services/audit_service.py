@@ -16,12 +16,12 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime
 from typing import Any
 
 from sqlalchemy.orm import Session
 
 from app.core.database import SessionLocal
+from app.core.time_utils import now_utc
 from app.models import AuditLog, Notification, Post, Comment, User
 from app.services import ai_service, deepseek_service, settings_service
 
@@ -85,8 +85,11 @@ def should_route_violation_to_manual(db: Session, audit: dict[str, Any]) -> bool
     return False
 
 
-def _run_audit(db: Session, content: str) -> dict[str, Any]:
+def _run_audit(db: Session, content: str, content_type: str = "generic") -> dict[str, Any]:
     """执行 AI 审核（同步），返回统一结果。
+
+    Args:
+        content_type: post（帖子）/ comment（评论）/ bottle（漂流瓶）/ generic（通用）
 
     返回:
         {
@@ -101,7 +104,7 @@ def _run_audit(db: Session, content: str) -> dict[str, Any]:
     try:
         ds_cfg = settings_service.get_deepseek_config(db)
         if ds_cfg["enabled"] and ds_cfg["api_key"]:
-            ds_result = deepseek_service.audit_content(db, content)
+            ds_result = deepseek_service.audit_content(db, content, content_type)
             if not ds_result.get("skipped"):
                 return {
                     "pass": ds_result.get("pass", True),
@@ -126,8 +129,11 @@ def _run_audit(db: Session, content: str) -> dict[str, Any]:
     }
 
 
-async def run_audit_async(content: str) -> dict[str, Any]:
+async def run_audit_async(content: str, content_type: str = "generic") -> dict[str, Any]:
     """异步执行 AI 审核：优先 DeepSeek，回退 OpenAI。
+
+    Args:
+        content_type: post（帖子）/ comment（评论）/ bottle（漂流瓶）/ generic（通用）
 
     重要：DeepSeek 的 audit_content 是同步阻塞调用（httpx.Client），
     直接在事件循环中调用会阻塞所有请求。必须用 asyncio.to_thread
@@ -141,7 +147,7 @@ async def run_audit_async(content: str) -> dict[str, Any]:
             with SessionLocal() as db:
                 ds_cfg = settings_service.get_deepseek_config(db)
                 if ds_cfg["enabled"] and ds_cfg["api_key"]:
-                    return deepseek_service.audit_content(db, content)
+                    return deepseek_service.audit_content(db, content, content_type)
             return None
 
         ds_result = await asyncio.to_thread(_run_deepseek)
@@ -234,6 +240,18 @@ def _send_manual_review_notification(
         pass
 
 
+def record_audit_log(
+    db: Session,
+    target_type: str,
+    target_id: int,
+    user_id: int | None,
+    audit: dict[str, Any],
+    content: str,
+) -> None:
+    """公开的审核日志写入入口（供帖子/评论/漂流瓶审核统一调用）。"""
+    _record_audit_log(db, target_type, target_id, user_id, audit, content)
+
+
 def _handle_violation(db: Session, user_id: int, target_type: str, target_id: int, reason: str, content_preview: str = "", severity: str = "medium") -> None:
     """处理违规：增加警告值 + 阈值判定 + 发通知/封号。
 
@@ -301,7 +319,7 @@ async def audit_post_background(post_id: int) -> None:
             # 标题 + 内容一起审核（标题也要过审核）
             title_part = f"标题：{post.title}\n" if post.title else ""
             content = f"{title_part}内容：{post.content}"
-            audit = await run_audit_async(content)
+            audit = await run_audit_async(content, "post")
 
             # 写入审核日志
             _record_audit_log(db, "post", post_id, post.author_id, audit, content)
@@ -398,7 +416,7 @@ async def audit_comment_background(comment_id: int) -> None:
             comment = db.get(Comment, comment_id)
             if not comment:
                 return
-            audit = await run_audit_async(comment.content)
+            audit = await run_audit_async(comment.content, "comment")
 
             # 写入审核日志
             _record_audit_log(db, "comment", comment_id, comment.user_id, audit, comment.content)
@@ -424,7 +442,7 @@ async def audit_comment_background(comment_id: int) -> None:
                     post = db.get(_Post, comment.post_id)
                     if post:
                         post.comment_count = (post.comment_count or 0) + 1
-                        post.last_reply_at = datetime.now()
+                        post.last_reply_at = now_utc()
                     if post and post.author_id and post.author_id != comment.user_id:
                         content_preview = (comment.content[:30] + "...") if len(comment.content) > 30 else comment.content
                         create_notification(
@@ -434,8 +452,8 @@ async def audit_comment_background(comment_id: int) -> None:
                             f"你有一条新评论：{content_preview}",
                             ntype="comment",
                             sender_id=comment.user_id,
-                            reference_type="post",
-                            reference_id=comment.post_id,
+                            reference_type="comment",
+                            reference_id=comment.id,
                         )
                 except Exception:
                     pass

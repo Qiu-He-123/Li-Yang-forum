@@ -37,6 +37,8 @@ const currentPage = ref(1)
 const pageSize = 20
 const total = ref(0)
 const loadingMore = ref(false)
+// 评论排序：最新 / 最热（最热首页会插入低赞新评论探索位）
+const sortMode = ref<'latest' | 'hot'>('latest')
 
 const hasMore = computed(() => comments.value.length < total.value)
 
@@ -54,6 +56,7 @@ async function load(silent = false) {
       props.postId,
       1,
       pageSize,
+      sortMode.value,
       silent ? { showGlobalLoading: false, showGlobalError: false } : {},
     )
     // 如果在请求期间 postId 已变化，丢弃本次响应
@@ -112,7 +115,7 @@ async function loadMore() {
   loadingMore.value = true
   try {
     const nextPage = currentPage.value + 1
-    const { data } = await listComments(props.postId, nextPage, pageSize)
+    const { data } = await listComments(props.postId, nextPage, pageSize, sortMode.value)
     const list = data?.data?.items
     if (Array.isArray(list)) {
       comments.value.push(...list)
@@ -259,6 +262,15 @@ function onDeleted(_commentId: number) {
 function onCountUpdated(totalCount: number) {
   emit('count-updated', totalCount)
 }
+
+function switchSort(mode: 'latest' | 'hot') {
+  if (sortMode.value === mode) return
+  sortMode.value = mode
+  comments.value = []
+  total.value = 0
+  currentPage.value = 1
+  load()
+}
 </script>
 
 <template>
@@ -270,6 +282,27 @@ function onCountUpdated(totalCount: number) {
     </div>
 
     <template v-else>
+      <!-- 排序切换：最新 / 最热 -->
+      <div class="comment-sort-bar">
+        <button
+          class="sort-btn"
+          :class="{ active: sortMode === 'latest' }"
+          type="button"
+          @click="switchSort('latest')"
+        >
+          最新
+        </button>
+        <button
+          class="sort-btn"
+          :class="{ active: sortMode === 'hot' }"
+          type="button"
+          @click="switchSort('hot')"
+        >
+          最热
+        </button>
+        <span v-if="sortMode === 'hot'" class="sort-hint">含随机探索位</span>
+      </div>
+
       <!-- 评论分组 -->
       <div v-for="group in grouped" :key="group.root.id" class="comment-group">
         <CommentItem
@@ -357,6 +390,33 @@ function onCountUpdated(totalCount: number) {
   padding: 16px;
   color: var(--text-500);
   font-size: 13px;
+}
+.comment-sort-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 2px 10px;
+}
+.sort-btn {
+  border: 1px solid var(--color-border);
+  background: var(--bg-50);
+  border-radius: 999px;
+  padding: 3px 12px;
+  font-family: inherit;
+  font-size: 12px;
+  color: var(--text-600);
+  cursor: pointer;
+  transition: all 0.15s var(--ease-apple);
+}
+.sort-btn.active {
+  background: var(--brand-500);
+  border-color: var(--brand-500);
+  color: #fff;
+  font-weight: 600;
+}
+.sort-hint {
+  font-size: 11px;
+  color: var(--text-400);
 }
 .loading-tip :deep(svg) {
   animation: spin 1s linear infinite;

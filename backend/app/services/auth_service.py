@@ -19,7 +19,7 @@ T7-9：登录/注册/发送验证码接口加 IP 限流（每分钟 10 次）。
 import json
 import secrets
 import string
-from datetime import datetime, timedelta
+from datetime import timedelta
 from typing import Any
 
 from fastapi import HTTPException, Request, Response
@@ -29,6 +29,7 @@ from sqlalchemy.orm import Session
 from app.core.config import get_settings
 from app.core.errors import ErrorCode
 from app.core.security import create_token, decode_token, hash_password, verify_password
+from app.core.time_utils import now_utc, to_iso_zh
 from app.models import (
     InviteCodeUsage,
     LoginLog,
@@ -147,7 +148,7 @@ def register(payload, request, response: Response, db: Session) -> dict[str, Any
         school_id=payload.school_id,
         qq=payload.qq,
         verification_status=verification_status,
-        verified_at=datetime.now() if verification_status == "verified" else None,
+        verified_at=now_utc() if verification_status == "verified" else None,
         invited_by=inviter_id,
     )
     db.add(user)
@@ -166,12 +167,12 @@ def register(payload, request, response: Response, db: Session) -> dict[str, Any
         # 更新邀请人的 invite_code_shared_at（开始 3 天冷却）
         inviter = db.get(User, inviter_id)
         if inviter:
-            inviter.invite_code_shared_at = datetime.now()
+            inviter.invite_code_shared_at = now_utc()
 
     # 种子码消耗
     if seed_code_record:
         seed_code_record.used_by = user.id
-        seed_code_record.used_at = datetime.now()
+        seed_code_record.used_at = now_utc()
         seed_code_record.status = "used"
         seed_code_record.reserved_by = None
         seed_code_record.reserved_at = None
@@ -240,12 +241,12 @@ def login(payload, request, response: Response, db: Session) -> dict[str, Any]:
 
     # 封号检查：允许登录但返回封号信息，由前端弹出封号提示页
     ban_info: dict | None = None
-    if not user.is_active or (user.ban_until and user.ban_until > datetime.now()):
-        is_still_banned = user.ban_until is None or user.ban_until > datetime.now()
+    if not user.is_active or (user.ban_until and user.ban_until > now_utc()):
+        is_still_banned = user.ban_until is None or user.ban_until > now_utc()
         if not user.is_active or is_still_banned:
             ban_info = {
                 "is_banned": True,
-                "ban_until": user.ban_until.isoformat() if user.ban_until else None,
+                "ban_until": to_iso_zh(user.ban_until) if user.ban_until else None,
                 "ban_reason": user.ban_reason,
                 "violation_count": user.violation_count or 0,
             }
@@ -356,7 +357,7 @@ def change_password(payload, request, response: Response, db: Session, user: Use
 
 def _check_inviter_privilege(db: Session, inviter: User) -> None:
     """校验邀请人是否有资格分享邀请码：3 天冷却 + 连坐冻结。"""
-    now = datetime.now()
+    now = now_utc()
     # 连坐冻结期
     if inviter.invite_privilege_until and inviter.invite_privilege_until > now:
         raise HTTPException(status_code=403, detail=ErrorCode.INVITE_PRIVILEGE_FROZEN)
@@ -403,7 +404,7 @@ def apply_invite_code(payload, request: Request, db: Session, user: User) -> dic
 
     # 更新当前用户为 verified
     user.verification_status = "verified"
-    user.verified_at = datetime.now()
+    user.verified_at = now_utc()
     if inviter_id:
         user.invited_by = inviter_id
         # 记录邀请码使用关系
@@ -414,10 +415,10 @@ def apply_invite_code(payload, request: Request, db: Session, user: User) -> dic
             status="active",
         ))
         # 更新邀请人冷却时间
-        inviter.invite_code_shared_at = datetime.now()
+        inviter.invite_code_shared_at = now_utc()
     if seed_record:
         seed_record.used_by = user.id
-        seed_record.used_at = datetime.now()
+        seed_record.used_at = now_utc()
         seed_record.status = "used"
         seed_record.reserved_by = None
         seed_record.reserved_at = None
@@ -432,7 +433,7 @@ def apply_invite_code(payload, request: Request, db: Session, user: User) -> dic
     db.commit()
     return {
         "verification_status": "verified",
-        "verified_at": user.verified_at.isoformat(),
+        "verified_at": to_iso_zh(user.verified_at),
         "inviter_id": inviter_id,
     }
 
@@ -444,7 +445,7 @@ def get_my_invite_code(db: Session, user: User) -> dict[str, Any]:
         _assign_invite_code(db, user)
         db.commit()
 
-    now = datetime.now()
+    now = now_utc()
     # 计算冷却剩余时间
     cooldown_remaining = 0
     if user.invite_code_shared_at:
@@ -480,7 +481,7 @@ def get_verification_status(user: User) -> dict[str, Any]:
     """查询当前用户的认证状态。"""
     return {
         "verification_status": user.verification_status,
-        "verified_at": user.verified_at.isoformat() if user.verified_at else None,
+        "verified_at": to_iso_zh(user.verified_at) if user.verified_at else None,
         "invited_by": user.invited_by,
         "qq": user.qq,
     }
@@ -511,7 +512,7 @@ def freeze_inviter(db: Session, invitee_id: int, reason: str) -> None:
     inviter = db.get(User, usage.inviter_id)
     if not inviter:
         return
-    now = datetime.now()
+    now = now_utc()
     # 如果已有冻结期且未过期，从原冻结期延长 30 天；否则从现在延长 30 天
     base = inviter.invite_privilege_until if inviter.invite_privilege_until and inviter.invite_privilege_until > now else now
     inviter.invite_privilege_until = base + timedelta(days=INVITE_PRIVILEGE_FREEZE_DAYS)

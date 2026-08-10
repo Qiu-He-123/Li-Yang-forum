@@ -1,5 +1,4 @@
 import ipaddress
-from datetime import datetime
 
 from fastapi import Cookie, Depends, HTTPException, Request
 import jwt
@@ -8,6 +7,7 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.errors import ErrorCode
 from app.core.security import decode_token
+from app.core.time_utils import now_utc
 from app.models import Admin, User
 
 
@@ -55,7 +55,7 @@ def _is_user_banned(user: User) -> bool:
     - ban_until 为空且 is_active 为 False → 永久封禁
     """
     if user.ban_until:
-        return user.ban_until > datetime.now()
+        return user.ban_until > now_utc()
     return not user.is_active
 
 

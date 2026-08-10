@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 from app.api.deps import current_user
 from app.core.database import get_db
 from app.core.security import decode_token
+from app.core.time_utils import to_iso_zh
 from app.models import Admin, Image, User
 from app.schemas.common import ok
 from app.services.storage_service import storage_service
@@ -273,7 +274,7 @@ async def list_my_images(
                     "url": img.url,
                     "mime_type": img.mime_type,
                     "is_private": img.is_private,
-                    "created_at": img.created_at.isoformat() if img.created_at else None,
+                    "created_at": to_iso_zh(img.created_at) if img.created_at else None,
                 }
                 for img in items
             ],

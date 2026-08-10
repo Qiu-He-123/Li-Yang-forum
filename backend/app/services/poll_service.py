@@ -9,7 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.errors import ErrorCode
-from app.core.time_utils import to_iso_zh
+from app.core.time_utils import now_utc, to_iso_zh
 from app.models import Poll, PollOption, PollVote, Post, User
 from app.services import notification_service
 
@@ -79,7 +79,7 @@ def _poll_dict(
         voted_option_ids = set(voted)
     total_votes = sum(o.vote_count for o in options)
     # 是否已截止
-    is_expired = poll.deadline is not None and datetime.utcnow() > poll.deadline
+    is_expired = poll.deadline is not None and now_utc() > poll.deadline
     return {
         "id": poll.id,
         "post_id": poll.post_id,
@@ -143,7 +143,7 @@ def vote(db: Session, user: User, post_id: int, option_ids: list[int]) -> dict:
     if not poll:
         raise HTTPException(status_code=404, detail=ErrorCode.POST_NOT_FOUND)
     # 截止校验
-    if poll.deadline is not None and datetime.utcnow() > poll.deadline:
+    if poll.deadline is not None and now_utc() > poll.deadline:
         raise HTTPException(status_code=403, detail=ErrorCode.NO_PERMISSION)
     # 获取该投票的所有选项 id
     poll_option_ids = set(
@@ -192,7 +192,7 @@ def check_deadline_and_notify(db: Session) -> None:
     调用方需自行保证不重复发送（如用 scheduled task 周期调用）。
     实际生产应增加 is_notified 字段避免重复，此处简化处理。
     """
-    now = datetime.utcnow()
+    now = now_utc()
     polls = db.scalars(
         select(Poll).where(Poll.deadline.is_not(None), Poll.deadline <= now)
     ).all()

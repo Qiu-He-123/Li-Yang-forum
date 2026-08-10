@@ -137,6 +137,7 @@ function goProfile() {
           <BadgeIcon :badge="comment.author_badge" :size="13" />
           <b class="comment-author" role="link" tabindex="0" @click="goProfile" @keydown.enter="goProfile">{{ comment.author }}</b>
           <AiStatusBadge :status="comment.ai_status" :reject-reason="comment.reject_reason" />
+          <span v-if="comment.explored" class="explore-badge">探索</span>
         </div>
         <span class="comment-time">{{ timeAgo(comment.created_at) }}</span>
       </div>
@@ -239,6 +240,16 @@ function goProfile() {
 }
 .comment-author:hover {
   color: var(--brand-500);
+}
+.explore-badge {
+  flex-shrink: 0;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #34c759, #2e8dff);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.5;
 }
 .comment-time {
   font-size: 11px;

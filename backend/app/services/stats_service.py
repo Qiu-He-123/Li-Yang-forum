@@ -6,11 +6,10 @@
 """
 from __future__ import annotations
 
-from datetime import datetime, timedelta
-
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app.core.time_utils import beijing_today_start
 from app.models import Bottle, BottlePick, Post, User
 from app.services.connection_manager import manager
 
@@ -18,7 +17,7 @@ from app.services.connection_manager import manager
 def home_stats(db: Session) -> dict:
     """首页统计：在线人数 + 今日发帖 + 注册人数。"""
     # 今日 0 点
-    today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+    today = beijing_today_start()
 
     online_count = manager.online_count()
     logged_in = manager.logged_in_count()
@@ -53,7 +52,7 @@ def bottle_stats(db: Session) -> dict:
     - total_bottles: 累计投放瓶子数（active + picked）
     - today_picks: 今日拾取次数
     """
-    today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+    today = beijing_today_start()
 
     online_count = manager.online_count()
 

@@ -11,14 +11,14 @@
 
 所有警告值变化都写入 warning_logs 表，用户可在个人主页查看变动记录。
 """
-from datetime import datetime, timedelta
+from datetime import timedelta
 
 from fastapi import HTTPException
 from sqlalchemy import desc, func, select
 from sqlalchemy.orm import Session
 
 from app.core.errors import ErrorCode
-from app.core.time_utils import to_iso_zh
+from app.core.time_utils import now_utc, to_iso_zh
 from app.models import BanRecord, Notification, User, WarningConfig, WarningLog
 
 
@@ -224,7 +224,7 @@ def handle_violation(
         # 临时封号
         action = "temp_ban"
         duration_hours = cfg.temp_ban_hours
-        ban_until = datetime.now() + timedelta(hours=duration_hours)
+        ban_until = now_utc() + timedelta(hours=duration_hours)
         user.is_active = False
         user.ban_until = ban_until
         user.ban_reason = f"警告值达到 {score_after}（临时封号阈值 {cfg.temp_ban_threshold}）：{reason[:100]}"
@@ -396,7 +396,7 @@ def admin_adjust_warning(
         triggered_ban = True
     elif delta > 0 and new_score >= cfg.temp_ban_threshold and user.is_active:
         # 触发临时封号
-        ban_until = datetime.now() + timedelta(hours=cfg.temp_ban_hours)
+        ban_until = now_utc() + timedelta(hours=cfg.temp_ban_hours)
         user.is_active = False
         user.ban_until = ban_until
         user.ban_reason = f"管理员调整警告值至 {new_score}，触发临时封号"

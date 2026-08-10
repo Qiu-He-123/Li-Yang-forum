@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import json
 import asyncio
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Any
 
 from fastapi import HTTPException
@@ -26,7 +26,7 @@ from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import Session, selectinload
 
 from app.core.errors import ErrorCode
-from app.core.time_utils import calculate_age, to_iso_zh
+from app.core.time_utils import beijing_today_start, calculate_age, to_iso_zh
 from app.models import Bottle, BottlePick, School, User
 from app.services.audit_log import log_admin_action
 from app.services.connection_manager import manager
@@ -220,7 +220,7 @@ def create_bottle(
 
 
 def _today_start() -> datetime:
-    return datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+    return beijing_today_start()
 
 
 def get_today_pick_count(db: Session, user_id: int) -> int:
@@ -568,9 +568,14 @@ async def audit_bottle_background(bottle_id: int) -> None:
             bottle = db.get(Bottle, bottle_id)
             if not bottle:
                 return
-            audit = await audit_service.run_audit_async(
-                f"内容：{bottle.content or ''}"
-                + (f"\n图片数量：{len(_parse_json(bottle.image_urls, []))} 张" if _parse_json(bottle.image_urls, []) else "")
+            bottle_content = f"内容：{bottle.content or ''}"
+            if _parse_json(bottle.image_urls, []):
+                bottle_content += f"\n图片数量：{len(_parse_json(bottle.image_urls, []))} 张"
+            audit = await audit_service.run_audit_async(bottle_content, content_type="bottle")
+            # 与帖子/评论一致，漂流瓶审核结果也写入 AI 审核日志（后台可查）
+            audit_service.record_audit_log(
+                db, "bottle", bottle.id, bottle.author_id, audit,
+                f"内容：{bottle.content or ''}",
             )
 
             if audit.get("skipped"):

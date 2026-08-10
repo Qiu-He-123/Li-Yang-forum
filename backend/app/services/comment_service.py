@@ -1,7 +1,6 @@
 """评论业务逻辑层。"""
 import asyncio
 import json
-from datetime import datetime
 
 from fastapi import HTTPException, Request
 from sqlalchemy import desc, select
@@ -9,15 +8,16 @@ from sqlalchemy.orm import Session
 
 from app.core.database import SessionLocal
 from app.core.errors import ErrorCode
-from app.core.time_utils import to_iso_zh
+from app.core.time_utils import now_utc, to_iso_zh
 from app.models import Comment, Post, User
 from app.schemas.interactions import CommentCreate
 from app.services.ai_service import ai_service
 from app.services.audit_log import log_user_action
-from app.services.notification_service import create_notification
+from app.services import explore_service
+from app.services.notification_service import cleanup_notifications_for_deleted_comments, create_notification
 
 
-def comment_dict(comment: Comment, user: User | None) -> dict:
+def comment_dict(comment: Comment, user: User | None, explored: bool = False) -> dict:
     """序列化评论为前端响应字典（含 user_id 用于权限判断）。"""
     from app.services.badge_service import badge_dict as _badge_dict
     return {
@@ -32,11 +32,19 @@ def comment_dict(comment: Comment, user: User | None) -> dict:
         "like_count": comment.like_count,
         "ai_status": comment.ai_status,
         "reject_reason": comment.reject_reason,
+        "explored": bool(explored),
         "created_at": to_iso_zh(comment.created_at),
     }
 
 
-def list_comments(post_id: int, db: Session, page: int = 1, page_size: int = 20, user: User | None = None) -> dict:
+def list_comments(
+    post_id: int,
+    db: Session,
+    page: int = 1,
+    page_size: int = 20,
+    user: User | None = None,
+    sort: str = "latest",
+) -> dict:
     """查询帖子评论列表（按楼层分页加载）。
 
     改造说明：
@@ -73,19 +81,74 @@ def list_comments(post_id: int, db: Session, page: int = 1, page_size: int = 20,
         )
     ) or 0
 
-    # 第一步：分页查询根评论
+    # 第一步：分页查询根评论（最新 / 最热两种排序）
     offset = (page - 1) * page_size
-    root_comments = db.scalars(
+    root_query = (
         select(Comment)
         .where(
             Comment.post_id == post_id,
             Comment.parent_id.is_(None),
             ai_filter,
         )
-        .order_by(desc(Comment.created_at))
         .offset(offset)
         .limit(page_size)
-    ).all()
+    )
+    if sort == "hot":
+        root_query = root_query.order_by(desc(Comment.like_count), desc(Comment.created_at))
+    else:
+        root_query = root_query.order_by(desc(Comment.created_at))
+    root_comments = list(db.scalars(root_query).all())
+
+    # ============ 评论探索：最热排序首页按比例插入低赞新评论 ============
+    explored_comment_ids: set[int] = set()
+    if sort == "hot" and page == 1:
+        try:
+            cfg = explore_service.get_explore_config(db)
+            if cfg["comment_explore_enabled"]:
+                slots = explore_service.explore_slot_count(page_size, cfg["comment_explore_rate"])
+                if slots > 0 and root_comments:
+                    # 保留最热的前 N 条，其余槽位从「低赞新评论」探索池补充
+                    keep_count = max(0, len(root_comments) - slots)
+                    hot_ids = {c.id for c in root_comments[:keep_count]}
+                    pool = explore_service.pick_explore_comments(
+                        db,
+                        post_id,
+                        slots,
+                        cfg,
+                        exclude_ids=hot_ids,
+                    )
+                    if not pool:
+                        # 评论总数不足一页时，直接用当前页尾部的低赞评论作为探索位
+                        tail = [
+                            c for c in root_comments[keep_count:]
+                            if (c.like_count or 0) <= 3
+                        ]
+                        pool = tail[:slots]
+                    if pool:
+                        root_comments = explore_service.merge_explore(
+                            root_comments[: max(0, len(root_comments) - len(pool))],
+                            pool,
+                            user,
+                            page,
+                        )
+                        explored_comment_ids = {c.id for c in pool}
+                        # 只写曝光日志（track_stats=False），避免评论曝光计入帖子统计
+                        explore_service.record_feed_impressions(
+                            db,
+                            [post_id] * len(pool),
+                            user.id if user else None,
+                            explore_service.SCENE_COMMENT,
+                            page,
+                            track_stats=False,
+                            target_ids=[c.id for c in pool],
+                        )
+        except Exception as exc:  # noqa: BLE001
+            from loguru import logger
+            logger.warning("[EXPLORE] list_comments explore failed: {}", exc)
+            try:
+                db.rollback()
+            except Exception:
+                pass
 
     if not root_comments:
         return {
@@ -137,7 +200,14 @@ def list_comments(post_id: int, db: Session, page: int = 1, page_size: int = 20,
         else {}
     )
     return {
-        "items": [comment_dict(item, users.get(item.user_id)) for item in all_comments],
+        "items": [
+            comment_dict(
+                item,
+                users.get(item.user_id),
+                explored=item.id in explored_comment_ids,
+            )
+            for item in all_comments
+        ],
         "total": total_count,
         "page": page,
         "page_size": page_size,
@@ -202,6 +272,8 @@ async def create_comment(post_id: int, payload: CommentCreate, request: Request,
     )
     db.commit()
     db.refresh(comment)
+    # 探索奖励归因：该用户近期在探索位看过这篇帖子，评论计入探索互动
+    explore_service.record_interaction(db, post_id, user.id, "comment")
 
     # 后台异步审核
     if initial_ai_status == "pending":
@@ -209,7 +281,7 @@ async def create_comment(post_id: int, payload: CommentCreate, request: Request,
     elif initial_ai_status == "approved":
         # 免审评论立即生效：同步帖子评论数、最后回复时间并通知作者
         post.comment_count = (post.comment_count or 0) + 1
-        post.last_reply_at = datetime.now()
+        post.last_reply_at = now_utc()
         if post.author_id and post.author_id != user.id:
             content_preview = (comment.content[:30] + "...") if len(comment.content) > 30 else comment.content
             create_notification(
@@ -219,8 +291,8 @@ async def create_comment(post_id: int, payload: CommentCreate, request: Request,
                 f"你有一条新评论：{content_preview}",
                 ntype="comment",
                 sender_id=user.id,
-                reference_type="post",
-                reference_id=post.id,
+                reference_type="comment",
+                reference_id=comment.id,
             )
         db.commit()
         db.refresh(comment)
@@ -303,6 +375,10 @@ def delete_comment(post_id: int, comment_id: int, request: Request, db: Session,
     # 先删除评论和子回复
     db.delete(comment)
     db.flush()  # 确保删除生效后再统计
+
+    # 同步清理关联通知（被评论人/被回复人不再看到已删除评论的消息）
+    deleted_ids = [comment_id] + [r.id for r in descendants]
+    cleanup_notifications_for_deleted_comments(db, deleted_ids)
 
     if post:
         # 删除后重新统计"已审核通过"的评论数（审核中的不计入），

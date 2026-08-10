@@ -7,7 +7,7 @@ T7-6：所有 admin 操作日志写入 admin_id。
 增强版：统计看板、内容审核、用户管理、举报处理、公告 CRUD、日志系统。
 """
 import json
-from datetime import datetime, timedelta
+from datetime import timedelta
 
 from fastapi import HTTPException, Request, Response
 from sqlalchemy import desc, func, select
@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session
 from app.core.config import get_settings
 from app.core.errors import ErrorCode
 from app.core.security import create_token, verify_password
-from app.core.time_utils import to_iso_zh
+from app.core.time_utils import beijing_today_start, now_utc, to_beijing, to_iso_zh
 from app.models import (
     Admin,
     Announcement,
@@ -128,7 +128,7 @@ def admin_stats(db: Session) -> dict:
     ) or 0
 
     # 今日新增
-    today_start = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+    today_start = beijing_today_start()
     new_users_today = db.scalar(
         select(func.count(User.id)).where(User.created_at >= today_start)
     ) or 0
@@ -155,7 +155,7 @@ def admin_stats(db: Session) -> dict:
             )
         ) or 0
         trend.append({
-            "date": day_start.strftime("%m-%d"),
+            "date": to_beijing(day_start).strftime("%m-%d"),
             "posts": int(day_posts),
             "users": int(day_users),
         })
@@ -293,6 +293,14 @@ def admin_delete_post(post_id: int, reason: str, request: Request, db: Session, 
             reference_id=post_id,
         ))
     db.delete(post)
+    # 清理该帖及其评论的关联通知（"帖子已被删除"系统通知保留）
+    from app.services.notification_service import (
+        cleanup_notifications_for_deleted_comments,
+        cleanup_notifications_for_deleted_posts,
+    )
+    comment_ids = db.scalars(select(Comment.id).where(Comment.post_id == post_id)).all()
+    cleanup_notifications_for_deleted_comments(db, list(comment_ids))
+    cleanup_notifications_for_deleted_posts(db, post_id)
     log_admin_action(
         db, admin.id, "delete_post",
         json.dumps({"post_id": post_id, "reason": reason}, ensure_ascii=False),
@@ -439,8 +447,7 @@ def admin_audit_comment(comment_id: int, ai_status: str, request: Request, db: S
             post = db.get(Post, c.post_id)
             if post:
                 post.comment_count = (post.comment_count or 0) + 1
-                from datetime import datetime as _dt
-                post.last_reply_at = _dt.now()
+                post.last_reply_at = now_utc()
             if post and post.author_id and post.author_id != c.user_id:
                 content_preview = (c.content[:30] + "...") if len(c.content) > 30 else c.content
                 create_notification(
@@ -450,8 +457,8 @@ def admin_audit_comment(comment_id: int, ai_status: str, request: Request, db: S
                     f"你有一条新评论：{content_preview}",
                     ntype="comment",
                     sender_id=c.user_id,
-                    reference_type="post",
-                    reference_id=c.post_id,
+                    reference_type="comment",
+                    reference_id=c.id,
                 )
             db.commit()
         except Exception:
@@ -995,12 +1002,11 @@ def admin_cleanup_expired_audit(db: Session, request: Request | None = None, adm
     - N 表示删除 N 天前 ai_status=rejected 的内容
     """
     from app.services import settings_service
-    from datetime import datetime, timedelta
     days = settings_service.get_int(db, "audit_auto_delete_days", 0)
     if days <= 0:
         return {"enabled": False, "days": days, "deleted_posts": 0, "deleted_comments": 0}
 
-    threshold = datetime.now() - timedelta(days=days)
+    threshold = now_utc() - timedelta(days=days)
     # 删除过期且仍为 rejected 的帖子
     old_posts = db.scalars(
         select(Post).where(Post.ai_status == "rejected", Post.created_at < threshold)
@@ -1131,7 +1137,7 @@ def admin_ban_user(user_id: int, payload: dict, request: Request, db: Session, a
         record_status = "active"
     else:
         # 时长封禁
-        ban_until = datetime.now() + timedelta(hours=duration_hours)
+        ban_until = now_utc() + timedelta(hours=duration_hours)
         u.is_active = False
         u.ban_until = ban_until
         u.ban_reason = reason
@@ -1207,7 +1213,7 @@ def admin_unban_user(user_id: int, request: Request, db: Session, admin: Admin) 
     ).all()
     for r in active_records:
         r.status = "revoked"
-        r.unbanned_at = datetime.now()
+        r.unbanned_at = now_utc()
 
     u.is_active = True
     u.ban_until = None
@@ -1303,7 +1309,7 @@ def admin_review_appeal(appeal_id: int, payload: dict, request: Request, db: Ses
 
     appeal.status = new_status
     appeal.reviewed_by = admin.id
-    appeal.reviewed_at = datetime.now()
+    appeal.reviewed_at = now_utc()
     appeal.review_comment = review_comment
 
     # 申诉成功：解封用户
@@ -1316,7 +1322,7 @@ def admin_review_appeal(appeal_id: int, payload: dict, request: Request, db: Ses
             ).all()
             for r in active_records:
                 r.status = "revoked"
-                r.unbanned_at = datetime.now()
+                r.unbanned_at = now_utc()
             u.is_active = True
             u.ban_until = None
             u.ban_reason = None
@@ -1373,6 +1379,8 @@ def admin_audit_logs(
     target_type: str | None = None,
     result: str | None = None,
     user_id: int | None = None,
+    category: str | None = None,
+    severity: str | None = None,
 ) -> dict:
     """AI 审核日志列表（分页 + 过滤）。"""
     from app.models import AuditLog as _AuditLog
@@ -1383,6 +1391,10 @@ def admin_audit_logs(
         query = query.where(_AuditLog.result == result)
     if user_id:
         query = query.where(_AuditLog.user_id == user_id)
+    if category:
+        query = query.where(_AuditLog.category == category)
+    if severity:
+        query = query.where(_AuditLog.severity == severity)
 
     total = db.scalar(select(func.count()).select_from(query.subquery())) or 0
     rows = db.scalars(query.offset((page - 1) * page_size).limit(page_size)).all()

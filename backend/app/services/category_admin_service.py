@@ -121,6 +121,15 @@ def delete_post_as_admin(db: Session, category_id: int, post_id: int, admin_user
     if not category or post.category not in (category.name, category.slug):
         raise HTTPException(status_code=403, detail=ErrorCode.NO_PERMISSION)
     db.delete(post)
+    # 清理该帖及其评论的关联通知
+    from app.models import Comment
+    from app.services.notification_service import (
+        cleanup_notifications_for_deleted_comments,
+        cleanup_notifications_for_deleted_posts,
+    )
+    comment_ids = db.scalars(select(Comment.id).where(Comment.post_id == post_id)).all()
+    cleanup_notifications_for_deleted_comments(db, list(comment_ids))
+    cleanup_notifications_for_deleted_posts(db, post_id)
     # 圈子帖子计数减一
     if category.post_count and category.post_count > 0:
         category.post_count -= 1

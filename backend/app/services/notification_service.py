@@ -14,12 +14,11 @@ follow_service 调用本模块写入通知。
 - topic: 话题新帖（阶段二）
 - vote_end: 投票结束（阶段二）
 """
-from datetime import datetime
 
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
-from app.core.time_utils import to_iso_zh
+from app.core.time_utils import now_utc, to_iso_zh
 from app.models import Notification
 
 
@@ -63,6 +62,60 @@ def create_notification(
     )
 
 
+def cleanup_notifications_for_deleted_comments(db: Session, comment_ids: list[int]) -> None:
+    """评论删除后清理关联通知（收到评论/评论审核通知等），不 commit。"""
+    ids = [i for i in (comment_ids or []) if i is not None]
+    if not ids:
+        return
+    db.execute(
+        delete(Notification).where(
+            Notification.reference_type == "comment",
+            Notification.reference_id.in_(ids),
+        )
+    )
+
+
+def cleanup_notifications_for_deleted_posts(db: Session, post_id: int) -> None:
+    """帖子删除后清理关联互动通知（点赞/收藏/@提及等），不 commit。
+
+    保留 type='system' 的系统通知（如"帖子已被管理员删除"的历史留痕）。
+    """
+    db.execute(
+        delete(Notification).where(
+            Notification.reference_type == "post",
+            Notification.reference_id == post_id,
+            Notification.type != "system",
+        )
+    )
+
+
+def _cleanup_stale_notifications(db: Session, user_id: int) -> None:
+    """懒清理：删除当前用户指向已删除帖子/评论的互动通知（保留 system 通知）。
+
+    修复历史遗留脏数据：帖子/评论被删除后，旧通知仍展示在消息列表。
+    """
+    from app.models import Comment, Post
+
+    db.execute(
+        delete(Notification).where(
+            Notification.user_id == user_id,
+            Notification.type != "system",
+            Notification.reference_type == "post",
+            Notification.reference_id.is_not(None),
+            ~Notification.reference_id.in_(select(Post.id)),
+        )
+    )
+    db.execute(
+        delete(Notification).where(
+            Notification.user_id == user_id,
+            Notification.reference_type == "comment",
+            Notification.reference_id.is_not(None),
+            ~Notification.reference_id.in_(select(Comment.id)),
+        )
+    )
+    db.commit()
+
+
 def list_notifications(
     user_id: int,
     db: Session,
@@ -81,6 +134,9 @@ def list_notifications(
 
     Returns: {items, total, page, page_size}
     """
+    # 先清理指向已删除内容的旧通知，避免消息列表展示失效内容
+    _cleanup_stale_notifications(db, user_id)
+
     query = select(Notification).where(Notification.user_id == user_id)
     if ntype:
         query = query.where(Notification.type == ntype)
@@ -129,7 +185,9 @@ def get_notification(notification_id: int, user_id: int, db: Session) -> dict:
     # 附带 post_id（如果 reference 是评论，需要查 post_id）
     post_id: int | None = None
     if n.reference_type == "post":
-        post_id = n.reference_id
+        from app.models import Post
+        # 帖子已删除则不提供跳转目标
+        post_id = n.reference_id if db.get(Post, n.reference_id) else None
     elif n.reference_type == "comment" and n.reference_id:
         from app.models import Comment
         comment = db.get(Comment, n.reference_id)
@@ -147,7 +205,7 @@ def mark_read(notification_id: int, user_id: int, db: Session) -> dict:
         return {"id": notification_id, "is_read": False}
     if not n.is_read:
         n.is_read = True
-        n.read_at = datetime.now()
+        n.read_at = now_utc()
         db.commit()
     return {"id": n.id, "is_read": True}
 
@@ -161,7 +219,7 @@ def mark_all_read(user_id: int, db: Session, ntype: str | None = None) -> dict:
     if ntype:
         query = query.where(Notification.type == ntype)
     rows = db.scalars(query).all()
-    now = datetime.now()
+    now = now_utc()
     for n in rows:
         n.is_read = True
         n.read_at = now
@@ -171,6 +229,7 @@ def mark_all_read(user_id: int, db: Session, ntype: str | None = None) -> dict:
 
 def unread_count(user_id: int, db: Session) -> dict:
     """返回未读通知总数 + 各类型未读数（前端红点 + 分类 badge 用）。"""
+    _cleanup_stale_notifications(db, user_id)
     count = db.scalar(
         select(func.count(Notification.id)).where(Notification.user_id == user_id, Notification.is_read.is_(False))
     )

@@ -16,6 +16,7 @@ from app.models import Comment, Favorite, Like, Post, Report, User
 from app.schemas.interactions import ReportCreate
 from app.services.ai_service import ai_service
 from app.services.audit_log import log_user_action
+from app.services import explore_service
 from app.services.notification_service import create_notification
 
 
@@ -46,6 +47,9 @@ def like_target(target_type: str, target_id: int, request: Request, db: Session,
                 reference_id=target_id,
             )
         db.commit()
+        # 探索奖励归因：该用户近期在探索位看过这个帖子，点赞计入探索互动
+        if target_type == "post":
+            explore_service.record_interaction(db, target_id, user.id, "like")
         # 徽章自动发放：帖子获赞总数达到规则阈值自动发徽章
         if target_type == "post":
             try:

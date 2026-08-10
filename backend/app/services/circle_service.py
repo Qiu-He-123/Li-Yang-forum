@@ -242,6 +242,6 @@ def list_viewed_circles(db: Session, user_id: int, limit: int = 20) -> list[dict
     result: list[dict] = []
     for view, circle in rows:
         d = _circle_dict(circle, is_joined=False)
-        d["viewed_at"] = view.viewed_at.isoformat() if view.viewed_at else None
+        d["viewed_at"] = to_iso_zh(view.viewed_at) if view.viewed_at else None
         result.append(d)
     return result

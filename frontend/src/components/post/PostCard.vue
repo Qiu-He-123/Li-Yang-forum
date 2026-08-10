@@ -223,6 +223,7 @@ function goTagSearch(tag: string) {
             :show-approved="isAuthor()"
           />
           <span class="cat-pill">#{{ post.category || '校园' }}</span>
+          <span v-if="post.explored" class="explore-badge">探索</span>
         </div>
         <span class="post-time">{{ timeAgo(post.created_at) }} · {{ post.school }}</span>
       </div>
@@ -291,7 +292,7 @@ function goTagSearch(tag: string) {
         <span>{{ favorited ? '已藏' : '收藏' }}</span>
       </button>
       <button class="action-btn action-btn--report" type="button" @click="openReport">
-        <Icon name="flag" :size="14" />
+        <Icon name="triangle-alert" :size="14" />
         <span>举报</span>
       </button>
       <template v-if="isAuthor()">
@@ -420,6 +421,15 @@ function goTagSearch(tag: string) {
   background: var(--brand-50);
   padding: 2px 8px;
   border-radius: 999px;
+}
+.explore-badge {
+  flex-shrink: 0;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #34c759, #2e8dff);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
 }
 .post-time {
   font-size: 12px;
