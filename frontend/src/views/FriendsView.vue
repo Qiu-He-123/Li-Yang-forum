@@ -261,6 +261,7 @@ onUnmounted(() => {
                 <BadgeIcon :badge="item.user.badge" :size="14" />
                 {{ item.user.nickname }}
               </span>
+              <span v-if="item.user.username" class="user-account">@{{ item.user.username }}</span>
               <span class="user-bio">
                 <span v-if="item.user.school">{{ item.user.school }}</span>
                 <span v-if="item.user.age !== null && item.user.age !== undefined && item.user.school"> · </span>
@@ -723,6 +724,13 @@ onUnmounted(() => {
   display: inline-flex;
   align-items: center;
   gap: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.user-account {
+  font-size: 12px;
+  color: var(--text-500);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;

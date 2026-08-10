@@ -290,7 +290,7 @@ function goTagSearch(tag: string) {
         <Icon name="bookmark" :size="14" />
         <span>{{ favorited ? '已藏' : '收藏' }}</span>
       </button>
-      <button class="action-btn" type="button" @click="openReport">
+      <button class="action-btn action-btn--report" type="button" @click="openReport">
         <Icon name="flag" :size="14" />
         <span>举报</span>
       </button>
@@ -534,6 +534,13 @@ function goTagSearch(tag: string) {
 .action-btn--danger:hover:not(:disabled) {
   color: var(--error);
   background: rgba(255, 59, 48, 0.08);
+}
+.action-btn--report {
+  color: var(--error);
+}
+.action-btn--report:hover:not(:disabled) {
+  color: var(--error);
+  background: rgba(255, 59, 48, 0.1);
 }
 .action-count {
   font-variant-numeric: tabular-nums;

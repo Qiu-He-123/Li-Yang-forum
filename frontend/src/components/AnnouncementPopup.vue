@@ -6,7 +6,7 @@
  * - 已读公告下次登录不再弹窗
  * - 在 sessionStorage 中标记本次会话已检查，避免重复弹窗
  */
-import { ref, watch } from 'vue'
+import { onMounted, onUnmounted, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 
 import { listUnreadAnnouncements, markAnnouncementRead } from '../api/announcement'
@@ -22,11 +22,11 @@ const marking = ref(false)
 
 const currentAnnouncement = ref<Announcement | null>(null)
 
-const SESSION_CACHE_KEY = 'ly_announcement_popup_checked'
+let checkTimer: ReturnType<typeof setInterval> | null = null
 
 async function loadAndShow() {
-  // 本会话已检查过则不再弹窗，避免每次路由切换重复触发
-  if (sessionStorage.getItem(SESSION_CACHE_KEY) === '1') return
+  // 弹窗已在展示中则跳过，避免重复拉取打断用户
+  if (visible.value) return
   try {
     const { data } = await listUnreadAnnouncements({
       showGlobalLoading: false,
@@ -38,13 +38,24 @@ async function loadAndShow() {
       currentAnnouncement.value = unreadList.value[0]
       visible.value = true
     }
-    // 无论是否有未读，都标记本会话已检查
-    sessionStorage.setItem(SESSION_CACHE_KEY, '1')
   } catch (err) {
-    // 静默失败：避免影响登录流程
     console.warn('[AnnouncementPopup] load failed:', err)
   }
 }
+
+onMounted(() => {
+  // 已登录用户每次进入页面都检查一次，新公告也会弹
+  if (session.isLoggedIn()) loadAndShow()
+  // 轮询兜底：页面停留期间发布的新公告，60 秒内弹出
+  checkTimer = setInterval(() => {
+    if (session.isLoggedIn()) loadAndShow()
+  }, 60_000)
+})
+
+onUnmounted(() => {
+  if (checkTimer) clearInterval(checkTimer)
+  checkTimer = null
+})
 
 async function onConfirm() {
   if (!currentAnnouncement.value) {
@@ -83,7 +94,6 @@ watch(
       visible.value = false
       unreadList.value = []
       currentAnnouncement.value = null
-      sessionStorage.removeItem(SESSION_CACHE_KEY)
     }
   },
 )

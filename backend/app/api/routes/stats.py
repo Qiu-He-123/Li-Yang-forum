@@ -58,7 +58,7 @@ def list_unread_announcements(
     query = select(Announcement).where(Announcement.is_active.is_(True))
     # 校区过滤：用户校区公告 + 全校公告（school_id IS NULL）
     query = query.where(or_(Announcement.school_id == user.school_id, Announcement.school_id.is_(None)))
-    items = db.scalars(query.order_by(desc(Announcement.created_at)).limit(5)).all()
+    items = db.scalars(query.order_by(desc(Announcement.created_at)).limit(20)).all()
     if not items:
         return ok([])
     # 已读 id 集合

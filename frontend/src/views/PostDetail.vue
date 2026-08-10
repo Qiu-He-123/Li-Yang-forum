@@ -541,7 +541,13 @@ onMounted(() => {
           <Icon name="arrow-left" :size="20" />
         </button>
         <h1 class="header-title">帖子详情</h1>
-        <button class="icon-btn" type="button" aria-label="更多" @click="reportDialogVisible = true">
+        <button
+          class="icon-btn icon-btn--report"
+          type="button"
+          aria-label="举报"
+          title="举报"
+          @click="reportDialogVisible = true"
+        >
           <Icon name="flag" :size="18" />
         </button>
       </div>
@@ -999,6 +1005,13 @@ onMounted(() => {
 }
 .icon-btn:hover {
   background: var(--bg-200);
+}
+.icon-btn--report {
+  color: var(--error);
+}
+.icon-btn--report:hover {
+  background: rgba(255, 59, 48, 0.1);
+  color: var(--error);
 }
 
 /* 容器 */

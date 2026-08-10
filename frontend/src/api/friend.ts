@@ -4,6 +4,8 @@ import type { Badge } from '../types/api'
 export interface FriendUser {
   id: number
   nickname: string
+  /** 账号（登录用户名），仅搜索场景返回，用于展示区分 */
+  username?: string | null
   avatar_url: string | null
   badge?: Badge | null
   bio: string | null

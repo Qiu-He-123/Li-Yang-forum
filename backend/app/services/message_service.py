@@ -594,14 +594,17 @@ def count_unread_messages(user_id: int, db: Session) -> int:
 
 
 def search_users(db: Session, user: User, keyword: str) -> list[dict]:
-    """搜索用户（用于添加好友）。"""
+    """搜索用户（用于添加好友 / 全站搜索）：同时匹配昵称与账号（username）。"""
     if not keyword or len(keyword.strip()) < 1:
         return []
     rows = db.scalars(
         select(User)
         .options(selectinload(User.school))
         .where(
-            User.nickname.like(f"%{keyword}%"),
+            or_(
+                User.nickname.like(f"%{keyword}%"),
+                User.username.like(f"%{keyword}%"),
+            ),
             User.id != user.id,
             User.is_active.is_(True),
         )
@@ -640,9 +643,13 @@ def search_users(db: Session, user: User, keyword: str) -> list[dict]:
                 "pending_received" if pending_received else "none"
             )
         )
-        result.append({
-            "user": _user_dict(u),
-            "relation": rel_status,
-            "request_id": pending_received.id if pending_received else (pending_sent.id if pending_sent else None),
-        })
+        result.append(
+            {
+                "user": {**_user_dict(u), "username": u.username},
+                "relation": rel_status,
+                "request_id": pending_received.id
+                if pending_received
+                else (pending_sent.id if pending_sent else None),
+            }
+        )
     return result

@@ -9,6 +9,7 @@ import MarkdownText from '../components/common/MarkdownText.vue'
 import { Icon } from '../components/native'
 import { toast } from '../components/native/Toast'
 import { listPosts } from '../api/post'
+import { searchUsers, type SearchUserResult } from '../api/friend'
 import { hotTopics, searchTopics, type Topic } from '../api/topic'
 import { useSessionStore } from '../stores/session'
 import { useSearchStore } from '../stores/search'
@@ -22,6 +23,7 @@ const searchStore = useSearchStore()
 const keyword = ref<string>(String(route.query.q ?? ''))
 const tagFilter = ref<string>(String(route.query.tag ?? ''))
 const posts = ref<Post[]>([])
+const users = ref<SearchUserResult[]>([])
 const total = ref(0)
 const page = ref(1)
 const pageSize = ref(20)
@@ -87,6 +89,19 @@ async function doSearch() {
   }
   loading.value = true
   hasSearched.value = true
+  // 并行搜用户（仅登录用户；失败静默，不影响帖子/话题结果）
+  const userSearchPromise = session.isLoggedIn()
+    ? searchUsers(q, {
+        showGlobalLoading: false,
+        showGlobalError: false,
+      })
+        .then((r) => {
+          users.value = (r.data.data || []) as SearchUserResult[]
+        })
+        .catch(() => {
+          users.value = []
+        })
+    : Promise.resolve((users.value = []))
   try {
     const params: Parameters<typeof listPosts>[0] = {
       page: page.value,
@@ -111,6 +126,7 @@ async function doSearch() {
     toast.error((err as Error).message)
   } finally {
     loading.value = false
+    await userSearchPromise
   }
 }
 
@@ -138,6 +154,7 @@ function clearInput() {
   keyword.value = ''
   hasSearched.value = false
   posts.value = []
+  users.value = []
 }
 
 function goBack() {
@@ -146,6 +163,11 @@ function goBack() {
 
 function openPost(post: Post) {
   router.push(`/post/${post.id}`)
+}
+
+/** 点击用户跳转到个人主页 */
+function openUser(id: number) {
+  router.push(`/user/${id}`)
 }
 
 watch(
@@ -209,7 +231,37 @@ onMounted(async () => {
           <Icon name="refresh" :size="20" />
           <span>搜索中…</span>
         </div>
-        <div v-else-if="posts.length" class="result-list">
+        <template v-else>
+          <!-- 用户结果 -->
+          <section v-if="users.length" class="user-result-block">
+            <div class="result-count">找到 {{ users.length }} 位用户</div>
+            <div
+              v-for="item in users"
+              :key="item.user.id"
+              class="user-result-item"
+              @click="openUser(item.user.id)"
+            >
+              <div
+                class="user-result-avatar"
+                :style="item.user.avatar_url ? { backgroundImage: `url(${item.user.avatar_url})` } : {}"
+              >
+                <span v-if="!item.user.avatar_url">{{ item.user.nickname.charAt(0).toUpperCase() }}</span>
+              </div>
+              <div class="user-result-info">
+                <span class="user-result-name">
+                  <BadgeIcon :badge="item.user.badge" :size="14" />
+                  {{ item.user.nickname }}
+                </span>
+                <span class="user-result-meta">
+                  <span v-if="item.user.username" class="user-result-account">@{{ item.user.username }}</span>
+                  <span v-if="item.user.school">· {{ item.user.school }}</span>
+                </span>
+              </div>
+              <Icon name="chevron-right" :size="14" color="#c7c7cc" />
+            </div>
+          </section>
+          <!-- 帖子结果 -->
+          <div v-if="posts.length" class="result-list">
           <div class="result-count">共找到 {{ total }} 条结果</div>
           <article
             v-for="post in posts"
@@ -237,8 +289,9 @@ onMounted(async () => {
               </span>
             </div>
           </article>
-        </div>
-        <EmptyState v-else text="没有找到相关内容，换个关键词试试" />
+          </div>
+          <EmptyState v-if="!users.length && !posts.length" text="没有找到相关内容，换个关键词试试" />
+        </template>
       </div>
 
       <!-- 搜索历史 + 热搜榜（未搜索时） -->
@@ -742,6 +795,66 @@ onMounted(async () => {
   display: inline-flex;
   align-items: center;
   gap: 3px;
+}
+.user-result-block {
+  margin-bottom: 14px;
+}
+.user-result-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--bg-50);
+  border-radius: var(--radius-md);
+  padding: 12px 14px;
+  box-shadow: var(--shadow-xs);
+  cursor: pointer;
+  transition: box-shadow 0.15s;
+}
+.user-result-item:hover {
+  box-shadow: var(--shadow-sm);
+}
+.user-result-avatar {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: var(--brand-500);
+  color: #fff;
+  display: grid;
+  place-items: center;
+  font-size: 16px;
+  font-weight: 700;
+  flex-shrink: 0;
+  background-size: cover;
+  background-position: center;
+  overflow: hidden;
+}
+.user-result-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.user-result-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-800);
+}
+.user-result-meta {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--text-400);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.user-result-account {
+  color: var(--text-500);
 }
 .dot {
   color: var(--bg-300);
