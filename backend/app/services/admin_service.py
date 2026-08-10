@@ -493,6 +493,20 @@ def admin_users(db: Session, page: int = 1, page_size: int = 20, keyword: str | 
     }
 
 
+def admin_get_user_brief(user_id: int, db: Session) -> dict:
+    """按用户 ID 查询简要信息（默认好友配置页输入 ID 时自动展示用户名）。"""
+    u = db.get(User, user_id)
+    if not u:
+        raise HTTPException(status_code=404, detail="用户不存在")
+    return {
+        "id": u.id,
+        "username": u.username,
+        "nickname": u.nickname,
+        "avatar_url": u.avatar_url,
+        "school": u.school.name if u.school else None,
+    }
+
+
 def _user_dict(u: User, db: Session | None = None) -> dict:
     from app.services.badge_service import badge_dict as _badge_dict
     from app.models import UserBadge

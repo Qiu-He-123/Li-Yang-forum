@@ -161,6 +161,18 @@ export function adminListUsers(params: { page?: number; page_size?: number; keyw
   return http.get<unknown, { data: { code: number; msg: string; data: PageResp<AdminUser> } }>('/admin/users', { params })
 }
 
+export interface AdminUserBrief {
+  id: number
+  username: string
+  nickname: string
+  avatar_url: string | null
+  school: string | null
+}
+
+export function adminGetUser(userId: number) {
+  return http.get<unknown, { data: { code: number; msg: string; data: AdminUserBrief } }>(`/admin/users/${userId}`)
+}
+
 export function adminUpdateUser(userId: number, payload: Partial<AdminUser>) {
   return http.patch(`/admin/users/${userId}`, payload)
 }

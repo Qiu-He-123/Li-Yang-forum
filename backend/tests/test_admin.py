@@ -192,6 +192,17 @@ def test_admin_delete_post(client):
     assert resp["code"] == 0
 
 
+def test_admin_get_user_brief(client):
+    """管理端按用户 ID 查询简要信息（默认好友配置用）。"""
+    info = register(client, "brief_user")
+    _admin_login(client)
+    resp = client.get(f"/admin/users/{info['user_id']}").json()
+    assert resp["code"] == 0
+    assert resp["data"]["nickname"] == "测试员"
+    resp2 = client.get("/admin/users/999999").json()
+    assert resp2["code"] != 0
+
+
 def test_admin_login_lockout_after_failures(client, monkeypatch):
     """P0-3：连续失败达到阈值后，管理员账号被锁定。"""
     from app.services import rate_limit_service

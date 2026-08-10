@@ -130,6 +130,16 @@ def admin_users(
     return ok(admin_service.admin_users(db, page, page_size, keyword))
 
 
+@router.get("/users/{user_id}")
+def admin_get_user_brief(
+    user_id: int,
+    db: Session = Depends(get_db),
+    _: Admin = Depends(admin_user),
+) -> dict:
+    """按用户 ID 查询简要信息（默认好友配置用）。"""
+    return ok(admin_service.admin_get_user_brief(user_id, db))
+
+
 @router.patch("/users/{user_id}")
 def admin_update_user(
     user_id: int,
