@@ -83,6 +83,9 @@ def profile(user: User, db: Session, viewer: User | None = None) -> dict:
         result["is_following"] = False
         result["is_following_me"] = False
         result["is_mutual"] = False
+    # 标记默认好友（官方账号），前端聊天页/主页据此显示“官方账号”
+    from app.services.follow_service import _default_friend_id
+    result["is_default_friend"] = _default_friend_id(db) == user.id
     return result
 
 
@@ -121,6 +124,7 @@ def user_posts(user_id: int, db: Session, viewer_id: int | None = None, page: in
 
     私密帖子（is_public=False）仅作者本人可见，他人查询时直接过滤掉，
     避免出现「列表可见但详情 404」的不一致体验。
+    匿名帖子（is_anonymous=True）仅作者本人可见：他人无法通过主页定位到匿名帖作者。
 
     返回: {items, total, page, page_size}
     """
@@ -132,6 +136,7 @@ def user_posts(user_id: int, db: Session, viewer_id: int | None = None, page: in
         stmt = select(Post).where(
             Post.author_id == user_id,
             Post.is_draft.is_(False),
+            Post.is_anonymous.is_(False),
             or_(Post.is_public.is_(True), Post.author_id == viewer_id) if viewer_id else Post.is_public.is_(True),
         )
     # 总数（在排序/分页前计算）

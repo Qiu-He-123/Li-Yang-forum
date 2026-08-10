@@ -66,6 +66,7 @@ const inputRef = ref<HTMLInputElement | null>(null)
 
 // 权限状态
 const isMutual = ref(false)
+const isDefaultFriend = ref(false)
 const canSend = ref(true)
 const canSendReason = ref('')
 const remainingToday = ref(-1) // -1 表示无限制
@@ -118,6 +119,7 @@ async function loadMessagesInitial() {
     messages.value = next
     lastMsgFingerprint = buildMsgFingerprint(next)
     isMutual.value = payload.is_mutual ?? false
+    isDefaultFriend.value = payload.is_default_friend ?? false
     canSend.value = payload.can_send ?? true
     canSendReason.value = payload.can_send_reason ?? ''
     remainingToday.value = payload.remaining_today ?? -1
@@ -156,6 +158,7 @@ async function pollMessages() {
     }
     // 同步权限状态（可能有变化）
     isMutual.value = payload.is_mutual ?? false
+    isDefaultFriend.value = payload.is_default_friend ?? false
     canSend.value = payload.can_send ?? true
     canSendReason.value = payload.can_send_reason ?? ''
     remainingToday.value = payload.remaining_today ?? -1
@@ -197,6 +200,7 @@ async function onSend() {
     // 仅更新权限状态（stranger_once 模式下次数可能减少），不重新拉消息列表
     remainingToday.value = msg.remaining_today ?? remainingToday.value
     if (msg.is_mutual !== undefined) isMutual.value = msg.is_mutual
+    if (msg.is_default_friend !== undefined) isDefaultFriend.value = msg.is_default_friend
   } catch (err) {
     toast.error((err as Error).message)
     // 还原输入内容，方便用户复制
@@ -298,6 +302,7 @@ const inputPlaceholder = computed(() => {
 
 // 顶部副标题：显示关系
 const headerSubtitle = computed(() => {
+  if (isDefaultFriend.value) return '官方账号'
   if (isMutual.value) return '互相关注'
   if (!canSend.value) return canSendReason.value
   // 双向对话破冰后显示「已破冰」

@@ -63,8 +63,10 @@ def test_default_friend_mutual_and_locked(client):
             # 好友列表 / 消息栏置顶显示默认好友（无需真实好友或消息记录）
             friends = message_service.list_friends(db, ua)
             assert friends and friends[0]["user"]["id"] == ub.id
+            assert friends[0]["last_message"] == "默认好友（官方账号）"
             convs = message_service.list_conversations(db, ua)
             assert convs and convs[0]["user"]["id"] == ub.id
+            assert convs[0]["last_message"] == "默认好友（官方账号）"
     finally:
         with SessionLocal() as db:
             settings_service.set_setting(db, "default_friend_user_id", "")
@@ -74,3 +76,36 @@ def test_default_friend_mutual_and_locked(client):
         ua = db.get(User, a["user_id"])
         assert message_service.list_friends(db, ua) == []
         assert message_service.list_conversations(db, ua) == []
+
+
+def test_default_friend_conversation_shows_real_message(client):
+    """默认好友发来真实消息后：消息列表显示最后一条消息与未读数，而非占位文案。"""
+    from app.services import user_service
+
+    a = register(client, "df_msg_a")
+    b = register(client, "df_msg_b")
+    _set_default_friend(client, b["user_id"])
+    try:
+        with SessionLocal() as db:
+            ua = db.get(User, a["user_id"])
+            ub = db.get(User, b["user_id"])
+            # 官号 B 给 A 发一条真实消息
+            message_service.send_message(db, ub, ua.id, "你好呀，这是官方消息")
+
+            convs = message_service.list_conversations(db, ua)
+            assert convs and convs[0]["user"]["id"] == ub.id
+            assert convs[0]["last_message"] == "你好呀，这是官方消息"
+            assert convs[0]["unread_count"] == 1
+
+            friends = message_service.list_friends(db, ua)
+            assert friends and friends[0]["user"]["id"] == ub.id
+            assert friends[0]["last_message"] == "你好呀，这是官方消息"
+
+            # 聊天记录与资料接口都标记为默认好友（官方账号）
+            payload = message_service.get_messages(db, ua, ub.id)
+            assert payload["is_default_friend"] is True
+            profile = user_service.get_user(ub.id, db, viewer=ua)
+            assert profile["is_default_friend"] is True
+    finally:
+        with SessionLocal() as db:
+            settings_service.set_setting(db, "default_friend_user_id", "")
