@@ -150,8 +150,32 @@ def list_notifications(
         .offset((page - 1) * page_size)
         .limit(page_size)
     ).all()
+    items = [_notification_dict(n) for n in rows]
+    # 为帖子/评论类通知补充 post_id，前端跳转原帖用（评论的 reference_id 是 comment_id）
+    from app.models import Comment, Post
+
+    post_refs = {
+        n.reference_id for n in rows if n.reference_type == "post" and n.reference_id
+    }
+    comment_refs = {
+        n.reference_id for n in rows if n.reference_type == "comment" and n.reference_id
+    }
+    alive_posts = (
+        set(db.scalars(select(Post.id).where(Post.id.in_(post_refs)))) if post_refs else set()
+    )
+    comment_post: dict[int, int] = {}
+    if comment_refs:
+        for c in db.scalars(select(Comment).where(Comment.id.in_(comment_refs))):
+            comment_post[c.id] = c.post_id
+    for n, d in zip(rows, items):
+        if n.reference_type == "post":
+            d["post_id"] = n.reference_id if n.reference_id in alive_posts else None
+        elif n.reference_type == "comment":
+            d["post_id"] = comment_post.get(n.reference_id)
+        else:
+            d["post_id"] = None
     return {
-        "items": [_notification_dict(n) for n in rows],
+        "items": items,
         "total": total,
         "page": page,
         "page_size": page_size,

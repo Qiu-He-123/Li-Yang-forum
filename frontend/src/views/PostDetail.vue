@@ -548,7 +548,7 @@ onMounted(() => {
           title="举报"
           @click="reportDialogVisible = true"
         >
-          <Icon name="triangle-down" :size="16" />
+          <Icon name="flag" :size="17" />
         </button>
       </div>
     </header>
@@ -729,7 +729,7 @@ onMounted(() => {
                     "
                     @click="openMention(u)"
                   >
-                    <span v-if="!u.avatar_url">{{ (u.nickname || 'U').charAt(0).toUpperCase() }}</span>
+                    <span v-if="!u.avatar_url"><Icon name="user" :size="14" /></span>
                   </button>
                   <span class="meta-mentions-text">@他们</span>
                 </div>
@@ -1007,10 +1007,15 @@ onMounted(() => {
   background: var(--bg-200);
 }
 .icon-btn--report {
-  color: var(--error);
+  /* 大厂风格：默认低调中性灰，悬停/按压才转红，避免刺眼 */
+  color: var(--text-400);
 }
 .icon-btn--report:hover {
   background: rgba(255, 59, 48, 0.1);
+  color: var(--error);
+}
+.icon-btn--report:active {
+  background: rgba(255, 59, 48, 0.18);
   color: var(--error);
 }
 

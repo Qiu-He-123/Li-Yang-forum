@@ -13,6 +13,11 @@ import 'element-plus/es/components/message-box/style/css'
 import { mountToast } from './components/native/Toast'
 import { toast } from './components/native/Toast'
 
+// 手机 App（套壳 WebView）UA 标记：隐藏仅网页版才需要展示的入口
+if (typeof navigator !== 'undefined' && navigator.userAgent.includes('LYCommunityApp')) {
+  document.documentElement.classList.add('ly-app')
+}
+
 const app = createApp(App)
 
 function isChunkLoadError(err: unknown): boolean {

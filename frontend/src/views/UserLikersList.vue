@@ -174,7 +174,7 @@ watch(userId, () => {
             "
             @click="openUser(liker.id)"
           >
-            <span v-if="!liker.avatar_url">{{ liker.nickname.charAt(0).toUpperCase() }}</span>
+            <span v-if="!liker.avatar_url"><Icon name="user" :size="20" /></span>
           </div>
           <div class="liker-info" @click="openUser(liker.id)">
             <span class="liker-name">

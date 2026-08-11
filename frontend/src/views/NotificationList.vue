@@ -85,16 +85,6 @@ const { loading: scrollLoading, error: scrollError, retry: scrollRetry } = useIn
   containerSelector: '.page-notif-list',
 })
 
-/** 进入列表页即清除该分类的未读红点：标记该类型全部已读并刷新 store。 */
-async function clearUnreadDot() {
-  try {
-    await markAllNotificationsRead(currentType.value)
-    notificationStore.refreshUnread()
-  } catch {
-    /* 静默失败，不影响列表展示 */
-  }
-}
-
 async function onReadAll() {
   try {
     await markAllNotificationsRead(currentType.value)
@@ -124,13 +114,12 @@ async function onItemClick(item: NotificationItem) {
   }
   // 跳转到引用对象
   if (item.reference_type === 'post' && item.reference_id) {
-    router.push(`/post/${item.reference_id}`)
+    router.push(`/post/${item.post_id ?? item.reference_id}`)
   } else if (item.reference_type === 'user' && item.reference_id) {
     router.push(`/user/${item.reference_id}`)
   } else if (item.reference_type === 'comment' && item.reference_id) {
-    // 评论引用的 reference_id 是 comment_id，需要后端补 post_id
-    // 暂时跳到评论所在帖子（reference_id 作为 post_id 降级处理）
-    router.push(`/post/${item.reference_id}`)
+    // 评论引用的 reference_id 是 comment_id，用后端补的 post_id 跳到原帖
+    router.push(`/post/${item.post_id ?? item.reference_id}`)
   } else if (item.sender_id && currentType.value === 'follow') {
     router.push(`/user/${item.sender_id}`)
   } else {
@@ -169,16 +158,14 @@ function avatarGradient(id: number | null | undefined): string {
 }
 
 onMounted(async () => {
-  // 先加载列表展示，再后台清除该分类未读红点
+  // 只加载列表，不自动标记已读（红点只在真正点开单条时清除）
   await loadList()
-  clearUnreadDot()
 })
 
-// 切换分类时重新加载并清除该分类红点
+// 切换分类时重新加载（不自动清除红点）
 watch(currentType, async () => {
   page.value = 1
   await loadList()
-  clearUnreadDot()
 })
 </script>
 

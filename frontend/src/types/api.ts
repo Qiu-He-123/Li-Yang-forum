@@ -283,6 +283,8 @@ export interface NotificationItem {
   sender_avatar_url?: string | null
   reference_type?: string | null
   reference_id?: number | null
+  /** 帖子/评论类通知的原帖 id（评论通知的 reference_id 是 comment_id，需用 post_id 跳转） */
+  post_id?: number | null
   read_at?: string | null
   created_at?: string | null
 }
