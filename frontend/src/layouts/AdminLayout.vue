@@ -7,15 +7,56 @@
  * - 顶部面包屑 + 用户信息
  * - 分组导航菜单（概览 / 内容管理 / 用户 / 安全 / 系统）
  */
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 
 import { useAdminStore } from '../stores/admin'
+import { adminPendingCounts, type AdminPendingCounts } from '../api/admin'
 
 const router = useRouter()
 const route = useRoute()
 const admin = useAdminStore()
+
+// 待处理事项数量（侧边栏红点）
+const pendingCounts = ref<AdminPendingCounts>({
+  posts: 0,
+  comments: 0,
+  reports: 0,
+  images: 0,
+  bottles: 0,
+  appeals: 0,
+  feedback: 0,
+  verifications: 0,
+})
+const PENDING_POLL_INTERVAL = 60_000
+let pendingTimer: ReturnType<typeof setInterval> | null = null
+
+const badgeKeyMap: Record<string, string> = {
+  '/admin/posts-audit': 'posts',
+  '/admin/comments-audit': 'comments',
+  '/admin/reports': 'reports',
+  '/admin/images-audit': 'images',
+  '/admin/bottles-audit': 'bottles',
+  '/admin/appeals': 'appeals',
+  '/admin/feedback': 'feedback',
+  '/admin/verifications-audit': 'verifications',
+}
+
+function menuBadge(index: string): number {
+  const key = badgeKeyMap[index] as keyof AdminPendingCounts | undefined
+  return key ? pendingCounts.value[key] ?? 0 : 0
+}
+
+async function loadPendingCounts() {
+  if (!admin.isLogged()) return
+  try {
+    const { data } = await adminPendingCounts()
+    pendingCounts.value = data.data
+  } catch {
+    // 静默失败：红点不展示也不影响菜单使用
+  }
+}
 
 interface MenuItem {
   index: string
@@ -40,15 +81,15 @@ const menuGroups = computed<MenuGroup[]>(() => [
     items: [
       { index: '/admin/posts', label: '帖子管理', icon: '📝' },
       { index: '/admin/comments', label: '评论管理', icon: '💬' },
-      { index: '/admin/posts-audit', label: '帖子审核', icon: '🔍' },
-      { index: '/admin/comments-audit', label: '评论审核', icon: '🔎' },
+      { index: '/admin/posts-audit', label: '帖子审核', icon: '🔍', badge: menuBadge('/admin/posts-audit') },
+      { index: '/admin/comments-audit', label: '评论审核', icon: '🔎', badge: menuBadge('/admin/comments-audit') },
       { index: '/admin/circles-audit', label: '吧审核', icon: '🏷️' },
-      { index: '/admin/reports', label: '举报处理', icon: '🚩' },
+      { index: '/admin/reports', label: '举报处理', icon: '🚩', badge: menuBadge('/admin/reports') },
       { index: '/admin/announcements', label: '公告管理', icon: '📢' },
       { index: '/admin/badges', label: '徽章管理', icon: '🏅' },
       { index: '/admin/badge-rules', label: '徽章自动发放', icon: '🤖' },
-      { index: '/admin/images-audit', label: '图片审核', icon: '🖼️' },
-      { index: '/admin/bottles-audit', label: '漂流瓶审核', icon: '🍾' },
+      { index: '/admin/images-audit', label: '图片审核', icon: '🖼️', badge: menuBadge('/admin/images-audit') },
+      { index: '/admin/bottles-audit', label: '漂流瓶审核', icon: '🍾', badge: menuBadge('/admin/bottles-audit') },
       { index: '/admin/explore', label: '推荐探索', icon: '🚀' },
     ],
   },
@@ -56,11 +97,11 @@ const menuGroups = computed<MenuGroup[]>(() => [
     title: '用户与安全',
     items: [
       { index: '/admin/users', label: '用户管理', icon: '👤' },
-      { index: '/admin/verifications-audit', label: '学生认证审核', icon: '🎓' },
+      { index: '/admin/verifications-audit', label: '学生认证审核', icon: '🎓', badge: menuBadge('/admin/verifications-audit') },
       { index: '/admin/seed-codes', label: '种子邀请码', icon: '🎫' },
       { index: '/admin/ban-records', label: '封号管理', icon: '🔨' },
-      { index: '/admin/appeals', label: '申诉管理', icon: '✊' },
-      { index: '/admin/feedback', label: '反馈管理', icon: '📩' },
+      { index: '/admin/appeals', label: '申诉管理', icon: '✊', badge: menuBadge('/admin/appeals') },
+      { index: '/admin/feedback', label: '反馈管理', icon: '📩', badge: menuBadge('/admin/feedback') },
     ],
   },
   {
@@ -116,6 +157,15 @@ onMounted(() => {
   router.afterEach(() => {
     mobileMenuOpen.value = false
   })
+  loadPendingCounts()
+  pendingTimer = setInterval(loadPendingCounts, PENDING_POLL_INTERVAL)
+})
+
+onUnmounted(() => {
+  if (pendingTimer) {
+    clearInterval(pendingTimer)
+    pendingTimer = null
+  }
 })
 </script>
 
@@ -147,6 +197,7 @@ onMounted(() => {
           >
             <span class="menu-icon">{{ item.icon }}</span>
             <span v-if="!collapsed" class="menu-label">{{ item.label }}</span>
+            <span v-if="item.badge" class="menu-badge">{{ item.badge > 99 ? '99+' : item.badge }}</span>
           </button>
         </div>
       </nav>
@@ -244,6 +295,7 @@ onMounted(() => {
   letter-spacing: 0.5px;
 }
 .menu-item {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 10px;
@@ -256,6 +308,33 @@ onMounted(() => {
   cursor: pointer;
   transition: all 0.15s;
   text-align: left;
+}
+.menu-badge {
+  margin-left: auto;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: #ff4d4f;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 18px;
+  text-align: center;
+  flex-shrink: 0;
+}
+.admin-sidebar.collapsed .menu-badge {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  width: 8px;
+  height: 8px;
+  min-width: 8px;
+  padding: 0;
+  border-radius: 50%;
+  font-size: 0;
+  line-height: 8px;
+  margin-left: 0;
 }
 .menu-item:hover {
   background: rgba(255, 255, 255, 0.06);

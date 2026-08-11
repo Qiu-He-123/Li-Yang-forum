@@ -36,10 +36,45 @@ export interface AdminStats {
   trend_7d: Array<{ date: string; posts: number; users: number }>
   circle_distribution: Array<{ name: string; count: number }>
   report_status: Record<string, number>
+  visits: {
+    total: number
+    unique_ips: number
+    today: number
+    today_unique_ips: number
+    trend_7d: Array<{ date: string; visits: number; unique_ips: number }>
+  }
+  hot_posts: Array<{
+    rank: number
+    id: number
+    title: string
+    category: string
+    author: string
+    like_count: number
+    comment_count: number
+    view_count: number
+    heat: number
+  }>
 }
 
 export function adminStats() {
   return http.get<unknown, { data: { code: number; msg: string; data: AdminStats } }>('/admin/stats')
+}
+
+export interface AdminPendingCounts {
+  posts: number
+  comments: number
+  reports: number
+  images: number
+  bottles: number
+  appeals: number
+  feedback: number
+  verifications: number
+}
+
+export function adminPendingCounts() {
+  return http.get<unknown, { data: { code: number; msg: string; data: AdminPendingCounts } }>(
+    '/admin/pending-counts',
+  )
 }
 
 // ============ 帖子 ============
@@ -182,6 +217,7 @@ export function adminAuditComment(commentId: number, aiStatus: string, rejectRea
 
 export interface AdminUser {
   id: number
+  username: string | null
   nickname: string
   phone: string
   school: string | null

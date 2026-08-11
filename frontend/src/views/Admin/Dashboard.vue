@@ -82,6 +82,40 @@ const overviewCards = computed(() => {
   ]
 })
 
+// 网站访问统计卡
+const visitCards = computed(() => {
+  if (!stats.value) return []
+  const v = stats.value.visits
+  return [
+    {
+      key: 'visits',
+      label: '总访问次数',
+      value: v.total,
+      today: v.today,
+      todayLabel: '今日',
+      icon: '🌐',
+      color: '#13c2c2',
+      bg: '#e6fffb',
+    },
+    {
+      key: 'unique',
+      label: '独立 IP 数',
+      value: v.unique_ips,
+      today: v.today_unique_ips,
+      todayLabel: '今日',
+      icon: '🖥️',
+      color: '#722ed1',
+      bg: '#f9f0ff',
+    },
+  ]
+})
+
+// 访问趋势 + 帖子热度
+const visitTrendData = computed(() => stats.value?.visits.trend_7d || [])
+const visitMax = computed(() => Math.max(1, ...visitTrendData.value.map((d) => d.visits)))
+const hotPosts = computed(() => stats.value?.hot_posts || [])
+const hotMax = computed(() => Math.max(1, ...hotPosts.value.map((p) => p.heat)))
+
 // 待办事项
 const pendingItems = computed(() => {
   if (!stats.value) return []
@@ -195,6 +229,29 @@ onMounted(() => load())
       </div>
     </div>
 
+    <!-- 网站访问统计 -->
+    <div class="stat-cards stat-cards--visits">
+      <div
+        v-for="card in visitCards"
+        :key="card.key"
+        class="stat-card"
+      >
+        <div class="stat-card-icon" :style="{ background: card.bg, color: card.color }">
+          {{ card.icon }}
+        </div>
+        <div class="stat-card-body">
+          <div class="stat-card-label">{{ card.label }}</div>
+          <div class="stat-card-value" :style="{ color: card.color }">{{ fmtNumber(card.value) }}</div>
+          <div class="stat-card-today">
+            <span class="today-label">{{ card.todayLabel }}</span>
+            <span class="today-value" :style="{ color: card.today > 0 ? card.color : '#8c8c8c' }">
+              {{ card.today }}
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- 中部：趋势图 + 圈子分布 -->
     <div class="chart-row">
       <!-- 7 天趋势图 -->
@@ -257,6 +314,62 @@ onMounted(() => load())
             </div>
           </div>
           <div v-else class="chart-empty">暂无分布数据</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 访问趋势 + 帖子热度排行 -->
+    <div class="chart-row chart-row--visits">
+      <!-- 近 7 天访问趋势 -->
+      <div class="chart-card">
+        <div class="chart-header">
+          <h3 class="chart-title">近 7 天访问趋势</h3>
+          <div class="chart-legend">
+            <span class="legend-item"><i class="legend-dot" style="background: #13c2c2"></i>访问次数</span>
+            <span class="legend-item"><i class="legend-dot" style="background: #722ed1"></i>独立 IP</span>
+          </div>
+        </div>
+        <div class="chart-body">
+          <div v-if="visitTrendData.length" class="bar-chart">
+            <div v-for="d in visitTrendData" :key="d.date" class="bar-row">
+              <span class="bar-label" :title="d.date">{{ d.date }}</span>
+              <div class="bar-track">
+                <div
+                  class="bar-fill"
+                  :style="{ width: (d.visits / visitMax * 100) + '%', background: '#13c2c2' }"
+                >
+                  <span class="bar-value">{{ d.visits }}</span>
+                </div>
+              </div>
+              <span class="bar-sub">{{ d.unique_ips }} IP</span>
+            </div>
+          </div>
+          <div v-else class="chart-empty">暂无访问数据</div>
+        </div>
+      </div>
+
+      <!-- 帖子热度排行 -->
+      <div class="chart-card">
+        <div class="chart-header">
+          <h3 class="chart-title">帖子热度排行（Top 10）</h3>
+        </div>
+        <div class="chart-body">
+          <div v-if="hotPosts.length" class="hot-list">
+            <div v-for="p in hotPosts" :key="p.id" class="hot-item">
+              <span class="hot-rank" :class="{ 'hot-rank--top': p.rank <= 3 }">{{ p.rank }}</span>
+              <span class="hot-info">
+                <span class="hot-title" :title="p.title">{{ p.title || `#${p.id}` }}</span>
+                <span class="hot-meta">
+                  {{ p.author }} · {{ p.category }} · 👍{{ p.like_count }} 💬{{ p.comment_count }} 👁{{ p.view_count }}
+                </span>
+              </span>
+              <span class="hot-heat">
+                <span class="hot-heat-bar" :style="{ width: (p.heat / hotMax * 100) + '%' }"></span>
+                <span class="hot-heat-num">{{ p.heat }}</span>
+              </span>
+            </div>
+          </div>
+          <div v-else class="chart-empty">暂无热度数据</div>
         </div>
       </div>
     </div>
@@ -418,6 +531,9 @@ onMounted(() => load())
 .today-value {
   font-weight: 600;
 }
+.stat-cards--visits {
+  margin-bottom: 24px;
+}
 
 /* 图表行 */
 .chart-row {
@@ -428,6 +544,9 @@ onMounted(() => load())
 }
 .chart-row:last-child {
   grid-template-columns: 1fr 1fr 1fr;
+}
+.chart-row--visits {
+  grid-template-columns: 1fr 1fr;
 }
 .chart-card {
   background: #fff;
@@ -525,6 +644,82 @@ onMounted(() => load())
   font-size: 11px;
   color: #fff;
   font-weight: 600;
+}
+.bar-sub {
+  width: 52px;
+  flex-shrink: 0;
+  font-size: 11px;
+  color: #8c8c8c;
+  text-align: right;
+}
+
+/* 帖子热度排行 */
+.hot-list {
+  padding: 6px 16px 10px;
+}
+.hot-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 0;
+  border-bottom: 1px dashed #f0f0f0;
+}
+.hot-item:last-child {
+  border-bottom: none;
+}
+.hot-rank {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 12px;
+  font-weight: 700;
+  background: #f5f5f5;
+  color: #8c8c8c;
+  flex-shrink: 0;
+}
+.hot-rank--top {
+  background: #ff4d4f;
+  color: #fff;
+}
+.hot-info {
+  flex: 1;
+  min-width: 0;
+}
+.hot-title {
+  display: block;
+  font-size: 13px;
+  font-weight: 500;
+  color: #1f1f1f;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.hot-meta {
+  display: block;
+  font-size: 11px;
+  color: #8c8c8c;
+}
+.hot-heat {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 72px;
+}
+.hot-heat-bar {
+  height: 6px;
+  border-radius: 3px;
+  background: linear-gradient(90deg, #ff9c6e, #ff4d4f);
+  min-width: 2px;
+}
+.hot-heat-num {
+  font-size: 12px;
+  font-weight: 600;
+  color: #595959;
+  min-width: 26px;
+  text-align: right;
 }
 
 /* 待办 */

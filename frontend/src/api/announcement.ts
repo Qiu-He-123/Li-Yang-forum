@@ -29,3 +29,16 @@ export function fetchHomeStats(config: LoadingAxiosRequestConfig = {}) {
 export function fetchBottleStats(config: LoadingAxiosRequestConfig = {}) {
   return http.get<unknown, { data: { code: number; msg: string; data: { online_count: number; matching_count: number; total_bottles: number; today_picks: number } } }>('/stats/bottle', config)
 }
+
+/** 上报一次网站访问（App 挂载时调用一次，后台用于访问次数 / 独立 IP 统计） */
+export function recordVisit() {
+  const config: LoadingAxiosRequestConfig = {
+    showGlobalLoading: false,
+    showGlobalError: false,
+  }
+  return http.post<unknown, { data: { code: number; msg: string; data: { recorded: boolean } } }>(
+    '/stats/visit',
+    undefined,
+    config,
+  )
+}

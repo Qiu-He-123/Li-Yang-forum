@@ -42,6 +42,12 @@ def admin_stats(db: Session = Depends(get_db), _: Admin = Depends(admin_user)) -
     return ok(admin_service.admin_stats(db))
 
 
+@router.get("/pending-counts")
+def admin_pending_counts(db: Session = Depends(get_db), _: Admin = Depends(admin_user)) -> dict:
+    """后台各待处理事项数量（侧边栏红点提醒）。"""
+    return ok(admin_service.admin_pending_counts(db))
+
+
 # ============ 帖子管理 ============
 
 @router.get("/posts")

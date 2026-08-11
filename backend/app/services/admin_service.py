@@ -24,15 +24,19 @@ from app.models import (
     AuditLog,
     Badge,
     BanRecord,
+    Bottle,
     Comment,
+    Feedback,
     Image,
     LoginLog,
     Notification,
     OperationLog,
     Post,
     Report,
+    StudentVerification,
     User,
     UserBadge,
+    VisitLog,
 )
 from app.schemas.interactions import AnnouncementCreate
 from app.services.audit_log import log_admin_action
@@ -109,6 +113,8 @@ def admin_stats(db: Session) -> dict:
     - 近 7 天趋势：每天发帖数、注册数
     - 圈子分布：各圈子帖子数（前 8）
     - 举报状态分布
+    - 访问统计：总访问次数 / 独立 IP（含近 7 天趋势）
+    - 帖子热度排行：按点赞 + 评论 + 浏览加权的前 10
     """
     # 核心指标
     user_count = db.scalar(select(func.count(User.id))) or 0
@@ -176,6 +182,60 @@ def admin_stats(db: Session) -> dict:
     ).all()
     report_status = {r[0]: int(r[1]) for r in report_status_rows}
 
+    # 网站访问统计（visit_logs）
+    visit_total = db.scalar(select(func.count(VisitLog.id))) or 0
+    visit_unique_ips = db.scalar(select(func.count(func.distinct(VisitLog.ip)))) or 0
+    visit_today = db.scalar(
+        select(func.count(VisitLog.id)).where(VisitLog.created_at >= today_start)
+    ) or 0
+    visit_today_unique = db.scalar(
+        select(func.count(func.distinct(VisitLog.ip))).where(VisitLog.created_at >= today_start)
+    ) or 0
+    visit_trend = []
+    for i in range(6, -1, -1):
+        day_start = today_start - timedelta(days=i)
+        day_end = day_start + timedelta(days=1)
+        day_visits = db.scalar(
+            select(func.count(VisitLog.id)).where(
+                VisitLog.created_at >= day_start, VisitLog.created_at < day_end
+            )
+        ) or 0
+        day_unique = db.scalar(
+            select(func.count(func.distinct(VisitLog.ip))).where(
+                VisitLog.created_at >= day_start, VisitLog.created_at < day_end
+            )
+        ) or 0
+        visit_trend.append({
+            "date": to_beijing(day_start).strftime("%m-%d"),
+            "visits": int(day_visits),
+            "unique_ips": int(day_unique),
+        })
+
+    # 帖子热度排行：点赞 + 评论×3 + 浏览（已发布且审核通过）
+    hot_rows = db.scalars(
+        select(Post)
+        .where(
+            Post.is_draft.is_(False),
+            Post.is_public.is_(True),
+            Post.ai_status == "approved",
+        )
+        .order_by(desc(Post.like_count + Post.comment_count * 3 + Post.view_count))
+        .limit(10)
+    ).all()
+    hot_posts = []
+    for i, p in enumerate(hot_rows, 1):
+        hot_posts.append({
+            "rank": i,
+            "id": p.id,
+            "title": (p.title or p.content or "")[:50],
+            "category": p.category,
+            "author": p.author.nickname if p.author else "",
+            "like_count": p.like_count or 0,
+            "comment_count": p.comment_count or 0,
+            "view_count": p.view_count or 0,
+            "heat": int((p.like_count or 0) + (p.comment_count or 0) * 3 + (p.view_count or 0)),
+        })
+
     return {
         "overview": {
             "user_count": int(user_count),
@@ -196,6 +256,38 @@ def admin_stats(db: Session) -> dict:
         "trend_7d": trend,
         "circle_distribution": circle_dist,
         "report_status": report_status,
+        "visits": {
+            "total": int(visit_total),
+            "unique_ips": int(visit_unique_ips),
+            "today": int(visit_today),
+            "today_unique_ips": int(visit_today_unique),
+            "trend_7d": visit_trend,
+        },
+        "hot_posts": hot_posts,
+    }
+
+
+def admin_pending_counts(db: Session) -> dict:
+    """后台各待处理事项数量（用于侧边栏红点提醒）。"""
+    def _count(model, column, value):
+        return db.scalar(select(func.count(model.id)).where(column == value)) or 0
+
+    return {
+        # 帖子/评论：AI 审核中 + 转人工复核都算「未审核完」
+        "posts": db.scalar(
+            select(func.count(Post.id)).where(Post.ai_status.in_(["pending", "manual_review"]))
+        ) or 0,
+        "comments": db.scalar(
+            select(func.count(Comment.id)).where(Comment.ai_status.in_(["pending", "manual_review"]))
+        ) or 0,
+        "reports": _count(Report, Report.status, "pending"),
+        "images": _count(Image, Image.audit_status, "pending"),
+        "bottles": db.scalar(
+            select(func.count(Bottle.id)).where(Bottle.audit_status.in_(["pending", "manual_review"]))
+        ) or 0,
+        "appeals": _count(Appeal, Appeal.status, "pending"),
+        "feedback": _count(Feedback, Feedback.status, "pending"),
+        "verifications": _count(StudentVerification, StudentVerification.status, "pending"),
     }
 
 
@@ -488,7 +580,11 @@ def admin_users(db: Session, page: int = 1, page_size: int = 20, keyword: str | 
     query = select(User).order_by(desc(User.created_at))
     if keyword:
         like = f"%{keyword}%"
-        query = query.where(User.nickname.contains(keyword) | User.phone.contains(like))
+        query = query.where(
+            User.nickname.contains(keyword)
+            | User.username.contains(keyword)
+            | User.phone.contains(like)
+        )
 
     total = db.scalar(select(func.count()).select_from(query.subquery())) or 0
     rows = db.scalars(query.offset((page - 1) * page_size).limit(page_size)).all()
@@ -529,6 +625,7 @@ def _user_dict(u: User, db: Session | None = None) -> dict:
         ]
     return {
         "id": u.id,
+        "username": u.username,
         "nickname": u.nickname,
         "phone": u.phone,
         "school": u.school.name if u.school else None,

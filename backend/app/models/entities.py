@@ -946,3 +946,14 @@ class FeedImpressionLog(Base):
     scene: Mapped[str] = mapped_column(String(20), default="post_feed", index=True)
     page: Mapped[int] = mapped_column(Integer, default=1)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), index=True)
+
+
+class VisitLog(Base, TimestampMixin):
+    """网站访问记录：前端每次打开页面记录一行，用于后台访问次数 / 独立 IP 统计。"""
+
+    __tablename__ = "visit_logs"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    ip: Mapped[str] = mapped_column(String(45), index=True)
+    user_agent: Mapped[str | None] = mapped_column(String(255), default=None)
+    path: Mapped[str | None] = mapped_column(String(255), default=None)

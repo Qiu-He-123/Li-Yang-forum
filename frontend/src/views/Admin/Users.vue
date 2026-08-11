@@ -143,7 +143,7 @@ onMounted(() => load())
     <div class="filter-card">
       <el-input
         v-model="filter.keyword"
-        placeholder="搜索昵称 / 手机号"
+        placeholder="搜索昵称 / 账号 / 手机号"
         clearable
         style="width: 260px"
         @keyup.enter="onSearch"
@@ -155,6 +155,9 @@ onMounted(() => load())
     <div class="table-card">
       <el-table :data="list" border stripe style="width: 100%">
         <el-table-column prop="id" label="ID" width="80" fixed />
+        <el-table-column label="用户账号" width="140">
+          <template #default="{ row }">{{ row.username || '—' }}</template>
+        </el-table-column>
         <el-table-column label="用户" min-width="200">
           <template #default="{ row }">
             <div class="user-cell">

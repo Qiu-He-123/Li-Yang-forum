@@ -7,6 +7,7 @@ import { useSessionStore } from './stores/session'
 import { useNotificationStore } from './stores/notification'
 import { useUIStore } from './stores/ui'
 import { connectWs, wsClient } from './utils/ws'
+import { recordVisit } from './api/announcement'
 
 // 弹窗类组件改为异步加载：避免 element-plus 被打入首屏主 chunk（EP ~400KB）
 // 用户点击登录/收到邀请码提示/查看公告时才发起 chunk 下载，首屏只加载原生组件
@@ -116,6 +117,8 @@ watch(() => session.isBanned, (banned) => {
 const BAN_CHECK_INTERVAL = 45_000
 let banCheckTimer: ReturnType<typeof setInterval> | null = null
 onMounted(async () => {
+  // 网站访问统计：每次打开站点上报一次（后台数据看板统计访问次数 / 独立 IP）
+  recordVisit().catch(() => {})
   // 通知未读数：登录态下立即拉取 + 启动轮询（全局，不依赖 AppHeader）
   // 封号用户跳过：避免在 /banned 页无意义轮询
   // 挂载时立即验证一次 session（封号/解封实时生效），避免等到 45s 后才触发
