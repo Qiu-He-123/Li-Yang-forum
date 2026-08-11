@@ -352,24 +352,10 @@ app.add_api_route(
     methods=["GET"],
     tags=["app"],
 )
-# 下载信息（更新地址/密码），供前端下载弹窗展示
-app.add_api_route(
-    "/api/app-download/info",
-    app_download.app_download_info,
-    methods=["GET"],
-    tags=["app"],
-)
 # 开发模式 Vite 代理会剥掉 /api 前缀，这里再注册一个不带前缀的等价路径
 app.add_api_route(
     "/app-download",
     app_download.app_download,
-    methods=["GET"],
-    tags=["app"],
-    include_in_schema=False,
-)
-app.add_api_route(
-    "/app-download/info",
-    app_download.app_download_info,
     methods=["GET"],
     tags=["app"],
     include_in_schema=False,
