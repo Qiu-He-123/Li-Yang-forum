@@ -121,7 +121,6 @@ const funcGrid = computed(() => {
   { icon: 'sparkles', color: '#34c759', label: '我创建的吧', to: '/my/circles-applied' },
   { icon: 'gift', color: '#00c7be', label: '每日签到', to: '/my/checkin' },
   { icon: 'medal', color: '#f7b500', label: '我的徽章', to: '/my/badges' },
-  { icon: 'creditcard', color: '#ff6b35', label: '校园卡', to: '' },
   ]
   // 邀请码：未认证显示「填写邀请码」，已认证显示「分享邀请码」
   const inviteItem = session.isVerified()
@@ -562,13 +561,44 @@ function onFuncClick(item: (typeof funcGrid.value)[number]) {
   router.push(item.to)
 }
 
-function openPost(post: Post) {
-  if (post.is_viewable === false) {
-    toast.info(post.content || '审核中，暂无法查看原文')
-    return
+  function openPost(post: Post) {
+    if (post.is_viewable === false) {
+      toast.info(post.content || '审核中，暂无法查看原文')
+      return
+    }
+    router.push(`/post/${post.id}`)
   }
-  router.push(`/post/${post.id}`)
-}
+
+  /** 分享主页：优先调用系统分享，不可用则复制链接 */
+  async function onShareProfile() {
+    if (!userId.value || isNaN(userId.value)) return
+    const url = `${window.location.origin}/user/${userId.value}`
+    const title = `${displayName.value}的主页 - 立洋社区`
+    if (typeof navigator.share === 'function') {
+      try {
+        await navigator.share({ title, text: title, url })
+        return
+      } catch {
+        // 用户取消分享，静默
+        return
+      }
+    }
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(url)
+      } else {
+        const ta = document.createElement('textarea')
+        ta.value = url
+        document.body.appendChild(ta)
+        ta.select()
+        document.execCommand('copy')
+        document.body.removeChild(ta)
+      }
+      toast.success('主页链接已复制')
+    } catch {
+      toast.error('复制失败，请重试')
+    }
+  }
 
 function editProfile() {
   router.push('/settings')
@@ -787,7 +817,12 @@ onMounted(async () => {
               私信
             </button>
           </template>
-          <button v-if="isMe" class="btn-pill btn-pill--outline" type="button">
+          <button
+            v-if="isMe"
+            class="btn-pill btn-pill--outline"
+            type="button"
+            @click="onShareProfile"
+          >
             <Icon name="share" :size="14" />
             分享主页
           </button>
