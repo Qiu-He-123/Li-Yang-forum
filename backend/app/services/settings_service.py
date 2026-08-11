@@ -39,6 +39,8 @@ _DEFAULTS: dict[str, str] = {
     "feed_mmr_max_per_category": "6",
     "comment_explore_enabled": "true",
     "comment_explore_rate": "0.15",
+    # ============ 首页滚动字幕 ============
+    "home_marquee": "",
 }
 
 _DESC: dict[str, str] = {
@@ -60,6 +62,7 @@ _DESC: dict[str, str] = {
     "feed_mmr_max_per_category": "热门页单圈子最多展示条数（默认 6，防止热门页被单一圈子刷屏）",
     "comment_explore_enabled": "是否启用评论探索：帖子「最热」评论页按比例插入低赞新评论",
     "comment_explore_rate": "评论探索比例 ε（0-0.5，默认 0.15）",
+    "home_marquee": "首页顶部滚动字幕内容（每行一条，留空关闭）",
 }
 
 

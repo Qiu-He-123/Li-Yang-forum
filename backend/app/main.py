@@ -12,7 +12,7 @@ from sqlalchemy import select
 from app.api.routes import (
     admin, announcements, auth, badges, bottles, browse_history, circle_apply, circles, checkin,
     comments, deepseek, feedback, follows, images, interactions, match, messages, notifications,
-    polls, posts, schools, search, stats, topics, users, ws,
+    polls, posts, schools, search, settings as settings_router, stats, topics, users, ws,
 )
 from app.api.deps import extract_ip
 from app.core.config import get_settings
@@ -353,6 +353,7 @@ app.include_router(notifications.router)
 app.include_router(circle_apply.router)
 app.include_router(circles.router)
 app.include_router(search.router)
+app.include_router(settings_router.router)
 app.include_router(follows.router)
 app.include_router(messages.router)
 app.include_router(checkin.router)

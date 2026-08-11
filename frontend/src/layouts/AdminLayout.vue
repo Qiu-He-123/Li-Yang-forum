@@ -68,7 +68,7 @@ const menuGroups = computed<MenuGroup[]>(() => [
     items: [
       { index: '/admin/deepseek', label: 'AI 审核配置', icon: '🤖' },
       { index: '/admin/warning-config', label: '警告值配置', icon: '⚠️' },
-      { index: '/admin/system-settings', label: '默认好友配置', icon: '👥' },
+      { index: '/admin/system-settings', label: '其他设置', icon: '🧩' },
     ],
   },
   {

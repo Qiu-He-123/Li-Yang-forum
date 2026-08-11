@@ -32,6 +32,7 @@ import { useAnnouncementStore } from '../stores/announcement'
 import { useInteractionStore } from '../stores/interaction'
 import { viewPost } from '../api/post'
 import { fetchHomeStats } from '../api/announcement'
+import { fetchPublicSettings } from '../api/settings'
 import { formatRelative } from '../utils/time'
 import type { Circle, Post } from '../types/api'
 
@@ -81,6 +82,24 @@ const { loading: loadMoreLoading, error: loadMoreError, retry: retryLoadMore } =
 // 首页透明统计：在线人数 / 今日发帖 / 注册人数
 const homeStats = ref({ online_count: 0, logged_in_count: 0, visitor_count: 0, today_post_count: 0, total_users: 0 })
 let homeStatsTimer: ReturnType<typeof setInterval> | null = null
+
+// 首页顶部滚动字幕（后台「其他设置」配置；为空则不显示）
+const marqueeItems = ref<string[]>([])
+const marqueeChunks = computed(() => {
+  if (!marqueeItems.value.length) return []
+  const joined = marqueeItems.value.join('　·　')
+  // 内容复制一份，配合 translateX(-50%) 实现无缝循环
+  return [joined, joined]
+})
+
+async function loadMarquee() {
+  try {
+    const { data } = await fetchPublicSettings()
+    marqueeItems.value = data.data.marquee_items || []
+  } catch {
+    marqueeItems.value = []
+  }
+}
 
 async function loadHomeStats() {
   try {
@@ -189,6 +208,7 @@ onMounted(async () => {
     announcementStore.loadAnnouncements(),
     circleStore.loadCircles(),
     loadHomeStats(),
+    loadMarquee(),
   ])
   // 在线人数定时刷新（30s），让首页统计实时反映在线状态
   homeStatsTimer = setInterval(loadHomeStats, 30_000)
@@ -382,6 +402,18 @@ onUnmounted(() => {
 
     <!-- ====== 主内容 ====== -->
     <div class="page-container">
+      <!-- ====== 滚动字幕：后台「其他设置」配置，空则不显示 ====== -->
+      <div v-if="marqueeChunks.length" class="home-marquee" role="marquee" aria-label="滚动公告">
+        <span class="marquee-icon" aria-hidden="true">
+          <Icon name="megaphone" :size="15" />
+        </span>
+        <div class="marquee-viewport">
+          <div class="marquee-track">
+            <span v-for="(chunk, i) in marqueeChunks" :key="i" class="marquee-chunk">{{ chunk }}</span>
+          </div>
+        </div>
+      </div>
+
       <!-- ====== 特色入口：随机交友（独占一行）+ 表白墙/匿名树洞（并列）====== -->
       <section class="feature-entry" aria-label="特色功能">
         <!-- 随机交友：主卡片，独占一行 -->
@@ -676,6 +708,61 @@ onUnmounted(() => {
   max-width: 1200px;
   margin: 0 auto;
   padding: 20px 20px calc(56px + env(safe-area-inset-bottom));
+}
+
+/* MARQUEE（滚动字幕：顶部公告条，细长不遮挡主内容） */
+.home-marquee {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 36px;
+  margin: 0 0 16px;
+  padding: 0 10px 0 8px;
+  background: linear-gradient(90deg, var(--brand-50), #eef6ff 55%, var(--bg-50));
+  border: 0.5px solid rgba(0, 122, 255, 0.14);
+  border-radius: 12px;
+  overflow: hidden;
+}
+.marquee-icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 8px;
+  background: var(--bg-50);
+  color: var(--brand-500);
+  box-shadow: var(--shadow-2xs);
+}
+.marquee-viewport {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 6%, #000 94%, transparent);
+  mask-image: linear-gradient(90deg, transparent, #000 6%, #000 94%, transparent);
+}
+.marquee-track {
+  display: inline-flex;
+  white-space: nowrap;
+  will-change: transform;
+  animation: marquee-scroll 24s linear infinite;
+}
+.marquee-chunk {
+  padding-right: 32px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-600);
+  letter-spacing: 0.01em;
+}
+.home-marquee:hover .marquee-track {
+  animation-play-state: paused;
+}
+@keyframes marquee-scroll {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .marquee-track { animation: none; }
 }
 
 /* FEATURE ENTRY (随机交友主卡 + 表白墙/匿名树洞并列) */
@@ -1233,6 +1320,8 @@ onUnmounted(() => {
   .icon-btn { width: 34px; height: 34px; }
   .icon-btn :deep(svg) { width: 19px; height: 19px; }
   .page-container { padding: 14px 12px 24px; }
+  .home-marquee { height: 34px; margin-bottom: 14px; }
+  .marquee-chunk { font-size: 12px; }
   .feature-entry { margin-bottom: 18px; gap: 8px; }
   .feature-card { padding: 14px 14px; }
   .feature-card--main { padding: 18px 14px; }
