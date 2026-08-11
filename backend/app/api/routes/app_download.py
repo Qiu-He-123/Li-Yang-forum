@@ -59,4 +59,10 @@ def app_download(request: Request, db: Session = Depends(get_db)):
         apk,
         media_type="application/vnd.android.package-archive",
         filename=apk.name,
+        # 禁止浏览器缓存：每次点击都拿服务器上的最新 APK，避免下到旧包
+        headers={
+            "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+            "Pragma": "no-cache",
+            "Expires": "0",
+        },
     )
