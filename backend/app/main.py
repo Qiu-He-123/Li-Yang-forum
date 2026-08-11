@@ -10,7 +10,7 @@ from loguru import logger
 from sqlalchemy import select
 
 from app.api.routes import (
-    admin, announcements, auth, badges, bottles, browse_history, circle_apply, circles, checkin,
+    admin, announcements, app_download, auth, badges, bottles, browse_history, circle_apply, circles, checkin,
     comments, deepseek, feedback, follows, images, interactions, match, messages, notifications,
     polls, posts, schools, search, settings as settings_router, stats, topics, users, ws,
 )
@@ -338,6 +338,22 @@ def _init_badges(db) -> None:
 
 
 app.include_router(auth.router)
+# FastAPI 0.141 的 include_router 懒加载与 SPA 通配路由 /{full_path:path} 有冲突，
+# 下载接口改为直接注册，保证在通配路由之前命中
+app.add_api_route(
+    "/api/app-download",
+    app_download.app_download,
+    methods=["GET"],
+    tags=["app"],
+)
+# 开发模式 Vite 代理会剥掉 /api 前缀，这里再注册一个不带前缀的等价路径
+app.add_api_route(
+    "/app-download",
+    app_download.app_download,
+    methods=["GET"],
+    tags=["app"],
+    include_in_schema=False,
+)
 app.include_router(schools.router)
 app.include_router(posts.router)
 app.include_router(comments.router)
