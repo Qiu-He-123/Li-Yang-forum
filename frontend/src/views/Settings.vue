@@ -376,7 +376,11 @@ async function uploadBackground(file: File) {
 async function save() {
   saving.value = true
   try {
-    await updateMe(form.value)
+    await updateMe({
+      ...form.value,
+      // 未设置生日时后端要求 null，空字符串会导致整个保存失败（422）
+      birthday: form.value.birthday || null,
+    })
     ElMessage.success('已保存')
     await userStore.loadProfile()
   } catch (error) {
