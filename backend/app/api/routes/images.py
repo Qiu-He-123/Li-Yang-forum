@@ -23,9 +23,20 @@ ALLOWED_TYPES = {"image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp
 # 浏览器可能发送非标准的 image/jpg，统一映射为 image/jpeg
 TYPE_ALIASES = {"image/jpg": "image/jpeg"}
 MAX_BYTES = 5 * 1024 * 1024
-THUMB_MAX_SIZE = (400, 400)  # 缩略图最大尺寸
-BACKGROUND_MAX_SIZE = (1920, 1920)  # 背景图压缩后的最长边
-BACKGROUND_QUALITY = 82
+THUMB_MAX_SIZE = (320, 320)  # 列表缩略图最大尺寸（瀑布流一次加载很多张，越小越省流量）
+THUMB_QUALITY = 70
+BACKGROUND_MAX_SIZE = (1280, 1280)  # 背景图最长边
+BACKGROUND_QUALITY = 72
+AVATAR_MAX_SIZE = (256, 256)  # 头像最长边（展示最大 ~192px，256 足够）
+AVATAR_QUALITY = 72
+POST_MAX_SIZE = (1280, 1280)  # 帖子/漂流瓶大图最长边
+POST_QUALITY = 72
+# purpose -> (最大尺寸, JPEG 质量)；GIF 动图一律保留原样
+_COMPRESS_PLAN = {
+    "avatar": (AVATAR_MAX_SIZE, AVATAR_QUALITY),
+    "post": (POST_MAX_SIZE, POST_QUALITY),
+    "background": (BACKGROUND_MAX_SIZE, BACKGROUND_QUALITY),
+}
 
 
 async def _read_limited(file: UploadFile, max_bytes: int = MAX_BYTES) -> bytes:
@@ -97,19 +108,21 @@ def _make_thumbnail(content: bytes, mime_type: str) -> bytes | None:
         elif img.mode != "RGB":
             img = img.convert("RGB")
         buf = io.BytesIO()
-        img.save(buf, format="JPEG", quality=80, optimize=True)
+        img.save(buf, format="JPEG", quality=THUMB_QUALITY, optimize=True)
         return buf.getvalue()
     except Exception:
         return None
 
 
-def _compress_background(content: bytes, mime_type: str) -> bytes | None:
-    """压缩背景图：最长边不超过 1920px，JPEG q82；GIF 动图保留原样。"""
+def _compress_image(
+    content: bytes, mime_type: str, max_size: tuple[int, int], quality: int
+) -> bytes | None:
+    """通用图片压缩：缩放至最长边 max_size、转 JPEG quality；GIF 动图保留原样。"""
     if mime_type == "image/gif":
         return content
     try:
         img = PILImage.open(io.BytesIO(content))
-        img.thumbnail(BACKGROUND_MAX_SIZE, PILImage.LANCZOS)
+        img.thumbnail(max_size, PILImage.LANCZOS)
         if img.mode in ("RGBA", "P"):
             background = PILImage.new("RGB", img.size, (255, 255, 255))
             if img.mode == "P":
@@ -119,7 +132,7 @@ def _compress_background(content: bytes, mime_type: str) -> bytes | None:
         elif img.mode != "RGB":
             img = img.convert("RGB")
         buf = io.BytesIO()
-        img.save(buf, format="JPEG", quality=BACKGROUND_QUALITY, optimize=True)
+        img.save(buf, format="JPEG", quality=quality, optimize=True)
         return buf.getvalue()
     except Exception:
         return None
@@ -149,11 +162,12 @@ async def upload_image(
     if real_type != content_type:
         raise HTTPException(status_code=400, detail="图片内容与声明格式不符，疑似伪装文件")
 
-    # 背景图：上传前先压缩（最长边 1920 / JPEG q82），避免大图原样存储拖慢页面
-    if purpose == "background":
+    # 上传前统一压缩：头像 512、帖子/漂流瓶/背景 1920（GIF 动图保留原样）
+    plan = _COMPRESS_PLAN.get(purpose)
+    if plan and content_type != "image/gif":
         loop = aio.get_running_loop()
         compressed = await loop.run_in_executor(
-            None, _compress_background, content, content_type
+            None, _compress_image, content, content_type, plan[0], plan[1]
         )
         if compressed:
             content = compressed
