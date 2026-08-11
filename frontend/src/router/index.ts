@@ -61,6 +61,13 @@ const routes = [
     meta: { skeleton: true },
   },
   {
+    path: '/swipe',
+    name: 'swipe',
+    component: () => import('../views/SwipeFeed.vue'),
+    // 沉浸刷流：keep-alive 保留滑动位置，骨架屏替代全屏遮罩
+    meta: { keepAlive: true, skeleton: true },
+  },
+  {
     path: '/search',
     name: 'search',
     component: () => import('../views/Search.vue'),

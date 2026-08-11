@@ -188,6 +188,79 @@ cd backend
 - 学生证照片等敏感个人信息的隐私政策、用户协议正式文本
 - 备份恢复演练、监控告警（磁盘 / 内存 / 进程 / 外网可达性）；git 历史中的旧敏感文件需用 filter-repo 清理并确认远端仓库为 private
 
+## 数据库备份与恢复（备份到 GitHub）
+
+备份脚本会把数据库做成一致性快照（SQLite 用官方 backup API，MySQL 用 `mysqldump`），压缩后上传到私有备份仓库 [Qiu-He-123/liyang-backups](https://github.com/Qiu-He-123/liyang-backups) 的 Releases 里，并按 `BACKUP_KEEP` 自动清理旧备份。上传走 GitHub API，不占用代码仓库的 git 历史，也不会碰到本仓库的 `.gitignore` 限制。
+
+### 首次配置（在真正跑数据的服务器上做一次）
+
+1. 给 GitHub 生成一个访问令牌：GitHub → Settings → Developer settings → Personal access tokens → Generate new token (classic)，勾选 `repo`，复制下来。
+2. 打开服务器的 `backend/.env`（不要提交它），加入：
+
+   ```env
+   GITHUB_TOKEN=你生成的令牌
+   BACKUP_DIR=backups
+   BACKUP_KEEP=30
+   # 强烈建议开启加密：
+   # BACKUP_PASSPHRASE=一个只有你知道的密码
+   ```
+
+3. 如果生产 MySQL 跑在 Docker 里，再按实际情况加（路径换成服务器上的部署路径）：
+
+   ```env
+   BACKUP_MYSQL_PASSWORD=MySQL root 密码
+   BACKUP_MYSQL_CMD=docker compose -f /opt/liyang/deploy/docker-compose.yml exec -T mysql mysqldump -uroot -p"{password}" --single-transaction --routines --triggers {db}
+   BACKUP_MYSQL_RESTORE_CMD=docker compose -f /opt/liyang/deploy/docker-compose.yml exec -T mysql mysql -uroot -p"{password}" {db} < {file}
+   ```
+
+   如果 MySQL 直接装在服务器上（非 Docker），这两项不用配，脚本会用 `DATABASE_URL` 自动调用本机 `mysqldump`。
+
+### 手动备份
+
+```bash
+cd backend
+.venv/bin/python scripts/backup_db.py            # Linux
+.venv\Scripts\python scripts\backup_db.py        # Windows
+```
+
+Windows 也可以直接双击根目录的 `备份数据库.bat`。备份完成后到 https://github.com/Qiu-He-123/liyang-backups/releases 查看。
+
+### 定时自动备份
+
+Linux（生产服务器，每天凌晨 3 点）：
+
+```bash
+crontab -e
+# 加入一行：
+0 3 * * * cd /opt/liyang/backend && .venv/bin/python scripts/backup_db.py >> logs/backup.log 2>&1
+```
+
+Windows（推荐）：右键 `安装定时备份.bat` → 以管理员身份运行，一次即可，之后每天 03:00 自动备份。
+
+Windows（手动，等价操作）：
+
+```bat
+schtasks /Create /SC DAILY /ST 03:00 /TN "LY Community DB Backup" /TR "D:\立洋社区\定时备份数据库.bat"
+```
+
+### 恢复数据
+
+先停掉后端服务，然后在 backend 目录执行（会自动把当前数据库先备份成 `.pre-restore-时间戳`）：
+
+```bash
+.venv/bin/python scripts/restore_db.py --latest        # 恢复最近一次 GitHub 备份
+.venv/bin/python scripts/restore_db.py --tag backup-20260811_030000   # 恢复指定那次
+.venv/bin/python scripts/restore_db.py --file /path/to/ly_community_20260811_030000.sqlite3.gz
+```
+
+恢复 SQLite 会做 `PRAGMA integrity_check` 校验；恢复 MySQL 会执行 SQL 导入。完成后重启后端服务。
+
+### 注意事项
+
+- 备份仓库必须是 **Private**，并强烈建议设置 `BACKUP_PASSPHRASE` 加密（备份里有用户密码哈希、手机号、学生证照片引用等敏感数据）。
+- 本脚本只备份数据库。图片存在 MinIO 卷（`uploads_data` / `uploads_private_data`），需要另外用 rsync / duplicati 等工具做异地备份，否则只恢复数据库会丢图。
+- 服务器磁盘上也会保留最近 `BACKUP_KEEP` 份本地备份，防止 GitHub 临时不可用。
+
 ## 安全说明
 
 - Cookie：HttpOnly + SameSite=Strict，生产环境 Secure

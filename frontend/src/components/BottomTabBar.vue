@@ -55,6 +55,7 @@ const tabs = computed<TabItem[]>(() => [
 function activeKey(): string {
   const path = route.path
   if (path === '/') return 'home'
+  if (path === '/swipe') return 'home'
   if (path === '/circles') return 'discover'
   if (path === '/post/create') return 'create'
   if (path === '/notifications') return 'notifications'

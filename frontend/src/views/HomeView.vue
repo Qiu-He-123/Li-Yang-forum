@@ -20,6 +20,7 @@ import AiStatusBadge from '../components/common/AiStatusBadge.vue'
 import BadgeIcon from '../components/common/BadgeIcon.vue'
 import PostListSkeleton from '../components/post/PostListSkeleton.vue'
 import InfiniteScrollFooter from '../components/common/InfiniteScrollFooter.vue'
+import { Dialog as NativeDialog } from '../components/native'
 import { useInfiniteScroll } from '../composables/useInfiniteScroll'
 import { Icon } from '../components/native'
 import { toast } from '../components/native/Toast'
@@ -30,6 +31,7 @@ import { usePostStore } from '../stores/post'
 import { useCircleStore } from '../stores/circle'
 import { useAnnouncementStore } from '../stores/announcement'
 import { useInteractionStore } from '../stores/interaction'
+import { getCircleMeta, resolveCircleSlug } from '../utils/circleStyle'
 import { viewPost } from '../api/post'
 import { fetchHomeStats } from '../api/announcement'
 import { fetchPublicSettings } from '../api/settings'
@@ -148,37 +150,6 @@ const featureSub = [
   },
 ]
 
-// 圈子图标与色调映射（严格对齐设计稿：发现页.html）
-// 设计稿规则：
-// - 图片卡（card--image）：白色背景，无染色
-// - 文本卡（card--text）：按圈子染色，仅 4 种染色：study/lost/game/confess
-//   - study   -> #e8f2ff 浅蓝
-//   - lost    -> #ffecea 浅红
-//   - game    -> #f3f0ff 浅紫
-//   - confess -> #faf5ff 浅紫粉
-// 其他圈子的文本卡保持白底
-const circleMeta: Record<string, { icon: string; pillBg: string; pillColor: string; cardBg: string; iconColor: string }> = {
-  confess: { icon: 'heart', pillBg: '#f7eaff', pillColor: '#af52de', cardBg: '#faf5ff', iconColor: '#af52de' },
-  lost: { icon: 'circle-question', pillBg: '#e8f2ff', pillColor: '#0064d6', cardBg: '#ffecea', iconColor: '#ff3b30' },
-  market: { icon: 'tag', pillBg: '#fff3e6', pillColor: '#d26510', cardBg: '#ffffff', iconColor: '#d26510' },
-  study: { icon: 'file', pillBg: '#e8f2ff', pillColor: '#0064d6', cardBg: '#e8f2ff', iconColor: '#007aff' },
-  food: { icon: 'map-pin', pillBg: '#fff3e6', pillColor: '#d26510', cardBg: '#ffffff', iconColor: '#d26510' },
-  game: { icon: 'star', pillBg: '#eeeaff', pillColor: '#5856d6', cardBg: '#f3f0ff', iconColor: '#5856d6' },
-  photo: { icon: 'camera', pillBg: '#e9f9ee', pillColor: '#34c759', cardBg: '#ffffff', iconColor: '#34c759' },
-  club: { icon: 'star', pillBg: '#f7eaff', pillColor: '#af52de', cardBg: '#ffffff', iconColor: '#af52de' },
-  sport: { icon: 'flame', pillBg: '#e8f2ff', pillColor: '#007aff', cardBg: '#ffffff', iconColor: '#007aff' },
-  // 新增 4 个圈子
-  match: { icon: 'shuffle', pillBg: '#fff3e6', pillColor: '#d26510', cardBg: '#ffffff', iconColor: '#ff9500' },
-  treehole: { icon: 'lock', pillBg: '#f2f2f7', pillColor: '#48484a', cardBg: '#ffffff', iconColor: '#8e8e93' },
-  qa: { icon: 'circle-question', pillBg: '#e8f2ff', pillColor: '#0064d6', cardBg: '#e8f2ff', iconColor: '#007aff' },
-  flea: { icon: 'tag', pillBg: '#e9f9ee', pillColor: '#34c759', cardBg: '#ffffff', iconColor: '#34c759' },
-  default: { icon: 'sparkles', pillBg: '#e8f2ff', pillColor: '#0064d6', cardBg: '#ffffff', iconColor: '#007aff' },
-}
-
-function getCircleMeta(slug: string) {
-  return circleMeta[slug] || circleMeta.default
-}
-
 function formatCount(n: number): string {
   if (n >= 10000) return (n / 10000).toFixed(1).replace(/\.0$/, '') + 'w'
   if (n >= 1000) return (n / 1000).toFixed(1).replace(/\.0$/, '') + 'k'
@@ -188,15 +159,6 @@ function formatCount(n: number): string {
 function circleOf(post: Post): Circle | undefined {
   const slug = post.category || ''
   return circleStore.circles.find((c) => c.slug === slug || c.name === post.category)
-}
-
-function resolveCircleSlug(post: Post): string {
-  // 后端 post.category 存的是圈子的 name（如「校园美食」），需映射回 slug（如「food」）以匹配 circleMeta
-  const bySlug = circleStore.circles.find((c) => c.slug === post.category)
-  if (bySlug) return bySlug.slug
-  const byName = circleStore.circles.find((c) => c.name === post.category)
-  if (byName) return byName.slug
-  return post.category || 'default'
 }
 
 onMounted(async () => {
@@ -325,6 +287,18 @@ function openSearch() {
     return
   }
   router.push('/search')
+}
+
+/** 进入沉浸刷流前先弹确认框（内测阶段提示文案） */
+const swipeConfirmVisible = ref(false)
+
+function goSwipe() {
+  swipeConfirmVisible.value = true
+}
+
+function confirmSwipe() {
+  swipeConfirmVisible.value = false
+  router.push({ path: '/swipe', query: { view: feedView.value } })
 }
 
 function openFeature(slug: string) {
@@ -504,6 +478,14 @@ onUnmounted(() => {
           >
             最新
           </button>
+          <button
+            class="feed-tab feed-tab--mode"
+            type="button"
+            @click="goSwipe"
+          >
+            <Icon name="play" :size="13" />
+            刷一刷
+          </button>
         </div>
 
         <PostListSkeleton v-if="postStore.loading" :count="5" />
@@ -625,6 +607,20 @@ onUnmounted(() => {
         </div>
       </div>
     </Transition>
+
+    <!-- 刷一刷进入确认 -->
+    <NativeDialog
+      v-model="swipeConfirmVisible"
+      title="进入刷一刷"
+      width="360px"
+      :close-on-overlay="true"
+    >
+      <p class="swipe-confirm-text">我们正在持续完成此项目，目前非常的烂，真的要进入吗？</p>
+      <template #footer>
+        <button class="btn btn-outline" type="button" @click="swipeConfirmVisible = false">否</button>
+        <button class="btn btn-primary" type="button" @click="confirmSwipe">进入</button>
+      </template>
+    </NativeDialog>
   </main>
 </template>
 
@@ -931,6 +927,12 @@ onUnmounted(() => {
   color: var(--brand-600);
   background: var(--brand-50);
   font-weight: 600;
+}
+.feed-tab--mode {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .feed-loading {
@@ -1306,6 +1308,14 @@ onUnmounted(() => {
 .guide-leave-to {
   opacity: 0;
   transform: translateY(12px);
+}
+
+/* 刷一刷确认弹窗文案 */
+.swipe-confirm-text {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--text-800);
 }
 
 /* RESPONSIVE Mobile */

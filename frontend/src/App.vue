@@ -39,7 +39,7 @@ let wsNotificationUnsubscribe: (() => void) | null = null
  * 切换 Tab 时组件实例 + 滚动位置 + 已加载数据全部保留，
  * 配合各视图 onActivated 中的 SWR 静默刷新实现"即时展示 + 后台更新"。
  */
-const cachedViewNames = ['HomeView', 'CircleDiscoverView', 'NotificationsView', 'UserHomeView']
+const cachedViewNames = ['HomeView', 'SwipeFeedView', 'CircleDiscoverView', 'NotificationsView', 'UserHomeView']
 
 /**
  * 移除 index.html 中的启动预加载遮罩（#app-preloader）。
