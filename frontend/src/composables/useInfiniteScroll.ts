@@ -25,16 +25,24 @@ export function useInfiniteScroll(opts: UseInfiniteScrollOptions) {
   const loading = ref(false)
   const error = ref(false)
   let scrollTimer: ReturnType<typeof setTimeout> | null = null
+  let container: Element | null = null
+
+  /** 取滚动容器：指定了 containerSelector 就用页面中间的内容容器，否则退回整页滚动 */
+  function getContainer(): Element | null {
+    if (!opts.containerSelector) return null
+    if (!container) {
+      container = document.querySelector(opts.containerSelector)
+    }
+    return container
+  }
 
   function getScrollInfo() {
-    if (opts.containerSelector) {
-      const el = document.querySelector(opts.containerSelector)
-      if (el) {
-        return {
-          scrollTop: el.scrollTop,
-          scrollHeight: el.scrollHeight,
-          clientHeight: el.clientHeight,
-        }
+    const el = getContainer()
+    if (el) {
+      return {
+        scrollTop: el.scrollTop,
+        scrollHeight: el.scrollHeight,
+        clientHeight: el.clientHeight,
       }
     }
     return {
@@ -78,11 +86,22 @@ export function useInfiniteScroll(opts: UseInfiniteScrollOptions) {
   }
 
   onMounted(() => {
-    window.addEventListener('scroll', onScroll, { passive: true })
+    const el = getContainer()
+    if (el) {
+      // 中间内容容器滚动：头尾导航不属于滚动区域，事件挂在容器上
+      el.addEventListener('scroll', onScroll, { passive: true })
+    } else {
+      window.addEventListener('scroll', onScroll, { passive: true })
+    }
   })
 
   onUnmounted(() => {
-    window.removeEventListener('scroll', onScroll)
+    const el = getContainer()
+    if (el) {
+      el.removeEventListener('scroll', onScroll)
+    } else {
+      window.removeEventListener('scroll', onScroll)
+    }
     if (scrollTimer) clearTimeout(scrollTimer)
   })
 

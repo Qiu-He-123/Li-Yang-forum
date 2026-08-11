@@ -54,6 +54,7 @@ const interactionStore = useInteractionStore()
 const { loading: loadMoreLoading, error: loadMoreError, retry: retryLoadMore } = useInfiniteScroll({
   hasMore: computed(() => postStore.hasMore),
   onLoadMore: () => postStore.loadMore(),
+  containerSelector: '.page-discover',
 })
 
 // 圈子 Feed Tab：joined（我加入的）/ all（全部圈子）

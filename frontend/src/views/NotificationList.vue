@@ -82,6 +82,7 @@ async function loadMore() {
 const { loading: scrollLoading, error: scrollError, retry: scrollRetry } = useInfiniteScroll({
   hasMore,
   onLoadMore: loadMore,
+  containerSelector: '.page-notif-list',
 })
 
 /** 进入列表页即清除该分类的未读红点：标记该类型全部已读并刷新 store。 */

@@ -2,6 +2,40 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ============ 移动端：中间内容区滚动，头尾导航不属于滚动区域、不会被拉伸 ============ */
+@media (max-width: 767px) {
+  html,
+  body {
+    overscroll-behavior: none;
+  }
+
+  main.page-home,
+  main.page-discover,
+  main.page-msg,
+  main.page-me,
+  main.page-notif-list,
+  main.page-detail,
+  main.page-search,
+  main.page-circle,
+  main.page-topic,
+  main.page-list,
+  main.page-history,
+  main.page-checkin,
+  main.page-feedback,
+  main.page-badges,
+  main.page-applies,
+  main.page-friends,
+  main.page-notif-detail,
+  main.page-create,
+  main.page-all-circles {
+    height: 100vh;
+    height: 100dvh;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-y: contain;
+  }
+}
+
 /* ============ 设计令牌（CSS 变量，对齐设计稿 Pinguo Design） ============ */
 :root {
   /* 品牌色（完整 10 阶，对齐设计稿 brand palette） */

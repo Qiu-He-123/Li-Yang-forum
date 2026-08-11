@@ -209,6 +209,9 @@ function onUserCommand(command: string) {
   -webkit-backdrop-filter: blur(20px);
   backdrop-filter: blur(20px);
   border-bottom: 0.5px solid var(--bg-300);
+  /* 刘海/摄像头安全区：App 内或手机浏览器里把顶部内容往下推，
+     没有刘海的设备该值恒为 0，不影响正常布局 */
+  padding-top: env(safe-area-inset-top);
 }
 .header-inner {
   max-width: 1200px;

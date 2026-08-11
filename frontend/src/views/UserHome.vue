@@ -486,6 +486,7 @@ async function loadMore() {
 const { loading: scrollLoading, error: scrollError, retry: scrollRetry } = useInfiniteScroll({
   hasMore,
   onLoadMore: loadMore,
+  containerSelector: '.page-me',
 })
 
 async function onToggleFollow() {

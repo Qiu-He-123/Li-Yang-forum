@@ -79,6 +79,7 @@ watch(
 const { loading: loadMoreLoading, error: loadMoreError, retry: retryLoadMore } = useInfiniteScroll({
   hasMore: computed(() => postStore.hasMore),
   onLoadMore: () => postStore.loadMore(),
+  containerSelector: '.page-home',
 })
 
 // 首页透明统计：在线人数 / 今日发帖 / 注册人数

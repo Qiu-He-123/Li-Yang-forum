@@ -156,6 +156,7 @@ async function loadMore() {
 const { loading: scrollLoading, error: scrollError, retry: scrollRetry } = useInfiniteScroll({
   hasMore,
   onLoadMore: loadMore,
+  containerSelector: '.page-circle',
 })
 
 function onTabChange(key: typeof activeTab.value) {
