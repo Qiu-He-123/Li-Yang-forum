@@ -5,15 +5,20 @@
 
 蓝奏云有 JS 反爬（acw_sc__v2 cookie 挑战），这里用纯 Python 复刻其生成算法，
 无需外部服务；直链缓存 10 分钟，解析失败时回退到蓝奏云分享页。
+
+注意：蓝奏云直链令牌只能由真实浏览器兑现（服务端解析出来的直链，
+浏览器访问会返回「文件未授权」）。因此优先直接提供本机部署的 APK
+（backend/static/），蓝奏云解析仅作为 APK 文件缺失时的后备。
 """
 
 import json
 import re
 import time
+from pathlib import Path
 
 import requests
 from fastapi import APIRouter
-from fastapi.responses import RedirectResponse
+from fastapi.responses import FileResponse, RedirectResponse
 from loguru import logger
 
 router = APIRouter(prefix="/api/app-download", tags=["app"])
@@ -21,6 +26,10 @@ router = APIRouter(prefix="/api/app-download", tags=["app"])
 LANZOU_SHARE_URL = "https://wwaox.lanzouu.com/iVeQ741sql0b"
 LANZOU_PASSWORD = "gwfm"
 _CACHE_TTL = 600
+# 本机部署的 APK（随仓库提交，替换新版本时直接覆盖这个文件即可）
+_APK_PATH = (
+    Path(__file__).resolve().parent.parent.parent.parent / "static" / "立洋社区-v1.0.0正式版.apk"
+)
 
 _BASE_UA = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
@@ -123,8 +132,18 @@ def _resolve_direct_url() -> str:
 
 
 @router.get("")
-def app_download() -> RedirectResponse:
-    """点击后直接下载手机端 APK（302 到蓝奏云直链）。"""
+def app_download():
+    """点击后直接下载手机端 APK。
+
+    优先返回本机 static/ 目录里的 APK（真实可靠、无第三方反爬限制）；
+    文件缺失时才走蓝奏云解析，失败再回退分享页。
+    """
+    if _APK_PATH.exists():
+        return FileResponse(
+            _APK_PATH,
+            media_type="application/vnd.android.package-archive",
+            filename=_APK_PATH.name,
+        )
     cached = _cache.get("url")
     if cached and time.time() - _cache.get("ts", 0) < _CACHE_TTL:
         return RedirectResponse(cached, status_code=302)
