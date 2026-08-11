@@ -27,6 +27,9 @@ import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import android.window.OnBackInvokedCallback;
+import android.window.OnBackInvokedDispatcher;
+
 import org.json.JSONArray;
 import org.json.JSONObject;
 
@@ -66,6 +69,8 @@ public class MainActivity extends Activity {
     private TextView noticeText;
     private String latestNotice;
     private boolean noticeFetching;
+    private boolean exitRequested;
+    private OnBackInvokedCallback backCallback;
     private ValueCallback<Uri[]> filePathCallback;
 
     @SuppressLint("SetJavaScriptEnabled")
@@ -89,6 +94,7 @@ public class MainActivity extends Activity {
 
         setupWebView();
         setupPanels();
+        setupBackHandler();
 
         // 打开 App 先加载微云笔记公告（服务器挂了时维护面板直接显示）
         fetchNotice();
@@ -197,6 +203,42 @@ public class MainActivity extends Activity {
                 return true;
             }
         });
+    }
+
+    /**
+     * 返回键处理：优先回退网页历史（返回上一级），而不是直接退出整个 App。
+     * Android 13+ 的返回手势走 OnBackInvokedCallback，老版本走 onKeyDown/onBackPressed，
+     * 这里三条路都接上，保证各种手机上行为一致。
+     */
+    private void setupBackHandler() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            backCallback = this::handleBack;
+            getOnBackInvokedDispatcher().registerOnBackInvokedCallback(
+                    OnBackInvokedDispatcher.PRIORITY_DEFAULT,
+                    backCallback);
+        }
+    }
+
+    private void handleBack() {
+        // 维护页 / 内核提示页没有网页历史，返回 = 退出
+        if (offlinePanel.getVisibility() == View.VISIBLE
+                || kernelPanel.getVisibility() == View.VISIBLE) {
+            exitApp();
+            return;
+        }
+        // 网页能回退（帖子详情 → 首页等）就走网页历史
+        if (webView.canGoBack()) {
+            webView.goBack();
+            return;
+        }
+        // 已经在最顶层：2 秒内连按两次才退出，防止误触直接关掉 App
+        if (exitRequested) {
+            finishAndRemoveTask();
+        } else {
+            exitRequested = true;
+            Toast.makeText(this, "再按一次返回键退出", Toast.LENGTH_SHORT).show();
+            webView.postDelayed(() -> exitRequested = false, 2000);
+        }
     }
 
     private void setupPanels() {
@@ -444,18 +486,24 @@ public class MainActivity extends Activity {
 
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {
-        // 返回键优先回退网页历史，而不是直接退出 App
-        if (keyCode == KeyEvent.KEYCODE_BACK
-                && webView.getVisibility() == View.VISIBLE
-                && webView.canGoBack()) {
-            webView.goBack();
+        if (keyCode == KeyEvent.KEYCODE_BACK) {
+            handleBack();
             return true;
         }
         return super.onKeyDown(keyCode, event);
     }
 
     @Override
+    public void onBackPressed() {
+        handleBack();
+    }
+
+    @Override
     protected void onDestroy() {
+        if (backCallback != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            getOnBackInvokedDispatcher().unregisterOnBackInvokedCallback(backCallback);
+            backCallback = null;
+        }
         if (filePathCallback != null) {
             filePathCallback.onReceiveValue(null);
             filePathCallback = null;
