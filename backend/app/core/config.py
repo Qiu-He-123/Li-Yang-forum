@@ -31,7 +31,12 @@ class Settings(BaseSettings):
     # 启动时自动生成的种子邀请码数量（冷启动用，已存在则跳过）
     seed_invite_code_count: int = 10
 
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
+    # extra=ignore：.env 里允许存在 Settings 之外的键
+    # （备份脚本等直接读取 .env 的字段，如 github_token/backup_keep），
+    # 避免这些字段导致后端启动报 ValidationError
+    model_config = SettingsConfigDict(
+        env_file=".env", env_file_encoding="utf-8", extra="ignore"
+    )
 
 
 @lru_cache
