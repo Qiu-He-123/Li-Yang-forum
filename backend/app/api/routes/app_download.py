@@ -27,6 +27,7 @@ from sqlalchemy.orm import Session
 from app.api.deps import extract_ip
 from app.core.database import get_db
 from app.models import AppDownloadLog
+from app.schemas.common import ok
 
 router = APIRouter(prefix="/api/app-download", tags=["app"])
 
@@ -102,6 +103,18 @@ def _record_download(request: Request, db: Session) -> None:
         )
     )
     db.commit()
+
+
+@router.get("/info")
+def app_download_info() -> dict:
+    """返回下载地址与密码（来自微云笔记，供前端弹窗展示，不写死）。"""
+    fields = _fetch_notice_fields()
+    return ok(
+        {
+            "url": fields.get("更新地址") or fields.get("下载地址"),
+            "password": fields.get("密码") or fields.get("下载密码"),
+        }
+    )
 
 
 @router.get("")
