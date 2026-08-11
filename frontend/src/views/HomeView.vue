@@ -19,7 +19,6 @@ import EmptyState from '../components/common/EmptyState.vue'
 import AiStatusBadge from '../components/common/AiStatusBadge.vue'
 import BadgeIcon from '../components/common/BadgeIcon.vue'
 import PostListSkeleton from '../components/post/PostListSkeleton.vue'
-import AutoFitText from '../components/common/AutoFitText.vue'
 import InfiniteScrollFooter from '../components/common/InfiniteScrollFooter.vue'
 import { Dialog as NativeDialog } from '../components/native'
 import DownloadAppButton from '../components/DownloadAppButton.vue'
@@ -454,25 +453,25 @@ onUnmounted(() => {
       <section class="home-stats" aria-label="站点统计">
         <div class="stats-item stats-item--link" title="查看在线用户" @click="onStatsClick('/stats/online')">
           <span class="stats-dot stats-dot--green" aria-hidden="true"></span>
-          <AutoFitText :text="formatStatsNum(homeStats.logged_in_count)" />
+          <span class="stats-num">{{ formatStatsNum(homeStats.logged_in_count) }}</span>
           <span class="stats-label">在线中</span>
         </div>
         <span class="stats-divider" aria-hidden="true"></span>
         <div class="stats-item stats-item--link" title="查看在线游客" @click="onStatsClick('/stats/guests')">
           <Icon name="user" :size="14" />
-          <AutoFitText :text="formatStatsNum(homeStats.visitor_count)" />
+          <span class="stats-num">{{ formatStatsNum(homeStats.visitor_count) }}</span>
           <span class="stats-label">游客在线</span>
         </div>
         <span class="stats-divider" aria-hidden="true"></span>
         <div class="stats-item stats-item--link" title="查看今日发布" @click="onStatsClick('/stats/today-posts')">
           <Icon name="file" :size="14" />
-          <AutoFitText :text="formatStatsNum(homeStats.today_post_count)" />
+          <span class="stats-num">{{ formatStatsNum(homeStats.today_post_count) }}</span>
           <span class="stats-label">今日发布</span>
         </div>
         <span class="stats-divider" aria-hidden="true"></span>
         <div class="stats-item stats-item--link" title="查看注册用户" @click="onStatsClick('/stats/users')">
           <Icon name="users" :size="14" />
-          <AutoFitText :text="formatStatsNum(homeStats.total_users)" />
+          <span class="stats-num">{{ formatStatsNum(homeStats.total_users) }}</span>
           <span class="stats-label">注册人数</span>
         </div>
       </section>
@@ -924,7 +923,8 @@ onUnmounted(() => {
   font-weight: 700;
   color: var(--text-800);
   font-size: 13px;
-}
+  line-height: 1.2;
+  }
 .stats-label {
   color: var(--text-400);
   font-size: 12px;
