@@ -52,6 +52,10 @@ function goDownload() {
 
 async function copyAndGo() {
   const text = password.value || ''
+  if (!text) {
+    toast.info('暂未获取到密码，请稍后重试')
+    return
+  }
   try {
     if (navigator.clipboard?.writeText) {
       await navigator.clipboard.writeText(text)
@@ -111,6 +115,9 @@ async function copyAndGo() {
   <!-- 第二步：安卓密码窗 -->
   <Dialog v-model="androidVisible" title="安卓版下载" width="360px">
     <div class="android-download">
+      <p class="android-tip android-tip--warn">
+        💡 如果使用微信浏览器，请点击右上角「···」选择「在浏览器打开」后再下载
+      </p>
       <p class="android-tip">打开下载页面后，输入以下密码即可下载：</p>
       <div class="android-password">
         <Icon name="lock" :size="14" />
@@ -118,7 +125,7 @@ async function copyAndGo() {
       </div>
 
       <button class="dl-btn dl-btn--primary" type="button" @click="goDownload">
-        普通下载
+        直接跳转
       </button>
       <button class="dl-btn dl-btn--copy" type="button" @click="copyAndGo">
         复制密码并跳转
@@ -182,6 +189,11 @@ async function copyAndGo() {
   margin: 0;
   font-size: 13px;
   color: var(--text-500);
+}
+.android-tip--warn {
+  color: var(--warning, #ff9500);
+  font-size: 12px;
+  line-height: 1.5;
 }
 .android-password {
   display: flex;
