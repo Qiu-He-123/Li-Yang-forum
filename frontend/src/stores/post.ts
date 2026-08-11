@@ -61,8 +61,18 @@ export const usePostStore = defineStore('post', () => {
   // 是否存在 AI 审核中的帖子（用于驱动轮询刷新）
   const hasPendingAudit = computed(() => posts.value.some((p) => p.ai_status === 'pending'))
 
-  /** 是否还有更多数据可加载（用于无限滚动判定） */
-  const hasMore = computed(() => posts.value.length < total.value)
+  /**
+   * 是否还有更多数据可加载（用于无限滚动判定）。
+   *
+   * 注意：不能用 posts.length < total —— 热门流的 MMR 类别裁剪（每圈子每页限量）
+   * 和探索合并会把「实际返回的帖子合集」变得永远小于 total：
+   * 被 MMR 裁掉的帖子不会在后续页再出现，探索池帖子又会跨页重复（前端去重后净增很少）。
+   * 结果触底后 hasMore 永远为 true → 每次滚动/回弹都触发 loadMore → 无限请求，
+   * 底部「加载中…」反复出现又消失（抽搐 bug）。
+   *
+   * 改为按自然分页进度判断：page * page_size >= total 即没有下一页。
+   */
+  const hasMore = computed(() => page.value * pageSize.value < total.value)
 
   async function loadPosts(config: LoadingAxiosRequestConfig = {}, _isRetry = false) {
     loading.value = true
