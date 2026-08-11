@@ -1,0 +1,46 @@
+name: iOS Build
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'ios/**'
+
+jobs:
+  build:
+    runs-on: macos-14
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        working-directory: ios
+        run: xcodegen generate --spec project.yml
+
+      - name: Build (unsigned)
+        working-directory: ios
+        run: |
+          xcodebuild \
+            -project LiyangCommunity.xcodeproj \
+            -scheme LiyangCommunity \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO \
+            build
+
+      - name: Package ipa
+        working-directory: ios
+        run: |
+          mkdir -p Payload
+          cp -r build/Build/Products/Release-iphoneos/LiyangCommunity.app Payload/
+          zip -r LiyangCommunity-unsigned.ipa Payload
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: LiyangCommunity-ios
+          path: ios/LiyangCommunity-unsigned.ipa

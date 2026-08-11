@@ -24,6 +24,7 @@ declare module 'vue' {
     CommentItem: typeof import('./../components/comment/CommentItem.vue')['default']
     CommentList: typeof import('./../components/comment/CommentList.vue')['default']
     Dialog: typeof import('./../components/native/Dialog.vue')['default']
+    DownloadAppButton: typeof import('./../components/DownloadAppButton.vue')['default']
     ElAlert: typeof import('element-plus/es')['ElAlert']
     ElAvatar: typeof import('element-plus/es')['ElAvatar']
     ElButton: typeof import('element-plus/es')['ElButton']

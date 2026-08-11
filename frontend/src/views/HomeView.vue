@@ -21,6 +21,7 @@ import BadgeIcon from '../components/common/BadgeIcon.vue'
 import PostListSkeleton from '../components/post/PostListSkeleton.vue'
 import InfiniteScrollFooter from '../components/common/InfiniteScrollFooter.vue'
 import { Dialog as NativeDialog } from '../components/native'
+import DownloadAppButton from '../components/DownloadAppButton.vue'
 import { useInfiniteScroll } from '../composables/useInfiniteScroll'
 import { Icon } from '../components/native'
 import { toast } from '../components/native/Toast'
@@ -364,10 +365,7 @@ onUnmounted(() => {
   <main class="page-home">
     <!-- ====== 顶部固定栏：标题「首页」居中 + 右侧搜索图标 ====== -->
 <header class="site-header" role="banner">
-<a class="download-app-btn" href="/api/app-download" title="下载手机端 App" aria-label="下载手机端 App">
-<Icon name="arrow-down" :size="14" />
-<span>下载手机端</span>
-</a>
+<DownloadAppButton />
 <div class="header-inner">
         <div class="header-side header-side--left" aria-hidden="true"></div>
         <h1 class="header-title">立洋社区·首页</h1>

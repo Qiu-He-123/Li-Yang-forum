@@ -1,0 +1,24 @@
+name: LiyangCommunity
+options:
+  bundleIdPrefix: com.liyang
+  deploymentTarget:
+    iOS: "15.0"
+  createIntermediateGroups: true
+targets:
+  LiyangCommunity:
+    type: application
+    platform: iOS
+    sources:
+      - LiyangCommunity
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.liyang.community.ios
+        MARKETING_VERSION: 1.0.0
+        CURRENT_PROJECT_VERSION: 1
+        INFOPLIST_FILE: LiyangCommunity/Info.plist
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        TARGETED_DEVICE_FAMILY: "1,2"
+        SWIFT_VERSION: "5.0"
+        CODE_SIGN_STYLE: Automatic
+        GENERATE_INFOPLIST_FILE: NO
