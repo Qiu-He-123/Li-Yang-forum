@@ -14,6 +14,7 @@ import android.os.Bundle;
 import android.text.Html;
 import android.view.KeyEvent;
 import android.view.View;
+import android.view.WindowInsets;
 import android.webkit.CookieManager;
 import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
@@ -85,6 +86,7 @@ public class MainActivity extends Activity {
         }
 
         setContentView(R.layout.activity_main);
+        applyStatusBarPadding();
 
         webView = findViewById(R.id.webView);
         progressBar = findViewById(R.id.progressBar);
@@ -249,6 +251,38 @@ public class MainActivity extends Activity {
         findViewById(R.id.btnUseAnyway).setOnClickListener(v -> {
             hidePanels();
             webView.loadUrl(APP_URL);
+        });
+    }
+
+    /**
+     * 状态栏/刘海安全区适配（只在 App 里做，不动网页）。
+     * Android 15/16 会强制 edge-to-edge，网页内容会顶到屏幕最上方、
+     * 被摄像头/状态栏遮挡；这里检测到内容真的画到状态栏下面时，
+     * 给根布局补上状态栏高度的顶部内边距，把整个页面往下推。
+     * 老版本安卓系统已自动避让状态栏，检测到不需要时不动，避免重复加高。
+     */
+    private void applyStatusBarPadding() {
+        View root = findViewById(R.id.rootLayout);
+        root.setOnApplyWindowInsetsListener((v, insets) -> {
+            int topInset;
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                topInset = insets.getInsets(WindowInsets.Type.statusBars()).top;
+            } else {
+                topInset = insets.getSystemWindowInsetTop();
+            }
+            // 等布局完成后再判断，避免第一次回调时拿不到真实位置
+            v.post(() -> {
+                if (isFinishing() || isDestroyed()) {
+                    return;
+                }
+                int[] loc = new int[2];
+                v.getLocationOnScreen(loc);
+                // 内容顶到了状态栏下面（edge-to-edge）才补内边距
+                if (topInset > 0 && loc[1] < topInset) {
+                    v.setPadding(0, topInset, 0, 0);
+                }
+            });
+            return insets;
         });
     }
 
