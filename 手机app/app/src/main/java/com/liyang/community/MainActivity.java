@@ -11,6 +11,8 @@ import android.content.pm.PackageInfo;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.os.SystemClock;
 import android.text.Html;
 import android.view.KeyEvent;
@@ -79,6 +81,17 @@ public class MainActivity extends Activity {
     private ValueCallback<Uri[]> filePathCallback;
     /** 启动页至少展示的时间，避免一闪而过 */
     private static final long MIN_SPLASH_MS = 1200;
+    /** 定期把 Cookie 落盘，防止进程被杀导致登录态丢失 */
+    private static final long COOKIE_FLUSH_INTERVAL_MS = 30_000;
+
+    private final Handler cookieFlushHandler = new Handler(Looper.getMainLooper());
+    private final Runnable cookieFlushTask = new Runnable() {
+        @Override
+        public void run() {
+            CookieManager.getInstance().flush();
+            cookieFlushHandler.postDelayed(this, COOKIE_FLUSH_INTERVAL_MS);
+        }
+    };
 
     @SuppressLint("SetJavaScriptEnabled")
     @Override
@@ -105,6 +118,7 @@ public class MainActivity extends Activity {
         setupWebView();
         setupPanels();
         setupBackHandler();
+        cookieFlushHandler.postDelayed(cookieFlushTask, COOKIE_FLUSH_INTERVAL_MS);
 
         // 打开 App 先加载微云笔记公告（服务器挂了时维护面板直接显示）
         fetchNotice();
@@ -572,7 +586,23 @@ public class MainActivity extends Activity {
     }
 
     @Override
+    protected void onPause() {
+        super.onPause();
+        // 退到后台/即将被杀前先把 Cookie 写入磁盘，保证下次打开还是登录状态
+        CookieManager.getInstance().flush();
+    }
+
+    @Override
+    protected void onStop() {
+        super.onStop();
+        CookieManager.getInstance().flush();
+    }
+
+    @Override
     protected void onDestroy() {
+        cookieFlushHandler.removeCallbacks(cookieFlushTask);
+        // 必须先落盘再销毁 WebView，否则登录 Cookie 可能丢失
+        CookieManager.getInstance().flush();
         if (backCallback != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             getOnBackInvokedDispatcher().unregisterOnBackInvokedCallback(backCallback);
             backCallback = null;
