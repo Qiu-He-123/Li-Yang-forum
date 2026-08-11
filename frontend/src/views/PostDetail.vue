@@ -548,7 +548,7 @@ onMounted(() => {
           title="举报"
           @click="reportDialogVisible = true"
         >
-          <Icon name="triangle-alert" :size="18" />
+          <Icon name="triangle-down" :size="16" />
         </button>
       </div>
     </header>
