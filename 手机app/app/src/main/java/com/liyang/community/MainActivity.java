@@ -11,6 +11,7 @@ import android.content.pm.PackageInfo;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.SystemClock;
 import android.text.Html;
 import android.view.KeyEvent;
 import android.view.View;
@@ -67,12 +68,17 @@ public class MainActivity extends Activity {
     private ProgressBar progressBar;
     private View offlinePanel;
     private View kernelPanel;
+    private View splashPanel;
     private TextView noticeText;
     private String latestNotice;
     private boolean noticeFetching;
+    private boolean splashHidden;
+    private long splashShownAt;
     private boolean exitRequested;
     private OnBackInvokedCallback backCallback;
     private ValueCallback<Uri[]> filePathCallback;
+    /** 启动页至少展示的时间，避免一闪而过 */
+    private static final long MIN_SPLASH_MS = 1200;
 
     @SuppressLint("SetJavaScriptEnabled")
     @Override
@@ -92,7 +98,9 @@ public class MainActivity extends Activity {
         progressBar = findViewById(R.id.progressBar);
         offlinePanel = findViewById(R.id.offlinePanel);
         kernelPanel = findViewById(R.id.kernelPanel);
+        splashPanel = findViewById(R.id.splashPanel);
         noticeText = findViewById(R.id.noticeText);
+        splashShownAt = SystemClock.uptimeMillis();
 
         setupWebView();
         setupPanels();
@@ -149,6 +157,7 @@ public class MainActivity extends Activity {
             @Override
             public void onPageFinished(WebView view, String url) {
                 progressBar.setVisibility(View.GONE);
+                hideSplashWhenReady();
             }
 
             @Override
@@ -308,6 +317,7 @@ public class MainActivity extends Activity {
     }
 
     private void showKernelPanel() {
+        hideSplashNow();
         PackageInfo pkg = WebView.getCurrentWebViewPackage();
         TextView versionText = findViewById(R.id.kernelVersionText);
         if (pkg != null) {
@@ -343,6 +353,7 @@ public class MainActivity extends Activity {
     // ---------- 维护面板 ----------
 
     private void showOffline() {
+        hideSplashNow();
         progressBar.setVisibility(View.GONE);
         webView.setVisibility(View.GONE);
         kernelPanel.setVisibility(View.GONE);
@@ -379,6 +390,34 @@ public class MainActivity extends Activity {
 
     private void exitApp() {
         finishAndRemoveTask();
+    }
+
+    // ---------- 启动页 ----------
+
+    private void hideSplashWhenReady() {
+        long wait = Math.max(0, MIN_SPLASH_MS - (SystemClock.uptimeMillis() - splashShownAt));
+        splashPanel.postDelayed(this::hideSplash, wait);
+    }
+
+    private void hideSplash() {
+        if (splashHidden) {
+            return;
+        }
+        splashHidden = true;
+        splashPanel.animate()
+                .alpha(0f)
+                .setDuration(350)
+                .withEndAction(() -> splashPanel.setVisibility(View.GONE))
+                .start();
+    }
+
+    /** 出错/内核提示等场景直接移除启动页，不淡出 */
+    private void hideSplashNow() {
+        if (splashHidden) {
+            return;
+        }
+        splashHidden = true;
+        splashPanel.setVisibility(View.GONE);
     }
 
     // ---------- 微云公告拉取 ----------

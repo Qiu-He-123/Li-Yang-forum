@@ -1,4 +1,4 @@
-# 立洋社区 手机 App（套壳版）
+# 立洋论坛 手机 App（套壳版）
 
 一个极简的 Android 套壳应用：打开一个 WebView 加载立洋社区网页，不做任何二次开发。
 
@@ -79,7 +79,20 @@ Android 套壳 App 用的是手机系统自带的 **Android System WebView**（�
 gradlew assembleDebug
 ```
 
-产物：`app/build/outputs/apk/debug/app-debug.apk`。
+调试版产物：`app/build/outputs/apk/debug/app-debug.apk`。
+
+正式版（已配置签名）：
+
+```bat
+gradlew assembleRelease
+```
+
+正式版产物：`app/build/outputs/apk/release/app-release.apk`。
+
+> **重要：正式版签名密钥**。`liyang-release.keystore` 和 `keystore-password.txt`
+> 是正式版签名用的密钥和密码（在 `手机app/` 目录下，已加入 .gitignore，不会上传 GitHub）。
+> 请务必备份这两个文件：以后更新版本必须用同一把钥匙签名，
+> 丢了之后用户将无法覆盖安装新版本，只能卸载重装。
 
 > 本机已经装好环境，直接跑 `gradlew.bat` 即可；第一次会下载构建插件，比较慢。
 

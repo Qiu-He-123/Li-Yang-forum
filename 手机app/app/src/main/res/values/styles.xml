@@ -3,5 +3,6 @@
     <style name="AppTheme" parent="android:Theme.Material.Light.NoActionBar">
         <item name="android:statusBarColor">@color/theme_blue</item>
         <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowBackground">@color/theme_blue</item>
     </style>
 </resources>
