@@ -17,9 +17,14 @@ import time
 from pathlib import Path
 
 import requests
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends, Request
 from fastapi.responses import FileResponse, RedirectResponse
 from loguru import logger
+from sqlalchemy.orm import Session
+
+from app.api.deps import extract_ip
+from app.core.database import get_db
+from app.models import AppDownloadLog
 
 router = APIRouter(prefix="/api/app-download", tags=["app"])
 
@@ -132,13 +137,21 @@ def _resolve_direct_url() -> str:
 
 
 @router.get("")
-def app_download():
+def app_download(request: Request, db: Session = Depends(get_db)):
     """点击后直接下载手机端 APK。
 
     优先返回本机 static/ 目录里的 APK（真实可靠、无第三方反爬限制）；
     文件缺失时才走蓝奏云解析，失败再回退分享页。
     """
     if _APK_PATH.exists():
+        # 记录一次下载（IP / UA），供后台数据看板统计下载数与独立 IP
+        db.add(
+            AppDownloadLog(
+                ip=extract_ip(request),
+                user_agent=(request.headers.get("user-agent") or "")[:255],
+            )
+        )
+        db.commit()
         return FileResponse(
             _APK_PATH,
             media_type="application/vnd.android.package-archive",

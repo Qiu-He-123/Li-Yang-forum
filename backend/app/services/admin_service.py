@@ -37,6 +37,7 @@ from app.models import (
     User,
     UserBadge,
     VisitLog,
+    AppDownloadLog,
 )
 from app.schemas.interactions import AnnouncementCreate
 from app.services.audit_log import log_admin_action
@@ -211,6 +212,56 @@ def admin_stats(db: Session) -> dict:
             "unique_ips": int(day_unique),
         })
 
+    # 手机端下载统计（app_download_logs）
+    download_total = db.scalar(select(func.count(AppDownloadLog.id))) or 0
+    download_unique_ips = (
+        db.scalar(select(func.count(func.distinct(AppDownloadLog.ip)))) or 0
+    )
+    download_today = (
+        db.scalar(
+            select(func.count(AppDownloadLog.id)).where(
+                AppDownloadLog.created_at >= today_start
+            )
+        )
+        or 0
+    )
+
+    # 手机端（App）进入统计：UA 含 LYCommunityApp
+    app_visit_total = (
+        db.scalar(
+            select(func.count(VisitLog.id)).where(
+                VisitLog.user_agent.like("%LYCommunityApp%")
+            )
+        )
+        or 0
+    )
+    app_visit_unique_ips = (
+        db.scalar(
+            select(func.count(func.distinct(VisitLog.ip))).where(
+                VisitLog.user_agent.like("%LYCommunityApp%")
+            )
+        )
+        or 0
+    )
+    app_visit_today = (
+        db.scalar(
+            select(func.count(VisitLog.id)).where(
+                VisitLog.created_at >= today_start,
+                VisitLog.user_agent.like("%LYCommunityApp%"),
+            )
+        )
+        or 0
+    )
+    app_visit_today_unique = (
+        db.scalar(
+            select(func.count(func.distinct(VisitLog.ip))).where(
+                VisitLog.created_at >= today_start,
+                VisitLog.user_agent.like("%LYCommunityApp%"),
+            )
+        )
+        or 0
+    )
+
     # 帖子热度排行：点赞 + 评论×3 + 浏览（已发布且审核通过）
     hot_rows = db.scalars(
         select(Post)
@@ -262,6 +313,15 @@ def admin_stats(db: Session) -> dict:
             "today": int(visit_today),
             "today_unique_ips": int(visit_today_unique),
             "trend_7d": visit_trend,
+            "app_total": int(app_visit_total),
+            "app_unique_ips": int(app_visit_unique_ips),
+            "app_today": int(app_visit_today),
+            "app_today_unique_ips": int(app_visit_today_unique),
+        },
+        "downloads": {
+            "total": int(download_total),
+            "unique_ips": int(download_unique_ips),
+            "today": int(download_today),
         },
         "hot_posts": hot_posts,
     }

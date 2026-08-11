@@ -28,13 +28,8 @@
   opacity: 0.85;
 }
 
-/* 手机端（含 App 内嵌）不显示「下载手机端」按钮，仅网页版展示 */
-@media (max-width: 767px) {
-  .download-app-btn {
-    display: none;
-  }
-}
-
+/* 仅在 App 内嵌 WebView 中隐藏「下载手机端」按钮；
+   手机浏览器打开网页的用户仍然需要看到下载入口 */
 html.ly-app .download-app-btn {
   display: none;
 }

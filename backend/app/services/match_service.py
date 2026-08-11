@@ -26,6 +26,7 @@ from app.core.errors import ErrorCode
 from app.core.time_utils import calculate_age, now_utc, to_iso_zh
 from app.models import Follow, MatchMessage, MatchQueue, MatchSession, School, User
 from app.services.connection_manager import manager
+from app.services.avatar import avatar_url_or_default
 from app.services import follow_service
 
 # 会话时长 180 秒
@@ -68,7 +69,7 @@ def _user_brief(u: User) -> dict:
     return {
         "id": u.id,
         "nickname": u.nickname,
-        "avatar_url": u.avatar_url,
+        "avatar_url": avatar_url_or_default(u.avatar_url),
         "badge": _badge_dict(getattr(u, "wearing_badge", None)),
         "school_id": u.school_id,
         "grade": u.grade,

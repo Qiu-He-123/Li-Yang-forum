@@ -7,6 +7,7 @@ import re
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.services.avatar import avatar_url_or_default
 from app.models import Mention, User
 from app.services import notification_service
 
@@ -110,7 +111,7 @@ def list_mentioned_users(db: Session, post_id: int) -> list[dict]:
         {
             "id": u.id,
             "nickname": u.nickname,
-            "avatar_url": u.avatar_url,
+            "avatar_url": avatar_url_or_default(u.avatar_url),
         }
         for u in rows
     ]

@@ -6,6 +6,7 @@ from fastapi import HTTPException, Request
 from sqlalchemy import desc, select
 from sqlalchemy.orm import Session
 
+from app.services.avatar import avatar_url_or_default
 from app.core.database import SessionLocal
 from app.core.errors import ErrorCode
 from app.core.time_utils import now_utc, to_iso_zh
@@ -26,7 +27,7 @@ def comment_dict(comment: Comment, user: User | None, explored: bool = False) ->
         "parent_id": comment.parent_id,
         "content": comment.content,
         "author": user.nickname if user else "同学",
-        "author_avatar_url": user.avatar_url if user and user.avatar_url else None,
+        "author_avatar_url": avatar_url_or_default(user.avatar_url if user else None),
         "author_badge": _badge_dict(getattr(user, "wearing_badge", None)) if user else None,
         "user_id": comment.user_id,
         "like_count": comment.like_count,

@@ -29,6 +29,7 @@ from app.core.errors import ErrorCode
 from app.core.time_utils import beijing_today_start, calculate_age, to_iso_zh
 from app.models import Bottle, BottlePick, School, User
 from app.services.audit_log import log_admin_action
+from app.services.avatar import avatar_url_or_default
 from app.services.connection_manager import manager
 from app.services.notification_service import create_notification
 
@@ -98,7 +99,9 @@ def _bottle_dict(
         "id": b.id,
         "author_id": b.author_id,
         "author_nickname": author.nickname if author else None,
-        "author_avatar_url": author.avatar_url if author else None,
+        "author_avatar_url": avatar_url_or_default(
+            author.avatar_url if author else None
+        ),
         "author_badge": _badge_dict(getattr(author, "wearing_badge", None)) if author else None,
         "author_gender": b.gender or "unknown",
         "author_grade": b.grade,           # 旧字段，保留兼容

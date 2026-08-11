@@ -548,7 +548,7 @@ onMounted(() => {
           title="举报"
           @click="reportDialogVisible = true"
         >
-          <Icon name="flag" :size="17" />
+          <Icon name="report" :size="17" />
         </button>
       </div>
     </header>
@@ -1007,8 +1007,7 @@ onMounted(() => {
   background: var(--bg-200);
 }
 .icon-btn--report {
-  /* 大厂风格：默认低调中性灰，悬停/按压才转红，避免刺眼 */
-  color: var(--text-400);
+  color: var(--error);
 }
 .icon-btn--report:hover {
   background: rgba(255, 59, 48, 0.1);

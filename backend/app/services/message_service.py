@@ -22,6 +22,7 @@ from app.core.errors import ErrorCode
 from app.core.time_utils import beijing_today_start, to_iso_zh
 from app.models import Follow, FriendRequest, Message, User
 from app.services.follow_service import _default_friend_ids, is_mutual_follow
+from app.services.avatar import avatar_url_or_default
 
 
 def _default_friend_users(db: Session, user: User) -> list[User]:
@@ -50,7 +51,7 @@ def _user_dict(u: User) -> dict:
     return {
         "id": u.id,
         "nickname": u.nickname,
-        "avatar_url": u.avatar_url,
+        "avatar_url": avatar_url_or_default(u.avatar_url),
         "badge": _badge_dict(getattr(u, "wearing_badge", None)),
         "bio": u.bio,
         "school": u.school.name if u.school else None,

@@ -6,6 +6,7 @@ from fastapi import HTTPException, Request
 from sqlalchemy import desc, func, select
 from sqlalchemy.orm import Session, selectinload
 
+from app.services.avatar import avatar_url_or_default
 from app.core.database import SessionLocal
 from app.core.errors import ErrorCode
 from app.core.time_utils import to_iso_zh
@@ -64,7 +65,9 @@ def post_dict(
         "school_id": post.school_id,
         "author": author_name,
         "author_id": post.author_id,
-        "author_avatar_url": post.author.avatar_url if post.author.avatar_url else None,
+        "author_avatar_url": avatar_url_or_default(
+            post.author.avatar_url if post.author else None
+        ),
         "author_badge": author_badge,
         "is_public": post.is_public,
         "is_draft": post.is_draft,

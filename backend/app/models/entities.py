@@ -957,3 +957,13 @@ class VisitLog(Base, TimestampMixin):
     ip: Mapped[str] = mapped_column(String(45), index=True)
     user_agent: Mapped[str | None] = mapped_column(String(255), default=None)
     path: Mapped[str | None] = mapped_column(String(255), default=None)
+
+
+class AppDownloadLog(Base, TimestampMixin):
+    """手机端 APK 下载记录：统计下载次数 / 独立 IP。"""
+
+    __tablename__ = "app_download_logs"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    ip: Mapped[str] = mapped_column(String(45), index=True)
+    user_agent: Mapped[str | None] = mapped_column(String(255), default=None)

@@ -7,6 +7,7 @@ from fastapi import HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.services.avatar import avatar_url_or_default
 from app.core.errors import ErrorCode
 from app.core.time_utils import to_iso_zh
 from app.models import Category, CategoryAdmin, Post, User
@@ -49,7 +50,7 @@ def list_category_admins(db: Session, category_id: int) -> list[dict]:
                 "category_id": ca.category_id,
                 "user_id": user.id,
                 "nickname": user.nickname,
-                "avatar_url": user.avatar_url,
+                "avatar_url": avatar_url_or_default(user.avatar_url),
                 "role": ca.role,
                 "created_at": to_iso_zh(ca.created_at),
             })

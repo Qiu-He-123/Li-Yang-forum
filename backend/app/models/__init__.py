@@ -52,6 +52,7 @@ from app.models.entities import (
     UserCategory,
     UserBadge,
     VisitLog,
+    AppDownloadLog,
     WarningConfig,
     WarningLog,
 )
@@ -113,6 +114,7 @@ __all__ = [
     "UserCategory",
     "UserBadge",
     "VisitLog",
+    "AppDownloadLog",
     "WarningConfig",
     "WarningLog",
 ]

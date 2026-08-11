@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from app.core.time_utils import now_utc, to_iso_zh
 from app.models import BrowseHistory, Post, User
+from app.services.avatar import avatar_url_or_default
 
 
 def record_view(db: Session, user_id: int, post_id: int) -> dict:
@@ -97,7 +98,9 @@ def list_history(db: Session, user: User, page: int = 1, page_size: int = 20) ->
             "category": p.category,
             "author_id": p.author_id,
             "author_nickname": p.author.nickname if p.author else None,
-            "author_avatar_url": p.author.avatar_url if p.author else None,
+            "author_avatar_url": avatar_url_or_default(
+                p.author.avatar_url if p.author else None
+            ),
             "like_count": p.like_count,
             "comment_count": p.comment_count,
             "view_count": p.view_count,

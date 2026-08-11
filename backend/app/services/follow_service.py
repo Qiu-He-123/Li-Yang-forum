@@ -6,6 +6,7 @@
 """
 from fastapi import HTTPException
 from sqlalchemy import desc, func, select
+from app.services.avatar import avatar_url_or_default
 from sqlalchemy.orm import Session, selectinload
 
 from app.core.errors import ErrorCode
@@ -284,7 +285,7 @@ def _follow_dict(u: User, created_at, following_set: set[int] | None = None) -> 
     return {
         "id": u.id,
         "nickname": u.nickname,
-        "avatar_url": u.avatar_url,
+        "avatar_url": avatar_url_or_default(u.avatar_url),
         "badge": _badge_dict(getattr(u, "wearing_badge", None)),
         "bio": u.bio,
         "school": u.school.name if u.school else None,

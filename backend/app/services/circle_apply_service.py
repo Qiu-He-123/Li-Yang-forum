@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session
 from app.core.errors import ErrorCode
 from app.core.time_utils import now_utc, to_iso_zh
 from app.models import Category, CategoryAdmin, Post, User
+from app.services.avatar import avatar_url_or_default
 
 # slug 校验规则：英文/数字/横线，2-32 字
 _SLUG_PATTERN = re.compile(r"^[a-zA-Z0-9-]{2,32}$")
@@ -190,7 +191,7 @@ def list_circle_admins(db: Session, category_id: int) -> list[dict]:
                 "user_id": ca.user_id,
                 "role": ca.role,
                 "nickname": u.nickname if u else None,
-                "avatar_url": u.avatar_url if u else None,
+                "avatar_url": avatar_url_or_default(u.avatar_url if u else None),
                 "created_at": to_iso_zh(ca.created_at),
             }
         )
@@ -246,5 +247,7 @@ def _apply_dict(c: Category, db: Session, with_creator: bool = False) -> dict:
     if with_creator and c.creator_id is not None:
         creator = db.get(User, c.creator_id)
         data["creator_nickname"] = creator.nickname if creator else None
-        data["creator_avatar_url"] = creator.avatar_url if creator else None
+        data["creator_avatar_url"] = avatar_url_or_default(
+            creator.avatar_url if creator else None
+        )
     return data

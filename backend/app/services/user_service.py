@@ -6,6 +6,7 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from app.core.errors import ErrorCode
+from app.services.avatar import avatar_url_or_default
 from app.core.time_utils import calculate_age, to_iso_zh
 from app.models import Comment, Favorite, Like, Post, User
 from app.schemas.interactions import ProfileUpdate
@@ -48,7 +49,7 @@ def profile(user: User, db: Session, viewer: User | None = None) -> dict:
         "phone": user.phone,
         "school": user.school.name,
         "school_id": user.school_id,
-        "avatar_url": user.avatar_url,
+        "avatar_url": avatar_url_or_default(user.avatar_url),
         "background_url": user.background_url,
         "bio": user.bio,
         "grade": user.grade,
@@ -230,7 +231,7 @@ def user_likers(user_id: int, db: Session) -> list[dict]:
         result.append({
             "id": u.id,
             "nickname": u.nickname,
-            "avatar_url": u.avatar_url,
+            "avatar_url": avatar_url_or_default(u.avatar_url),
             "badge": badge_dict(u.wearing_badge),
             "bio": u.bio,
             "school": u.school.name if u.school else None,

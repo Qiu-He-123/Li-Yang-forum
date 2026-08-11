@@ -41,7 +41,16 @@ export interface AdminStats {
     unique_ips: number
     today: number
     today_unique_ips: number
+    app_total: number
+    app_unique_ips: number
+    app_today: number
+    app_today_unique_ips: number
     trend_7d: Array<{ date: string; visits: number; unique_ips: number }>
+  }
+  downloads: {
+    total: number
+    unique_ips: number
+    today: number
   }
   hot_posts: Array<{
     rank: number
