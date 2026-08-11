@@ -71,7 +71,12 @@ export function searchUsers(keyword: string, config: LoadingAxiosRequestConfig =
 
 /** 发送消息 */
 export function sendMessage(receiverId: number, content: string, msgType = 'text') {
-  return http.post('/messages', { content, msg_type: msgType }, { params: { receiver_id: receiverId } })
+  const config: LoadingAxiosRequestConfig = {
+    params: { receiver_id: receiverId },
+    // 发消息时不显示全屏加载动画，避免每次发送都闪遮罩
+    showGlobalLoading: false,
+  }
+  return http.post('/messages', { content, msg_type: msgType }, config)
 }
 
 /** 获取聊天记录（含关系状态：is_mutual, can_send, remaining_today） */
