@@ -14,6 +14,7 @@
 from __future__ import annotations
 
 import asyncio
+import time
 import uuid
 from typing import Any
 
@@ -30,6 +31,8 @@ class ConnectionManager:
     def __init__(self) -> None:
         # user_id -> {client_id -> websocket}
         self._connections: dict[int, dict[str, WebSocket]] = {}
+        # user_id -> {client_id -> 连接时间戳}（在线列表展示"上线时间"用）
+        self._connected_at: dict[int, dict[str, float]] = {}
         # user_id -> 当前所在 match_session_id（用于匹配系统定位）
         self._user_session: dict[int, int] = {}
         self._lock = asyncio.Lock()
@@ -45,6 +48,9 @@ class ConnectionManager:
             if user_id not in self._connections:
                 self._connections[user_id] = {}
             self._connections[user_id][client_id] = websocket
+            if user_id not in self._connected_at:
+                self._connected_at[user_id] = {}
+            self._connected_at[user_id][client_id] = time.time()
         logger.info("[WS] user={} connected client={}", user_id, client_id)
         return client_id
 
@@ -54,8 +60,14 @@ class ConnectionManager:
             conns = self._connections.get(user_id)
             if conns and client_id in conns:
                 conns.pop(client_id, None)
+                at = self._connected_at.get(user_id)
+                if at:
+                    at.pop(client_id, None)
+                    if not at:
+                        self._connected_at.pop(user_id, None)
                 if not conns:
                     self._connections.pop(user_id, None)
+                    self._connected_at.pop(user_id, None)
                     # 用户全部连接断开时，清理 session 状态
                     self._user_session.pop(user_id, None)
         logger.info("[WS] user={} disconnected client={}", user_id, client_id)
@@ -92,6 +104,24 @@ class ConnectionManager:
 
     def online_user_ids(self) -> list[int]:
         return [uid for uid in self._connections if uid != self.VISITOR_USER_ID]
+
+    def online_users_detail(self) -> list[tuple[int, float]]:
+        """(user_id, 最早连接时间戳) 列表：登录用户按 user_id 去重。"""
+        result: list[tuple[int, float]] = []
+        for uid, conns in self._connections.items():
+            if uid == self.VISITOR_USER_ID or not conns:
+                continue
+            times = [self._connected_at.get(uid, {}).get(cid, 0.0) for cid in conns]
+            result.append((uid, min(times)))
+        return result
+
+    def online_guests_detail(self) -> list[tuple[str, float]]:
+        """(client_id, 连接时间戳) 列表：游客按连接计数。"""
+        conns = self._connections.get(self.VISITOR_USER_ID) or {}
+        return [
+            (cid, self._connected_at.get(self.VISITOR_USER_ID, {}).get(cid, 0.0))
+            for cid in conns
+        ]
 
     def set_user_session(self, user_id: int, session_id: int | None) -> None:
         """记录用户当前所在的 match_session_id（None 表示清除）。"""

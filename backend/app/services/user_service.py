@@ -427,3 +427,37 @@ def _appeal_dict(a, db: Session) -> dict:
         "review_comment": a.review_comment,
         "created_at": to_iso_zh(a.created_at),
     }
+
+
+def recent_users(
+    db: Session, page: int = 1, page_size: int = 20, q: str | None = None
+) -> dict:
+    """最新注册用户列表（分页，按注册时间倒序）。"""
+    from sqlalchemy.orm import selectinload
+
+    query = select(User)
+    keyword = (q or "").strip()
+    if keyword:
+        query = query.where(User.nickname.like(f"%{keyword}%"))
+    total = db.scalar(select(func.count()).select_from(query.subquery())) or 0
+    page = max(1, page)
+    page_size = max(1, min(100, page_size))
+    rows = db.scalars(
+        query
+        .options(selectinload(User.school))
+        .order_by(User.id.desc())
+        .offset((page - 1) * page_size)
+        .limit(page_size)
+    ).all()
+    items = [
+        {
+            "id": u.id,
+            "nickname": u.nickname,
+            "avatar_url": avatar_url_or_default(u.avatar_url),
+            "badge": badge_dict(u.wearing_badge),
+            "school": u.school.name if u.school else None,
+            "created_at": to_iso_zh(u.created_at),
+        }
+        for u in rows
+    ]
+    return {"items": items, "total": total, "page": page, "page_size": page_size}

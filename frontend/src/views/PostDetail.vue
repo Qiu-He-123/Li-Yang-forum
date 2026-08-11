@@ -685,7 +685,9 @@ onMounted(() => {
               <h1 v-if="post.title" class="post-title">{{ post.title }}</h1>
 
               <!-- 图片墙（带预览）：详情页用原图保证清晰度，列表页才用缩略图 -->
-              <PostImages v-if="post.image_urls?.length" :urls="post.image_urls" :thumb="false" />
+              <div class="post-images-block">
+                <PostImages v-if="post.image_urls?.length" :urls="post.image_urls" :thumb="false" />
+              </div>
 
               <div v-if="post.content" class="post-body">
                 <MarkdownText :content="post.content" />
@@ -1061,6 +1063,10 @@ onMounted(() => {
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-xs);
   padding: 28px;
+}
+/* 作者行与图片之间留出呼吸间距 */
+.post-images-block {
+  margin-top: 18px;
 }
 .author-row {
   display: flex;

@@ -19,6 +19,7 @@
 - {"type": "match_timeout", "session_id": int}（未匹配到对方时）
 """
 import asyncio
+from urllib.parse import urlparse
 
 from fastapi import APIRouter, Query, WebSocket, WebSocketDisconnect
 import jwt
@@ -97,8 +98,13 @@ async def websocket_endpoint(
         )
     origin = websocket.headers.get("origin")
     if origin and origin not in allowed_origins:
-        await websocket.close(code=4403)
-        return
+        # 同源请求直接放行（本机 127.0.0.1:8000 / 2599、任意穿透域名都能用），
+        # 否则 Origin 不在白名单时 WebSocket 被掐断，在线统计永远为 0
+        origin_host = urlparse(origin).netloc
+        request_host = websocket.headers.get("host", "")
+        if origin_host != request_host:
+            await websocket.close(code=4403)
+            return
 
     user_id = _authenticate(_extract_token(websocket, token))
     is_visitor = False

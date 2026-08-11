@@ -129,6 +129,29 @@ def list_badges(db: Session, user: User | None = None) -> list[dict]:
 
 def my_badges(db: Session, user: User) -> dict:
     """我的徽章：已拥有列表 + 当前佩戴 + 全部目录。"""
+    owned = _owned_badges_with_time(db, user)
+    return {
+        "owned": owned,
+        "wearing_badge": badge_dict(get_wearing_badge(db, user)),
+        "wearing_badge_id": user.wearing_badge_id,
+        "total": len(owned),
+        "all_badges": list_badges(db, user),
+    }
+
+
+def user_badges(db: Session, target: User) -> dict:
+    """某用户的勋章列表（登录用户均可查看），含获取时间与佩戴状态。"""
+    owned = _owned_badges_with_time(db, target)
+    return {
+        "owned": owned,
+        "wearing_badge": badge_dict(get_wearing_badge(db, target)),
+        "wearing_badge_id": target.wearing_badge_id,
+        "total": len(owned),
+    }
+
+
+def _owned_badges_with_time(db: Session, user: User) -> list[dict]:
+    """已拥有徽章列表：含获取时间（user_badges.created_at）与佩戴状态。"""
     owned_ids = _owned_badge_ids(db, user.id)
     owned_rows = (
         db.scalars(
@@ -139,18 +162,17 @@ def my_badges(db: Session, user: User) -> dict:
         if owned_ids
         else []
     )
+    acquired: dict[int, str | None] = {}
+    if owned_ids:
+        for ub in db.scalars(select(UserBadge).where(UserBadge.user_id == user.id)):
+            acquired[ub.badge_id] = to_iso_zh(ub.created_at)
     owned = []
     for b in owned_rows:
         d = badge_dict(b)
         d["is_wearing"] = user.wearing_badge_id == b.id
+        d["acquired_at"] = acquired.get(b.id)
         owned.append(d)
-    return {
-        "owned": owned,
-        "wearing_badge": badge_dict(get_wearing_badge(db, user)),
-        "wearing_badge_id": user.wearing_badge_id,
-        "total": len(owned),
-        "all_badges": list_badges(db, user),
-    }
+    return owned
 
 
 def claim_badge_by_code(db: Session, user: User, code: str, request: Request) -> dict:

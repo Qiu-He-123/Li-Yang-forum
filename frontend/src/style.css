@@ -2,6 +2,91 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ============ 暗色模式：覆盖设计令牌 + 硬编码浅色表面 ============ */
+[data-theme="dark"] {
+  color-scheme: dark;
+  --bg-50: #1c1c1e;
+  --bg-100: #121214;
+  --bg-200: #232326;
+  --bg-300: #2c2c2f;
+  --bg-400: #3a3a3d;
+  --bg-500: #4b4b4f;
+  --bg-600: #6e6e73;
+  --bg-700: #9a9aa0;
+  --bg-800: #c7c7cc;
+  --bg-900: #f5f5f7;
+  --text-50: #1d1d1f;
+  --text-100: #2c2c2e;
+  --text-200: #3a3a3c;
+  --text-300: #4b4b4f;
+  --text-400: #8e8e93;
+  --text-500: #a3a3a8;
+  --text-600: #c7c7cc;
+  --text-700: #d8d8dc;
+  --text-800: #e9e9ec;
+  --text-900: #f5f5f7;
+}
+
+html[data-theme="dark"] body {
+  background: #121214;
+  color: var(--text-800);
+}
+
+/* 启动预加载遮罩（index.html 内联样式） */
+html[data-theme="dark"] #app-preloader {
+  background: #121214 !important;
+}
+
+/* 顶部导航 / 下拉 / 悬浮引导卡等硬编码浅色表面 */
+html[data-theme="dark"] header.site-header,
+html[data-theme="dark"] .msg-header,
+html[data-theme="dark"] .detail-header,
+html[data-theme="dark"] .search-header,
+html[data-theme="dark"] .list-header,
+html[data-theme="dark"] .chat-header,
+html[data-theme="dark"] .topnav-desktop,
+html[data-theme="dark"] .user-dropdown,
+html[data-theme="dark"] .guest-guide {
+  background: rgba(28, 28, 30, 0.92) !important;
+  border-color: var(--bg-300) !important;
+}
+
+/* 原生弹窗 */
+html[data-theme="dark"] .dialog-panel {
+  background: #1c1c1e !important;
+  color: var(--text-800);
+}
+
+/* 聊天页 */
+html[data-theme="dark"] .chat-page,
+html[data-theme="dark"] .chat-messages {
+  background: #121214 !important;
+}
+html[data-theme="dark"] .chat-input-bar,
+html[data-theme="dark"] .chat-input-wrap {
+  background: #1c1c1e !important;
+  border-color: var(--bg-300) !important;
+}
+html[data-theme="dark"] .chat-input-wrap.is-disabled {
+  background: #232326 !important;
+}
+html[data-theme="dark"] .chat-bubble-row:not(.is-self) .chat-bubble {
+  background: #2c2c2f !important;
+  color: var(--text-800);
+}
+html[data-theme="dark"] .chat-bubble-row.is-self .chat-bubble {
+  background: #1e5f22 !important;
+  color: #e8f5e9;
+}
+html[data-theme="dark"] .chat-time-divider span {
+  background: #2c2c2f !important;
+  color: var(--text-500);
+}
+html[data-theme="dark"] .chat-perm-banner {
+  background: #3a2f1d !important;
+  border-color: #6b5528 !important;
+}
+
 /* ============ 左上角「下载手机端」按钮 ============ */
 .download-app-btn {
   position: absolute;

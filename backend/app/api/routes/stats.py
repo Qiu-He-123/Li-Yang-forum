@@ -41,6 +41,29 @@ def record_visit(request: Request, db: Session = Depends(get_db)) -> dict:
     return ok({"recorded": True})
 
 
+@router.get("/stats/online-users")
+def online_users(
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=100),
+    q: str | None = Query(default=None, max_length=32),
+    db: Session = Depends(get_db),
+    _: User = Depends(current_user),
+) -> dict:
+    """在线登录用户列表（分页）。"""
+    return ok(stats_service.online_users_page(db, page, page_size, q))
+
+
+@router.get("/stats/online-guests")
+def online_guests(
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=100),
+    db: Session = Depends(get_db),
+    _: User = Depends(current_user),
+) -> dict:
+    """在线游客列表（分页，匿名会话）。"""
+    return ok(stats_service.online_guests_page(db, page, page_size))
+
+
 @router.get("/stats/home")
 def home_stats(db: Session = Depends(get_db)) -> dict:
     """首页统计：在线人数 + 今日发帖 + 注册人数。匿名可访问。"""

@@ -183,14 +183,38 @@ const routes = [
     component: () => import('../views/FriendsView.vue'),
     meta: { requiresAuth: true },
   },
-  {
-    path: '/chat/:id',
-    name: 'chat',
-    component: () => import('../views/ChatView.vue'),
-    meta: { requiresAuth: true },
-  },
-  {
-    path: '/announcements',
+{
+path: '/chat/:id',
+name: 'chat',
+component: () => import('../views/ChatView.vue'),
+meta: { requiresAuth: true },
+},
+{
+path: '/stats/online',
+name: 'stats-online',
+component: () => import('../views/StatsListView.vue'),
+meta: { requiresAuth: true },
+},
+{
+path: '/stats/guests',
+name: 'stats-guests',
+component: () => import('../views/StatsListView.vue'),
+meta: { requiresAuth: true },
+},
+{
+path: '/stats/today-posts',
+name: 'stats-today-posts',
+component: () => import('../views/StatsListView.vue'),
+meta: { requiresAuth: true },
+},
+{
+path: '/stats/users',
+name: 'stats-users',
+component: () => import('../views/StatsListView.vue'),
+meta: { requiresAuth: true },
+},
+{
+path: '/announcements',
     name: 'announcements',
     component: () => import('../views/Announcements.vue'),
   },

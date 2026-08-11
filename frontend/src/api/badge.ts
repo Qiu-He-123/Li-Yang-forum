@@ -12,6 +12,13 @@ export interface MyBadgesData {
   all_badges: Badge[]
 }
 
+export interface UserBadgesData {
+  owned: Badge[]
+  wearing_badge: Badge | null
+  wearing_badge_id: number | null
+  total: number
+}
+
 export function fetchBadges(config: LoadingAxiosRequestConfig = {}) {
   return http.get<unknown, { data: { code: number; msg: string; data: Badge[] } }>(
     '/badges',
@@ -22,6 +29,14 @@ export function fetchBadges(config: LoadingAxiosRequestConfig = {}) {
 export function fetchMyBadges(config: LoadingAxiosRequestConfig = {}) {
   return http.get<unknown, { data: { code: number; msg: string; data: MyBadgesData } }>(
     '/badges/mine',
+    config,
+  )
+}
+
+/** 某用户的勋章列表（登录用户均可查看） */
+export function fetchUserBadges(userId: number, config: LoadingAxiosRequestConfig = {}) {
+  return http.get<unknown, { data: { code: number; msg: string; data: UserBadgesData } }>(
+    `/badges/user/${userId}`,
     config,
   )
 }

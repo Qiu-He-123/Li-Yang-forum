@@ -19,6 +19,8 @@ const visible = ref(false)
 const unreadList = ref<Announcement[]>([])
 const currentIndex = ref(0)
 const marking = ref(false)
+// 「稍后再说」的公告：本次页面会话内不再打扰，刷新页面后仍会重新弹出
+const dismissedIds = ref<Set<number>>(new Set())
 
 const currentAnnouncement = ref<Announcement | null>(null)
 
@@ -32,7 +34,10 @@ async function loadAndShow() {
       showGlobalLoading: false,
       showGlobalError: false,
     })
-    unreadList.value = data.data || []
+    // 过滤掉本次会话已「稍后再说」的公告
+    unreadList.value = (data.data || []).filter(
+      (item: Announcement) => !dismissedIds.value.has(item.id),
+    )
     if (unreadList.value.length > 0) {
       currentIndex.value = 0
       currentAnnouncement.value = unreadList.value[0]
@@ -57,6 +62,26 @@ onUnmounted(() => {
   checkTimer = null
 })
 
+/** 稍后再说：不标记已读，本次会话不再弹，刷新后仍会弹出 */
+function onDismiss() {
+  if (!currentAnnouncement.value) {
+    visible.value = false
+    return
+  }
+  dismissedIds.value.add(currentAnnouncement.value.id)
+  next()
+}
+
+function next() {
+  currentIndex.value += 1
+  if (currentIndex.value < unreadList.value.length) {
+    currentAnnouncement.value = unreadList.value[currentIndex.value]
+  } else {
+    visible.value = false
+    currentAnnouncement.value = null
+  }
+}
+
 async function onConfirm() {
   if (!currentAnnouncement.value) {
     visible.value = false
@@ -65,14 +90,7 @@ async function onConfirm() {
   marking.value = true
   try {
     await markAnnouncementRead(currentAnnouncement.value.id)
-    // 下一条
-    currentIndex.value += 1
-    if (currentIndex.value < unreadList.value.length) {
-      currentAnnouncement.value = unreadList.value[currentIndex.value]
-    } else {
-      visible.value = false
-      currentAnnouncement.value = null
-    }
+    next()
   } catch (err) {
     ElMessage.error((err as Error).message)
   } finally {
@@ -122,6 +140,7 @@ watch(
       </p>
     </div>
     <template #footer>
+      <el-button :disabled="marking" @click="onDismiss">稍后再说</el-button>
       <el-button type="primary" :loading="marking" @click="onConfirm">我知道了</el-button>
     </template>
   </el-dialog>

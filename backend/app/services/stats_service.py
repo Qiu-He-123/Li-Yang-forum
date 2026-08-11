@@ -6,11 +6,15 @@
 """
 from __future__ import annotations
 
-from sqlalchemy import func, select
-from sqlalchemy.orm import Session
+from datetime import datetime, timezone
 
-from app.core.time_utils import beijing_today_start
+from sqlalchemy import func, select
+from sqlalchemy.orm import Session, selectinload
+
+from app.core.time_utils import beijing_today_start, to_iso_zh
 from app.models import Bottle, BottlePick, Post, User
+from app.services.avatar import avatar_url_or_default
+from app.services.badge_service import badge_dict
 from app.services.connection_manager import manager
 
 
@@ -76,3 +80,75 @@ def bottle_stats(db: Session) -> dict:
         "total_bottles": total_bottles,
         "today_picks": today_picks,
     }
+
+
+def online_users_page(
+    db: Session, page: int = 1, page_size: int = 20, q: str | None = None
+) -> dict:
+    """在线登录用户列表（分页，按上线时间倒序）。"""
+    details = manager.online_users_detail()
+    details.sort(key=lambda x: x[1], reverse=True)
+    users = {
+        u.id: u
+        for u in db.scalars(
+            select(User)
+            .options(selectinload(User.school))
+            .where(User.id.in_([uid for uid, _ in details]))
+        ).all()
+    }
+    # 昵称搜索（在线人数少，先全量过滤再分页）
+    keyword = (q or "").strip().lower()
+    pairs = [
+        (uid, ts)
+        for uid, ts in details
+        if uid in users
+        and (not keyword or keyword in (users[uid].nickname or "").lower())
+    ]
+    total = len(pairs)
+    page = max(1, page)
+    page_size = max(1, min(100, page_size))
+    chunk = pairs[(page - 1) * page_size : page * page_size]
+    items = []
+    for uid, ts in chunk:
+        u = users.get(uid)
+        if not u:
+            continue
+        items.append(
+            {
+                "id": u.id,
+                "nickname": u.nickname,
+                "avatar_url": avatar_url_or_default(u.avatar_url),
+                "badge": badge_dict(u.wearing_badge),
+                "school": u.school.name if u.school else None,
+                "connected_at": _iso_from_ts(ts),
+            }
+        )
+    return {"items": items, "total": total, "page": page, "page_size": page_size}
+
+
+def online_guests_page(db: Session, page: int = 1, page_size: int = 20) -> dict:
+    """在线游客列表（分页）：游客无账号，仅展示匿名会话。"""
+    details = manager.online_guests_detail()
+    details.sort(key=lambda x: x[1], reverse=True)
+    total = len(details)
+    page = max(1, page)
+    page_size = max(1, min(100, page_size))
+    chunk = details[(page - 1) * page_size : page * page_size]
+    items = [
+        {
+            "id": cid,
+            "nickname": "游客",
+            "avatar_url": None,
+            "badge": None,
+            "school": None,
+            "connected_at": _iso_from_ts(ts),
+        }
+        for cid, ts in chunk
+    ]
+    return {"items": items, "total": total, "page": page, "page_size": page_size}
+
+
+def _iso_from_ts(ts: float) -> str | None:
+    if not ts:
+        return None
+    return to_iso_zh(datetime.fromtimestamp(ts, tz=timezone.utc))

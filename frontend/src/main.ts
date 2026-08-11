@@ -10,13 +10,22 @@ import './style.css'
 // 这里统一在入口引入，用户端与后台所有 ElMessage 提示都能正常显示。
 import 'element-plus/es/components/message/style/css'
 import 'element-plus/es/components/message-box/style/css'
+// Element Plus 暗色模式变量（html.dark 时生效，覆盖后台/表单/弹窗）
+import 'element-plus/theme-chalk/dark/css-vars.css'
 import { mountToast } from './components/native/Toast'
 import { toast } from './components/native/Toast'
+import { ensureDeepEntryBackTarget } from './utils/backNav'
 
 // 手机 App（套壳 WebView）UA 标记：隐藏仅网页版才需要展示的入口
 if (typeof navigator !== 'undefined' && navigator.userAgent.includes('LYCommunityApp')) {
   document.documentElement.classList.add('ly-app')
 }
+
+// 主题初始化：白天/暗色（localStorage 持久化，设置页可切换）
+const savedTheme = localStorage.getItem('ly:theme')
+const isDark = savedTheme === 'dark'
+document.documentElement.dataset.theme = isDark ? 'dark' : 'light'
+if (isDark) document.documentElement.classList.add('dark')
 
 const app = createApp(App)
 
@@ -92,7 +101,15 @@ window.addEventListener('error', (event) => {
 
 // Element Plus 按需引入（通过 unplugin-vue-components + unplugin-auto-import）
 // 用户端页面不加载 Element Plus，仅 /admin 后台页面按需加载
-app.use(createPinia()).use(router).mount('#app')
+app.use(createPinia())
+app.use(router)
+
+// 深链接/扫码直接打开详情页时，先补一条「返回目标」历史，
+// 这样按返回（App 返回键 / 浏览器返回）会直接回首页或会话列表
+router.isReady().then(async () => {
+  await ensureDeepEntryBackTarget(router.currentRoute.value.fullPath)
+  app.mount('#app')
+})
 
 // 挂载 Toast 容器
 mountToast()

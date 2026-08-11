@@ -2,7 +2,7 @@ import { http, type LoadingAxiosRequestConfig } from './http'
 import type { Post } from '../types/api'
 import type { PollCreate } from './poll'
 
-export type PostView = 'all' | 'school' | 'hot' | 'latest'
+export type PostView = 'all' | 'school' | 'hot' | 'latest' | 'today'
 
 export interface PostListParams {
   view?: PostView

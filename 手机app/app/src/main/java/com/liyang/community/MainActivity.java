@@ -105,7 +105,7 @@ public class MainActivity extends Activity {
         }
 
         setContentView(R.layout.activity_main);
-        applyStatusBarPadding();
+        applySystemBarPadding();
 
         webView = findViewById(R.id.webView);
         progressBar = findViewById(R.id.progressBar);
@@ -214,9 +214,14 @@ public class MainActivity extends Activity {
                 }
                 MainActivity.this.filePathCallback = filePathCallback;
 
-                Intent intent = fileChooserParams.createIntent();
-                intent.addCategory(Intent.CATEGORY_OPENABLE);
-                try {
+                  Intent intent = fileChooserParams.createIntent();
+                  intent.addCategory(Intent.CATEGORY_OPENABLE);
+                  if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP
+                          && fileChooserParams.getMode()
+                                  == WebChromeClient.FileChooserParams.MODE_OPEN_MULTIPLE) {
+                      intent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true);
+                  }
+                  try {
                     startActivityForResult(
                             Intent.createChooser(intent, "选择文件"),
                             REQUEST_FILE_CHOOSER);
@@ -284,15 +289,23 @@ public class MainActivity extends Activity {
      * 给根布局补上状态栏高度的顶部内边距，把整个页面往下推。
      * 老版本安卓系统已自动避让状态栏，检测到不需要时不动，避免重复加高。
      */
-    private void applyStatusBarPadding() {
+    private void applySystemBarPadding() {
         View root = findViewById(R.id.rootLayout);
         root.setOnApplyWindowInsetsListener((v, insets) -> {
-            int topInset;
+            int topInset = 0;
+            int imeBottom = 0;
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                 topInset = insets.getInsets(WindowInsets.Type.statusBars()).top;
+                // 软键盘：Android 15/16 强制全屏时 adjustResize 可能失效，
+                // 这里手动给底部补键盘高度，输入框才能浮到输入法上方（类似微信）
+                if (insets.isVisible(WindowInsets.Type.ime())) {
+                    imeBottom = insets.getInsets(WindowInsets.Type.ime()).bottom;
+                }
             } else {
                 topInset = insets.getSystemWindowInsetTop();
             }
+            int top = topInset;
+            int bottom = imeBottom;
             // 等布局完成后再判断，避免第一次回调时拿不到真实位置
             v.post(() -> {
                 if (isFinishing() || isDestroyed()) {
@@ -301,9 +314,8 @@ public class MainActivity extends Activity {
                 int[] loc = new int[2];
                 v.getLocationOnScreen(loc);
                 // 内容顶到了状态栏下面（edge-to-edge）才补内边距
-                if (topInset > 0 && loc[1] < topInset) {
-                    v.setPadding(0, topInset, 0, 0);
-                }
+                int padTop = (top > 0 && loc[1] < top) ? top : 0;
+                v.setPadding(0, padTop, 0, bottom);
             });
             return insets;
         });
@@ -562,8 +574,9 @@ public class MainActivity extends Activity {
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         if (requestCode == REQUEST_FILE_CHOOSER) {
             if (filePathCallback != null) {
-                Uri result = (data != null && resultCode == RESULT_OK) ? data.getData() : null;
-                filePathCallback.onReceiveValue(result != null ? new Uri[]{result} : null);
+                // parseResult 兼容单选/多选/取消，避免部分机型 getData() 为空
+                filePathCallback.onReceiveValue(
+                        WebChromeClient.FileChooserParams.parseResult(resultCode, data));
                 filePathCallback = null;
             }
             return;

@@ -13,7 +13,7 @@ router = APIRouter(prefix="/posts", tags=["posts"])
 
 @router.get("")
 def list_posts(
-    view: str = Query(default="all", pattern="^(all|school|hot|latest)$"),
+    view: str = Query(default="all", pattern="^(all|school|hot|latest|today)$"),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
     q: str | None = Query(default=None, min_length=1, max_length=100),

@@ -275,15 +275,17 @@ function switchSort(mode: 'latest' | 'hot') {
 
 <template>
   <div class="comment-list">
-    <!-- 加载中 -->
-    <div v-if="loading" class="loading-tip">
-      <Icon name="refresh" :size="18" />
-      <span>加载中…</span>
-    </div>
+    <div class="comments-body" :class="{ 'is-guest': !session.userId }">
+      <div class="comments-content">
+        <!-- 加载中 -->
+        <div v-if="loading" class="loading-tip">
+          <Icon name="refresh" :size="18" />
+          <span>加载中…</span>
+        </div>
 
-    <template v-else>
-      <!-- 排序切换：最新 / 最热 -->
-      <div class="comment-sort-bar">
+        <template v-else>
+          <!-- 排序切换：最新 / 最热 -->
+          <div v-if="session.userId" class="comment-sort-bar">
         <button
           class="sort-btn"
           :class="{ active: sortMode === 'latest' }"
@@ -338,16 +340,33 @@ function switchSort(mode: 'latest' | 'hot') {
         </div>
       </div>
 
-      <!-- 空状态 -->
-      <div v-if="!comments.length" class="empty-tip">暂无评论</div>
+          <!-- 空状态 -->
+          <div v-if="!comments.length" class="empty-tip">暂无评论</div>
 
-      <!-- 加载更多 -->
-      <div v-if="hasMore" class="load-more">
-        <button class="btn-text" type="button" :disabled="loadingMore" @click="loadMore">
-          {{ loadingMore ? '加载中…' : `加载更多（剩余 ${total - comments.length} 条）` }}
-        </button>
+          <!-- 加载更多 -->
+          <div v-if="hasMore" class="load-more">
+            <button class="btn-text" type="button" :disabled="loadingMore" @click="loadMore">
+              {{ loadingMore ? '加载中…' : `加载更多（剩余 ${total - comments.length} 条）` }}
+            </button>
+          </div>
+        </template>
       </div>
-    </template>
+
+      <!-- 游客遮罩：登录即可查看评论 -->
+      <div
+        v-if="!session.userId"
+        class="comments-guest-mask"
+        role="button"
+        aria-label="登录即可查看评论"
+        @click="uiStore.openAuthDialog()"
+      >
+        <span class="comments-guest-icon">
+          <Icon name="lock" :size="22" />
+        </span>
+        <span class="comments-guest-text">登录即可查看评论</span>
+        <span class="comments-guest-login">去登录</span>
+      </div>
+    </div>
 
     <!-- 占位：为固定底部输入框腾出空间，避免最后的内容被遮挡 -->
     <div class="comment-input-placeholder"></div>
@@ -376,6 +395,48 @@ function switchSort(mode: 'latest' | 'hot') {
 </template>
 
 <style scoped>
+.comments-body {
+  position: relative;
+}
+.comments-body.is-guest .comments-content {
+  filter: blur(6px);
+  pointer-events: none;
+  user-select: none;
+}
+.comments-guest-mask {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  /* 无边框无圆角，只靠内容模糊 + 文案提示 */
+  background: transparent;
+  border-radius: 0;
+  cursor: pointer;
+}
+.comments-guest-icon {
+  color: var(--text-400);
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
+}
+.comments-guest-text {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-600);
+  text-shadow: 0 1px 4px rgba(255, 255, 255, 0.8);
+}
+.comments-guest-login {
+  margin-top: 4px;
+  padding: 7px 24px;
+  border-radius: 999px;
+  background: var(--brand-500);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  box-shadow: 0 2px 8px rgba(0, 122, 255, 0.35);
+}
 .comment-list {
   margin-top: 12px;
   padding-top: 12px;

@@ -19,6 +19,7 @@ import EmptyState from '../components/common/EmptyState.vue'
 import AiStatusBadge from '../components/common/AiStatusBadge.vue'
 import BadgeIcon from '../components/common/BadgeIcon.vue'
 import PostListSkeleton from '../components/post/PostListSkeleton.vue'
+import AutoFitText from '../components/common/AutoFitText.vue'
 import InfiniteScrollFooter from '../components/common/InfiniteScrollFooter.vue'
 import { Dialog as NativeDialog } from '../components/native'
 import DownloadAppButton from '../components/DownloadAppButton.vue'
@@ -295,25 +296,43 @@ function openSearch() {
 const swipeConfirmVisible = ref(false)
 
 function goSwipe() {
-  swipeConfirmVisible.value = true
-}
-
-function confirmSwipe() {
-  swipeConfirmVisible.value = false
-  router.push({ path: '/swipe', query: { view: feedView.value } })
-}
-
-function openFeature(slug: string) {
-  // 随机交友入口跳转独立的漂流瓶页面（不再是圈子帖子流）
-  if (slug === 'bottle') {
+    // 未登录：弹登录框，而不是直接进刷流
     if (!session.userId) {
       uiStore.openAuthDialog()
       return
     }
+    swipeConfirmVisible.value = true
+  }
+  
+  function confirmSwipe() {
+    if (!session.userId) {
+      uiStore.openAuthDialog()
+      return
+    }
+    swipeConfirmVisible.value = false
+    router.push({ path: '/swipe', query: { view: feedView.value } })
+  }
+  
+function openFeature(slug: string) {
+  // 未登录：随机交友 / 表白墙 / 匿名树洞统一弹登录框
+  if (!session.userId) {
+    uiStore.openAuthDialog()
+    return
+  }
+  if (slug === 'bottle') {
     router.push('/bottle')
     return
   }
   router.push(`/circle/${slug}`)
+}
+
+/** 统计入口：未登录先弹登录框，已登录才进列表页 */
+function onStatsClick(path: string) {
+  if (!session.userId) {
+    uiStore.openAuthDialog()
+    return
+  }
+  router.push(path)
 }
 
 function isJoined(slug: string): boolean {
@@ -433,27 +452,27 @@ onUnmounted(() => {
 
       <!-- ====== 透明统计：在线人数 / 今日发帖 / 注册人数 ====== -->
       <section class="home-stats" aria-label="站点统计">
-        <div class="stats-item">
+        <div class="stats-item stats-item--link" title="查看在线用户" @click="onStatsClick('/stats/online')">
           <span class="stats-dot stats-dot--green" aria-hidden="true"></span>
-          <span class="stats-num">{{ formatStatsNum(homeStats.online_count) }}</span>
+          <AutoFitText :text="formatStatsNum(homeStats.logged_in_count)" />
           <span class="stats-label">在线中</span>
         </div>
         <span class="stats-divider" aria-hidden="true"></span>
-        <div class="stats-item" title="未登录的游客人数">
+        <div class="stats-item stats-item--link" title="查看在线游客" @click="onStatsClick('/stats/guests')">
           <Icon name="user" :size="14" />
-          <span class="stats-num">{{ formatStatsNum(homeStats.visitor_count) }}</span>
+          <AutoFitText :text="formatStatsNum(homeStats.visitor_count)" />
           <span class="stats-label">游客在线</span>
         </div>
         <span class="stats-divider" aria-hidden="true"></span>
-        <div class="stats-item">
+        <div class="stats-item stats-item--link" title="查看今日发布" @click="onStatsClick('/stats/today-posts')">
           <Icon name="file" :size="14" />
-          <span class="stats-num">{{ formatStatsNum(homeStats.today_post_count) }}</span>
+          <AutoFitText :text="formatStatsNum(homeStats.today_post_count)" />
           <span class="stats-label">今日发布</span>
         </div>
         <span class="stats-divider" aria-hidden="true"></span>
-        <div class="stats-item">
+        <div class="stats-item stats-item--link" title="查看注册用户" @click="onStatsClick('/stats/users')">
           <Icon name="users" :size="14" />
-          <span class="stats-num">{{ formatStatsNum(homeStats.total_users) }}</span>
+          <AutoFitText :text="formatStatsNum(homeStats.total_users)" />
           <span class="stats-label">注册人数</span>
         </div>
       </section>
@@ -874,6 +893,17 @@ onUnmounted(() => {
   align-items: center;
   gap: 4px;
   color: var(--text-500);
+  min-width: 0;
+}
+.stats-item--link {
+  cursor: pointer;
+  user-select: none;
+}
+.stats-item--link:hover {
+  opacity: 0.8;
+}
+.stats-item--link:active {
+  transform: scale(0.97);
 }
 .stats-dot {
   width: 6px;

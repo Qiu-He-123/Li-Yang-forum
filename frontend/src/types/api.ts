@@ -32,6 +32,8 @@ export interface Badge {
   /** 当前用户是否正在佩戴 */
   is_wearing?: boolean
   created_at?: string | null
+  /** 获取时间（公开主页勋章展示用） */
+  acquired_at?: string | null
 }
 
 export interface Post {

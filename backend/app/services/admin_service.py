@@ -10,7 +10,7 @@ import json
 from datetime import timedelta
 
 from fastapi import HTTPException, Request, Response
-from sqlalchemy import desc, func, select
+from sqlalchemy import delete, desc, func, select
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
@@ -20,6 +20,7 @@ from app.core.time_utils import beijing_today_start, now_utc, to_beijing, to_iso
 from app.models import (
     Admin,
     Announcement,
+    AnnouncementRead,
     Appeal,
     AuditLog,
     Badge,
@@ -837,6 +838,12 @@ def create_announcement(payload: AnnouncementCreate, request: Request, db: Sessi
     log_admin_action(db, admin.id, "create_announcement", json.dumps({"title": payload.title}, ensure_ascii=False), _extract_ip(request))
     db.commit()
     db.refresh(item)
+    # 兜底：删除的公告 id 可能被复用，若历史脏已读记录残留会指向新公告，
+    # 这里清掉，保证新公告对所有用户都是未读
+    db.execute(
+        delete(AnnouncementRead).where(AnnouncementRead.announcement_id == item.id)
+    )
+    db.commit()
     return _ann_dict(item)
 
 
@@ -855,6 +862,13 @@ def admin_update_announcement(ann_id: int, payload: dict, request: Request, db: 
         _extract_ip(request),
     )
     db.commit()
+    # 公告内容被修改后，清空所有人的已读记录：
+    # 否则旧已读会让用户刷新不弹窗、设置里仍显示已读（复现：改公告内容 → 用户侧无感知）
+    if changes:
+        db.execute(
+            delete(AnnouncementRead).where(AnnouncementRead.announcement_id == ann_id)
+        )
+        db.commit()
     db.refresh(a)
     return _ann_dict(a)
 
@@ -863,6 +877,11 @@ def admin_delete_announcement(ann_id: int, request: Request, db: Session, admin:
     a = db.get(Announcement, ann_id)
     if not a:
         raise HTTPException(status_code=404, detail="公告不存在")
+    # 删除公告前先清掉该公告的所有已读记录：
+    # 否则 id 被复用后，旧已读会指向新公告，导致新公告"默认已读、不弹窗"
+    db.execute(
+        delete(AnnouncementRead).where(AnnouncementRead.announcement_id == ann_id)
+    )
     db.delete(a)
     log_admin_action(db, admin.id, "delete_announcement", json.dumps({"ann_id": ann_id}, ensure_ascii=False), _extract_ip(request))
     db.commit()

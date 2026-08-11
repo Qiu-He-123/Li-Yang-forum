@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session, selectinload
 from app.services.avatar import avatar_url_or_default
 from app.core.database import SessionLocal
 from app.core.errors import ErrorCode
-from app.core.time_utils import to_iso_zh
+from app.core.time_utils import beijing_today_start, to_iso_zh
 from app.models import Category, Comment, Post, School, User
 from app.schemas.post import CATEGORIES, PostCreate, PostUpdate
 from app.services.ai_service import ai_service
@@ -136,6 +136,9 @@ def list_posts(
         query = query.where(Post.is_public.is_(True))
         # 匿名用户只能看到审核通过的帖子
         query = query.where(Post.ai_status == "approved")
+    # 今日发布：登录/匿名都按当天过滤
+    if view == "today":
+        query = query.where(Post.created_at >= beijing_today_start())
     if q:
         # 同时搜索 content 和 title
         keyword = f"%{q}%"

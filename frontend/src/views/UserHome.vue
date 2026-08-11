@@ -34,7 +34,8 @@ import { useSessionStore } from '../stores/session'
 import { useUserStore } from '../stores/user'
 import { useFollowStore } from '../stores/follow'
 import { useSchoolStore } from '../stores/school'
-import type { Post, Profile } from '../types/api'
+import { fetchUserBadges } from '../api/badge'
+import type { Badge, Post, Profile } from '../types/api'
 
 const route = useRoute()
 const router = useRouter()
@@ -53,7 +54,7 @@ const userId = computed(() => {
 })
 const profile = ref<Profile | null>(null)
 const posts = ref<Post[]>([])
-const activeTab = ref<'posts' | 'favorites' | 'likes'>('posts')
+const activeTab = ref<'posts' | 'favorites' | 'likes' | 'badges'>('posts')
 const loading = ref(false)
 // 分页状态
 const page = ref(1)
@@ -82,7 +83,33 @@ const tabs = computed(() => [
   { key: 'posts' as const, label: '作品', count: profile.value?.post_count ?? 0 },
   { key: 'favorites' as const, label: '收藏', count: 0 },
   { key: 'likes' as const, label: '点赞', count: 0 },
+  { key: 'badges' as const, label: '勋章', count: profile.value?.badge_count ?? 0 },
 ])
+
+// ============ 勋章（所有人可见） ============
+const userBadges = ref<Badge[]>([])
+const userBadgesLoading = ref(false)
+
+async function loadUserBadges() {
+  if (!userId.value || isNaN(userId.value)) return
+  userBadgesLoading.value = true
+  try {
+    const { data } = await fetchUserBadges(userId.value, {
+      showGlobalLoading: false,
+      showGlobalError: false,
+    })
+    userBadges.value = data.data.owned || []
+  } catch (err) {
+    toast.error((err as Error).message)
+  } finally {
+    userBadgesLoading.value = false
+  }
+}
+
+function fmtBadgeTime(t?: string | null): string {
+  if (!t) return '—'
+  return t.replace('T', ' ').slice(0, 16)
+}
 
 const funcGrid = computed(() => {
   const items = [
@@ -505,8 +532,12 @@ async function onToggleFollow() {
   }
 }
 
-function onTabChange(tab: 'posts' | 'favorites' | 'likes') {
+function onTabChange(tab: 'posts' | 'favorites' | 'likes' | 'badges') {
   activeTab.value = tab
+  if (tab === 'badges') {
+    loadUserBadges()
+    return
+  }
   loadPosts()
 }
 
@@ -692,13 +723,19 @@ onMounted(async () => {
             </span>
           </span>
         </div>
-        <!-- 佩戴徽章展示：让用户知道可以佩戴徽章 -->
-        <button v-if="isMe" class="wearing-badge-row" type="button" @click="goMyBadges">
+        <!-- 佩戴徽章展示：所有人可见（仅本人可点击进入管理） -->
+        <div
+          class="wearing-badge-row"
+          :class="{ 'is-clickable': isMe }"
+          @click="isMe && goMyBadges()"
+        >
           <BadgeIcon :badge="profile?.wearing_badge" :size="16" />
           <span v-if="profile?.wearing_badge">佩戴中：{{ profile.wearing_badge.name }}</span>
-          <span v-else>还没有佩戴徽章</span>
-          <span class="wearing-badge-action">去管理<Icon name="chevron-right" :size="11" /></span>
-        </button>
+          <span v-else>{{ isMe ? '还没有佩戴徽章' : '未佩戴徽章' }}</span>
+          <span v-if="isMe" class="wearing-badge-action">
+            <Icon name="chevron-right" :size="11" />
+          </span>
+        </div>
         <p v-if="profile?.bio" class="hero-bio">{{ profile.bio }}</p>
 
         <!-- 统计（可点击） -->
@@ -958,7 +995,7 @@ onMounted(async () => {
       </div>
     </section>
 
-    <!-- 帖子 Tab -->
+    <!-- 帖子/收藏/点赞/勋章 Tab：tab 栏常驻，只切换下方内容 -->
     <section class="posts-section">
       <div class="posts-tabs">
         <button
@@ -973,6 +1010,7 @@ onMounted(async () => {
         </button>
       </div>
 
+      <template v-if="activeTab !== 'badges'">
       <!-- 帖子列表骨架屏 -->
       <PostListSkeleton v-if="loading && !posts.length" :count="4" />
 
@@ -1023,6 +1061,35 @@ onMounted(async () => {
       </div>
 
       <EmptyState v-else :text="activeTab === 'posts' ? '还没有发布过作品' : '暂无内容'" />
+      </template>
+
+      <!-- 勋章 Tab：所有人可见 -->
+      <template v-else>
+        <div v-if="userBadgesLoading" class="loading-tip">
+          <Icon name="refresh" :size="20" />
+          <span>加载中…</span>
+        </div>
+        <div v-else-if="userBadges.length" class="badges-grid">
+          <div
+            v-for="b in userBadges"
+            :key="b.id"
+            class="badge-card"
+            :class="{ 'is-wearing': b.is_wearing }"
+          >
+            <div class="badge-card-head">
+              <BadgeIcon :badge="b" :size="42" />
+              <span v-if="b.is_wearing" class="badge-wearing-tag">佩戴中</span>
+            </div>
+            <div class="badge-card-name">{{ b.name }}</div>
+            <p class="badge-card-desc">{{ b.description || '暂无简介' }}</p>
+            <div class="badge-card-time">
+              <Icon name="clock" :size="11" />
+              <span>获取于 {{ fmtBadgeTime(b.acquired_at) }}</span>
+            </div>
+          </div>
+        </div>
+        <EmptyState v-else text="还没有获得勋章" />
+      </template>
     </section>
 
     <!-- 设置列表（仅自己可见） -->
@@ -1334,12 +1401,82 @@ onMounted(async () => {
   background: rgba(0, 122, 255, 0.1);
   border-color: var(--brand-500);
 }
+.wearing-badge-row.is-clickable {
+  cursor: pointer;
+}
 .wearing-badge-action {
   display: inline-flex;
   align-items: center;
   gap: 2px;
   color: var(--brand-500);
   font-weight: 600;
+}
+
+/* ============ 勋章 Tab（所有人可见） ============ */
+.badges-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 12px;
+}
+.badge-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 18px 14px 14px;
+  border: 1px solid var(--bg-300);
+  border-radius: 14px;
+  background: var(--bg-50);
+  text-align: center;
+  transition: all 0.15s ease;
+}
+.badge-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md, 0 8px 24px -8px rgba(0, 0, 0, 0.12));
+}
+.badge-card.is-wearing {
+  border-color: var(--brand-500);
+  background: var(--brand-50, #e8f2ff);
+}
+.badge-card-head {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  min-height: 56px;
+  justify-content: center;
+}
+.badge-wearing-tag {
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--brand-500);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+}
+.badge-card-name {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-800);
+}
+.badge-card-desc {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-500);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.badge-card-time {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--text-400);
 }
 .edit-input {
   width: 100%;

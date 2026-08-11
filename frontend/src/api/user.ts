@@ -1,6 +1,6 @@
 import { http } from './http'
 import type { LoadingAxiosRequestConfig } from './http'
-import type { Post, Profile } from '../types/api'
+import type { Badge, Post, Profile } from '../types/api'
 
 export interface ProfileUpdatePayload {
   nickname?: string
@@ -155,4 +155,27 @@ export function createAppeal(reason: string, banRecordId?: number) {
 
 export function fetchMyAppeals(config: LoadingAxiosRequestConfig = {}) {
   return http.get<unknown, { data: { code: number; msg: string; data: UserAppeal[] } }>('/users/me/appeals', config)
+}
+
+export interface RecentUserItem {
+  id: number
+  nickname: string
+  avatar_url: string | null
+  badge: Badge | null
+  school: string | null
+  created_at: string | null
+}
+
+export function fetchRecentUsers(
+  page = 1,
+  pageSize = 20,
+  q = '',
+  config: LoadingAxiosRequestConfig = {},
+) {
+  const params: Record<string, unknown> = { page, page_size: pageSize }
+  if (q) params.q = q
+  return http.get<
+    unknown,
+    { data: { code: number; msg: string; data: { items: RecentUserItem[]; total: number } } }
+  >('/users/recent', { ...config, params })
 }

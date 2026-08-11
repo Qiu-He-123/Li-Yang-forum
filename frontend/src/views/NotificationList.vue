@@ -17,6 +17,7 @@ import { toast } from '../components/native/Toast'
 import { listNotifications, markAllNotificationsRead, markNotificationRead } from '../api/notification'
 import { useInfiniteScroll } from '../composables/useInfiniteScroll'
 import { useNotificationStore } from '../stores/notification'
+import { prepareBackTarget } from '../utils/backNav'
 import type { NotificationItem } from '../types/api'
 
 const route = useRoute()
@@ -112,6 +113,8 @@ async function onItemClick(item: NotificationItem) {
     router.push(`/notification/${item.id}`)
     return
   }
+  // 从通知进入详情：返回键直接回首页，而不是退回到通知列表
+  prepareBackTarget('/')
   // 跳转到引用对象
   if (item.reference_type === 'post' && item.reference_id) {
     router.push(`/post/${item.post_id ?? item.reference_id}`)

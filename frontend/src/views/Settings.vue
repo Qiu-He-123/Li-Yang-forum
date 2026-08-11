@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
 
 import AppHeader from '../components/header/AppHeader.vue'
+import { useThemeStore } from '../stores/theme'
 import {
   changePassword,
   getMyInviteCode,
@@ -50,7 +51,9 @@ const form = ref({
   /** 生日（YYYY-MM-DD），设置后动态计算年龄，替代年级 */
   birthday: '' as string,
 })
-const activeTab = ref<'profile' | 'security' | 'invite' | 'ban' | 'messages' | 'notifications' | 'announcements'>('profile')
+const activeTab = ref<'profile' | 'security' | 'invite' | 'ban' | 'messages' | 'notifications' | 'announcements' | 'appearance'>('profile')
+const themeStore = useThemeStore()
+themeStore.init()
 const saving = ref(false)
 
 // ============ 年龄系统：生日设置 ============
@@ -514,6 +517,34 @@ onMounted(async () => {
             <el-button type="primary" :loading="saving" @click="save">保存</el-button>
           </el-form>
         </el-tab-pane>
+        <el-tab-pane label="外观" name="appearance">
+          <h3 class="mb-3 text-base font-bold">主题模式</h3>
+          <div class="theme-switch-card">
+            <button
+              class="theme-option"
+              :class="{ 'is-active': themeStore.theme === 'light' }"
+              type="button"
+              @click="themeStore.apply('light')"
+            >
+              <span class="theme-icon" aria-hidden="true">☀️</span>
+              <span class="theme-name">白天模式</span>
+              <span class="theme-desc">明亮清爽</span>
+              <span class="theme-check" aria-hidden="true">✓</span>
+            </button>
+            <button
+              class="theme-option"
+              :class="{ 'is-active': themeStore.theme === 'dark' }"
+              type="button"
+              @click="themeStore.apply('dark')"
+            >
+              <span class="theme-icon" aria-hidden="true">🌙</span>
+              <span class="theme-name">暗色模式</span>
+              <span class="theme-desc">夜间护眼</span>
+              <span class="theme-check" aria-hidden="true">✓</span>
+            </button>
+          </div>
+          <p class="theme-hint">主题选择会保存在本机，下次打开自动生效。</p>
+        </el-tab-pane>
         <el-tab-pane label="账号安全" name="security">
           <h3 class="mb-3 text-base font-bold">修改密码</h3>
           <el-form
@@ -799,6 +830,70 @@ onMounted(async () => {
 </template>
 
 <style scoped>
+/* 外观主题切换 */
+.theme-switch-card {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  max-width: 420px;
+}
+.theme-option {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 18px 16px;
+  border: 1.5px solid var(--bg-300);
+  border-radius: 14px;
+  background: var(--bg-50);
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.15s ease;
+}
+.theme-option:hover {
+  border-color: var(--brand-300);
+}
+.theme-option.is-active {
+  border-color: var(--brand-500);
+  background: var(--brand-50);
+  box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.12);
+}
+.theme-icon {
+  font-size: 28px;
+  line-height: 1;
+}
+.theme-name {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-800);
+}
+.theme-desc {
+  font-size: 12px;
+  color: var(--text-400);
+}
+.theme-check {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 20px;
+  height: 20px;
+  display: none;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--brand-500);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+}
+.theme-option.is-active .theme-check {
+  display: grid;
+}
+.theme-hint {
+  margin-top: 12px;
+  font-size: 12px;
+  color: var(--text-400);
+}
 /* 设置页 Tab */
 .settings-tabs :deep(.el-tabs__header) {
   margin: 0 0 16px;

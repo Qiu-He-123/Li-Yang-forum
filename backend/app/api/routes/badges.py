@@ -6,7 +6,7 @@
 - POST /badges/wear     佩戴徽章（{badge_id}）
 - DELETE /badges/wear   卸下当前佩戴的徽章
 """
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
@@ -43,6 +43,19 @@ def my_badges(
 ) -> dict:
     """我的徽章：已拥有 + 当前佩戴 + 全部目录。"""
     return ok(badge_service.my_badges(db, user))
+
+
+@router.get("/user/{user_id}")
+def user_badges(
+    user_id: int,
+    db: Session = Depends(get_db),
+    _: User = Depends(current_user),
+) -> dict:
+    """某用户的勋章列表（登录用户均可查看）。"""
+    target = db.get(User, user_id)
+    if not target:
+        raise HTTPException(status_code=404, detail="用户不存在")
+    return ok(badge_service.user_badges(db, target))
 
 
 @router.post("/claim")

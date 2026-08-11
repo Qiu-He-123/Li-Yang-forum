@@ -188,7 +188,13 @@ def startup() -> None:
     ensure_schema(engine, settings.database_url, settings.env)
 
     with SessionLocal() as db:
-        for name, code in [("本部校区", "main"), ("未来校区", "future"), ("香山校区", "xiangshan"), ("东校区", "east")]:
+        for name, code in [
+            ("本部校区", "main"),
+            ("未来校区", "future"),
+            ("香山校区", "xiangshan"),
+            ("东校区", "east"),
+            ("杞县校区", "qixian"),
+        ]:
             if not db.scalar(select(School).where(School.code == code)):
                 db.add(School(name=name, code=code))
         # 初始化徽章系统（幂等，至少 20 个种子徽章）

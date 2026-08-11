@@ -65,6 +65,18 @@ def update_me(payload: ProfileUpdate, request: Request, db: Session = Depends(ge
     return ok(user_service.update_me(payload, request, db, user))
 
 
+@router.get("/recent")
+def recent_users(
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=100),
+    q: str | None = Query(default=None, max_length=32),
+    db: Session = Depends(get_db),
+    _: User = Depends(current_user),
+) -> dict:
+    """最新注册用户列表（分页，注册人数入口）。"""
+    return ok(user_service.recent_users(db, page, page_size, q))
+
+
 @router.get("/{user_id}")
 def get_user(user_id: int, db: Session = Depends(get_db), user: User = Depends(current_user)) -> dict:
     """查询指定用户资料。

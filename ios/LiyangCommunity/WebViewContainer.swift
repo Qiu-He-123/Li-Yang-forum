@@ -137,8 +137,16 @@ final class ImagePickerDelegate: NSObject, PHPickerViewControllerDelegate {
             return
         }
         provider.loadFileRepresentation(forTypeIdentifier: type) { [weak self] url, _ in
+            guard let self, let url else {
+                DispatchQueue.main.async { self?.completion(nil) }
+                return
+            }
+            // 系统给的临时文件在回调结束后会被清理，复制到 App 临时目录再交给网页上传
+            let dest = FileManager.default.temporaryDirectory
+                .appendingPathComponent(UUID().uuidString + "." + url.pathExtension)
+            try? FileManager.default.copyItem(at: url, to: dest)
             DispatchQueue.main.async {
-                self?.completion(url.map { [$0] })
+                self.completion([dest])
             }
         }
     }
