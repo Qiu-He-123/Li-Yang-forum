@@ -38,9 +38,13 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.util.Arrays;
+import java.util.Locale;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -83,6 +87,10 @@ public class MainActivity extends Activity {
     private static final long MIN_SPLASH_MS = 1200;
     /** 定期把 Cookie 落盘，防止进程被杀导致登录态丢失 */
     private static final long COOKIE_FLUSH_INTERVAL_MS = 30_000;
+    /** 文件选择器结果复制到缓存目录时的临时目录名 */
+    private static final String UPLOAD_CACHE_DIR = "upload";
+    /** 上传缓存目录最大保留量，超过时按最旧优先清理（防止缓存目录被塞满） */
+    private static final long UPLOAD_CACHE_MAX_BYTES = 200L * 1024 * 1024;
 
     private final Handler cookieFlushHandler = new Handler(Looper.getMainLooper());
     private final Runnable cookieFlushTask = new Runnable() {
@@ -217,25 +225,26 @@ public class MainActivity extends Activity {
                 }
                 MainActivity.this.filePathCallback = filePathCallback;
                 try {
-                      Intent intent = fileChooserParams.createIntent();
-                      intent.addCategory(Intent.CATEGORY_OPENABLE);
-                      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP
-                              && fileChooserParams.getMode()
-                                      == WebChromeClient.FileChooserParams.MODE_OPEN_MULTIPLE) {
-                          intent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true);
-                      }
-                      // 显式带上网页声明的可接受类型，避免部分机型只能选到非图片文件
-                      String[] acceptTypes = fileChooserParams.getAcceptTypes();
-                      if (acceptTypes != null && acceptTypes.length > 0) {
-                          intent.putExtra(Intent.EXTRA_MIME_TYPES, acceptTypes);
-                      }
-                      startActivityForResult(
-                              Intent.createChooser(intent, "选择文件"),
-                              REQUEST_FILE_CHOOSER);
-                  } catch (Exception e) {
-                      MainActivity.this.filePathCallback.onReceiveValue(null);
-                      MainActivity.this.filePathCallback = null;
-                      return false;
+                    // 直接用 createIntent() 返回的 ACTION_GET_CONTENT 启动。
+                    // 不要再包一层 Intent.createChooser：系统选择器本身就有应用列表，
+                    // 且部分机型经过 chooser 转发后会丢 ClipData / 结果，导致网页端毫无反应。
+                    Intent intent = fileChooserParams.createIntent();
+                    intent.addCategory(Intent.CATEGORY_OPENABLE);
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP
+                            && fileChooserParams.getMode()
+                                    == WebChromeClient.FileChooserParams.MODE_OPEN_MULTIPLE) {
+                        intent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true);
+                    }
+                    // 显式带上网页声明的可接受类型，避免部分机型只能选到非图片文件
+                    String[] acceptTypes = fileChooserParams.getAcceptTypes();
+                    if (acceptTypes != null && acceptTypes.length > 0) {
+                        intent.putExtra(Intent.EXTRA_MIME_TYPES, acceptTypes);
+                    }
+                    startActivityForResult(intent, REQUEST_FILE_CHOOSER);
+                } catch (Exception e) {
+                    MainActivity.this.filePathCallback.onReceiveValue(null);
+                    MainActivity.this.filePathCallback = null;
+                    return false;
                 }
                 return true;
             }
@@ -301,8 +310,12 @@ public class MainActivity extends Activity {
         root.setOnApplyWindowInsetsListener((v, insets) -> {
             int topInset = 0;
             int imeBottom = 0;
+            int bottomInset = 0;
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                 topInset = insets.getInsets(WindowInsets.Type.statusBars()).top;
+                // 底部导航栏（三键返回键 / 手势条）：和三键手机上的微信一样，
+                // 内容要抬到导航栏上方，不能把按钮顶到返回键底下。
+                bottomInset = insets.getInsets(WindowInsets.Type.navigationBars()).bottom;
                 // 软键盘：Android 15/16 强制全屏时 adjustResize 可能失效，
                 // 这里手动给底部补键盘高度，输入框才能浮到输入法上方（类似微信）
                 if (insets.isVisible(WindowInsets.Type.ime())) {
@@ -310,9 +323,10 @@ public class MainActivity extends Activity {
                 }
             } else {
                 topInset = insets.getSystemWindowInsetTop();
+                bottomInset = insets.getSystemWindowInsetBottom();
             }
             int top = topInset;
-            int bottom = imeBottom;
+            int bottom = Math.max(imeBottom, bottomInset);
             // 等布局完成后再判断，避免第一次回调时拿不到真实位置
             v.post(() -> {
                 if (isFinishing() || isDestroyed()) {
@@ -320,12 +334,123 @@ public class MainActivity extends Activity {
                 }
                 int[] loc = new int[2];
                 v.getLocationOnScreen(loc);
-                // 内容顶到了状态栏下面（edge-to-edge）才补内边距
+                // 内容顶到了状态栏下面（edge-to-edge）才补顶部内边距
                 int padTop = (top > 0 && loc[1] < top) ? top : 0;
-                v.setPadding(0, padTop, 0, bottom);
+                // 底部同样：只有内容真的画到了导航栏区域（根布局底边贴近屏幕底边）
+                // 才补导航栏高度，避免系统已自动避让时重复加高出现空白。
+                int padBottom = 0;
+                if (bottom > 0) {
+                    android.util.DisplayMetrics dm = new android.util.DisplayMetrics();
+                    getWindowManager().getDefaultDisplay().getRealMetrics(dm);
+                    int rootBottom = loc[1] + v.getHeight();
+                    if (rootBottom >= dm.heightPixels - bottom + 1) {
+                        padBottom = bottom;
+                    }
+                }
+                v.setPadding(0, padTop, 0, padBottom);
             });
             return insets;
         });
+    }
+
+    // ---------- 文件选择器结果处理 ----------
+
+    /**
+     * 把系统文件选择器返回的 content:// URI 复制到应用私有缓存目录，
+     * 再以 file:// URI 交给网页。部分相册/文件 App 返回的 content:// URI
+     * 只对"选择器"授权、对 WebView 不可读，网页拿到后 File 对象为空、
+     * change 事件不触发 → 表现为"选了图片但页面毫无反应"。
+     * 复制到自己的缓存目录后 WebView 一定能读，这是官方文档推荐的稳妥做法。
+     */
+    private Uri[] copyResultsToCache(Uri[] uris) {
+        if (uris == null || uris.length == 0) {
+            return uris;
+        }
+        try {
+            File dir = new File(getCacheDir(), UPLOAD_CACHE_DIR);
+            if (!dir.exists()) {
+                //noinspection ResultOfMethodCallIgnored
+                dir.mkdirs();
+            }
+            cleanupUploadCache(dir);
+            Uri[] out = new Uri[uris.length];
+            for (int i = 0; i < uris.length; i++) {
+                out[i] = copyUriToCache(uris[i], dir, i);
+            }
+            return out;
+        } catch (Exception e) {
+            // 复制失败就退回原 URI，让网页端自己报错
+            return uris;
+        }
+    }
+
+    private Uri copyUriToCache(Uri uri, File dir, int index) {
+        if (uri == null) {
+            return null;
+        }
+        String scheme = uri.getScheme();
+        // file:// 和 http(s):// 本来就能读，不用复制
+        if ("file".equals(scheme) || "http".equals(scheme) || "https".equals(scheme)) {
+            return uri;
+        }
+        File dst = new File(dir, System.currentTimeMillis() + "_" + index + guessImageExtension(uri));
+        try (InputStream in = getContentResolver().openInputStream(uri);
+             FileOutputStream out = new FileOutputStream(dst)) {
+            byte[] buf = new byte[8192];
+            int n;
+            while ((n = in.read(buf)) != -1) {
+                out.write(buf, 0, n);
+            }
+            return Uri.fromFile(dst);
+        } catch (Exception e) {
+            return uri;
+        }
+    }
+
+    private String guessImageExtension(Uri uri) {
+        String mime = null;
+        try {
+            mime = getContentResolver().getType(uri);
+        } catch (Exception ignored) {
+            // 某些 picker 的 URI 拿不到 MIME，走兜底
+        }
+        if (mime == null && uri.getLastPathSegment() != null) {
+            mime = uri.getLastPathSegment();
+        }
+        if (mime != null) {
+            String lower = mime.toLowerCase(Locale.US);
+            if (lower.contains("jpeg") || lower.contains("jpg")) return ".jpg";
+            if (lower.contains("png")) return ".png";
+            if (lower.contains("gif")) return ".gif";
+            if (lower.contains("webp")) return ".webp";
+            if (lower.contains("heic")) return ".heic";
+            if (lower.contains("bmp")) return ".bmp";
+        }
+        return ".jpg";
+    }
+
+    /** 缓存目录超过上限时，按最旧优先删除，避免上传大图把缓存塞满 */
+    private void cleanupUploadCache(File dir) {
+        File[] files = dir.listFiles();
+        if (files == null || files.length == 0) {
+            return;
+        }
+        long total = 0;
+        for (File f : files) {
+            total += f.length();
+        }
+        if (total <= UPLOAD_CACHE_MAX_BYTES) {
+            return;
+        }
+        Arrays.sort(files, (a, b) -> Long.compare(a.lastModified(), b.lastModified()));
+        for (File f : files) {
+            if (total <= UPLOAD_CACHE_MAX_BYTES) {
+                break;
+            }
+            total -= f.length();
+            //noinspection ResultOfMethodCallIgnored
+            f.delete();
+        }
     }
 
     // ---------- 内核版本检查 ----------
@@ -581,9 +706,11 @@ public class MainActivity extends Activity {
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         if (requestCode == REQUEST_FILE_CHOOSER) {
             if (filePathCallback != null) {
-                // parseResult 兼容单选/多选/取消，避免部分机型 getData() 为空
-                filePathCallback.onReceiveValue(
-                        WebChromeClient.FileChooserParams.parseResult(resultCode, data));
+                // parseResult 兼容单选/多选/取消，避免部分机型 getData() 为空；
+                // 再把 content:// 复制成 file://，保证 WebView 一定能读
+                Uri[] results =
+                        WebChromeClient.FileChooserParams.parseResult(resultCode, data);
+                filePathCallback.onReceiveValue(copyResultsToCache(results));
                 filePathCallback = null;
             }
             return;
