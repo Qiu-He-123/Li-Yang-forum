@@ -31,6 +31,7 @@ import { usePostStore } from '../../stores/post'
 import { useSessionStore } from '../../stores/session'
 import { useSchoolStore } from '../../stores/school'
 import type { FollowUser, MyImage } from '../../types/api'
+import { isAppEnv } from '../../utils/platform'
 
 const props = defineProps<{
   postId?: number
@@ -1953,11 +1954,17 @@ defineExpose({
           <Icon v-else name="refresh" :size="22" />
         </button>
       </div>
+      <!--
+        注意：Android WebView（系统 WebView / 微信 web-view 同源问题）中，
+        input 带 multiple 时选图后 change 事件不触发，网页毫无反应；
+        单文件选择正常。App 内强制单选（可反复点添加累计多图），
+        桌面浏览器保留多选。勿把 multiple 改回无条件开启。
+      -->
       <input
         ref="fileInputRef"
         type="file"
-        accept="image/jpeg,image/png,image/gif,image/webp"
-        multiple
+        accept="image/*"
+        :multiple="!isAppEnv()"
         hidden
         @change="onFileChange"
       />

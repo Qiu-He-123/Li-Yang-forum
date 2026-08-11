@@ -38,6 +38,7 @@ import {
 } from '../api/bottle'
 import { uploadImage } from '../api/image'
 import { formatRelative } from '../utils/time'
+import { isAppEnv } from '../utils/platform'
 
 const router = useRouter()
 const session = useSessionStore()
@@ -663,7 +664,14 @@ onUnmounted(() => {
               </div>
               <label v-if="throwForm.image_urls.length < 3" class="image-upload-btn">
                 <Icon name="image-plus" :size="20" />
-                <input type="file" accept="image/*" multiple hidden @change="onUploadImage" />
+                <!-- App 内 Android WebView 不支持 multiple（change 不触发），强制单选 -->
+                <input
+                  type="file"
+                  accept="image/*"
+                  :multiple="!isAppEnv()"
+                  hidden
+                  @change="onUploadImage"
+                />
               </label>
             </div>
           </div>

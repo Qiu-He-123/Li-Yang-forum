@@ -208,9 +208,7 @@ function formatCooldown(sec: number): string {
   return `${Math.max(1, m)}分钟`
 }
 
-// ============ 我的页直接编辑（点头像/名字/校区） ============
-const avatarUploading = ref(false)
-const avatarInputRef = ref<HTMLInputElement | null>(null)
+// ============ 我的页直接编辑（背景图/名字/校区） ============
 const bgUploading = ref(false)
 const bgInputRef = ref<HTMLInputElement | null>(null)
 
@@ -221,18 +219,6 @@ const editName = ref('')
 const schoolDialogVisible = ref(false)
 const schoolSaving = ref(false)
 const selectedSchoolId = ref<number>(0)
-
-function onAvatarClick() {
-  if (!isMe.value) return
-  avatarInputRef.value?.click()
-}
-
-function onHeroBgClick(e: MouseEvent) {
-  if (!isMe.value || bgUploading.value) return
-  const target = e.target as HTMLElement
-  if (target.closest('button')) return
-  bgInputRef.value?.click()
-}
 
 function openBgPicker() {
   if (!isMe.value || bgUploading.value) return
@@ -255,25 +241,6 @@ async function onBgFileChange(e: Event) {
     toast.error((err as Error).message)
   } finally {
     bgUploading.value = false
-  }
-}
-
-async function onAvatarFileChange(e: Event) {
-  const input = e.target as HTMLInputElement
-  const file = input.files?.[0]
-  input.value = ''
-  if (!file) return
-  avatarUploading.value = true
-  try {
-    const { data } = await uploadImage(file, undefined, 'avatar')
-    await updateMe({ avatar_url: data.data.url })
-    await userStore.loadProfile()
-    profile.value = userStore.profile
-    toast.success('头像已更新')
-  } catch (err) {
-    toast.error((err as Error).message)
-  } finally {
-    avatarUploading.value = false
   }
 }
 
@@ -706,7 +673,6 @@ onMounted(async () => {
       class="profile-hero"
       :class="{ 'has-bg': !!profile?.background_url }"
       :style="profile?.background_url ? { backgroundImage: `url(${profile.background_url})` } : undefined"
-      @click="onHeroBgClick"
     >
       <div class="hero-topbar">
         <button class="icon-btn" type="button" aria-label="返回" @click="goBack">
@@ -722,21 +688,15 @@ onMounted(async () => {
       <div class="hero-body">
         <button
           class="hero-avatar"
-          :class="{ 'is-editable': isMe }"
           type="button"
-          :disabled="avatarUploading"
-          @click="onAvatarClick"
           :style="
             profile?.avatar_url
               ? { backgroundImage: `url(${profile.avatar_url})` }
               : { background: avatarGradient(profile?.id || userId) }
           "
-          aria-label="修改头像"
+          aria-label="头像"
         >
           <span v-if="!profile?.avatar_url">{{ displayInitial }}</span>
-          <span v-if="isMe" class="avatar-camera">
-            <Icon name="camera" :size="14" />
-          </span>
         </button>
         <h2 class="hero-name" :class="{ 'is-editable': isMe }" @click="onNameClick">
           <span>{{ displayName }}</span>
@@ -955,16 +915,7 @@ onMounted(async () => {
       </template>
     </NativeDialog>
 
-    <!-- 隐藏的头像文件选择（点击头像直接触发） -->
-    <input
-      ref="avatarInputRef"
-      class="hidden-file-input"
-      type="file"
-      accept="image/*"
-      @change="onAvatarFileChange"
-    />
-
-    <!-- 隐藏的背景图文件选择（点击个人主页顶部背景直接触发） -->
+    <!-- 隐藏的背景图文件选择（仅"更换背景图"按钮触发） -->
     <input
       ref="bgInputRef"
       class="hidden-file-input"
@@ -1243,32 +1194,6 @@ onMounted(async () => {
   font-weight: 700;
   box-shadow: var(--shadow-md);
   position: relative;
-}
-.hero-avatar.is-editable {
-  cursor: pointer;
-  transition: transform 0.15s var(--ease-apple), box-shadow 0.15s;
-}
-.hero-avatar.is-editable:hover {
-  transform: scale(1.03);
-  box-shadow: var(--shadow-lg, 0 10px 24px -8px rgba(0, 0, 0, 0.25));
-}
-.hero-avatar.is-editable:active {
-  transform: scale(0.98);
-}
-.avatar-camera {
-  position: absolute;
-  right: -3px;
-  bottom: -3px;
-  z-index: 5;
-  width: 26px;
-  height: 26px;
-  border-radius: 50%;
-  background: rgba(0, 0, 0, 0.55);
-  color: #fff;
-  display: grid;
-  place-items: center;
-  border: 2px solid #fff;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
 }
 .hero-name {
   margin: 12px 0 6px;
