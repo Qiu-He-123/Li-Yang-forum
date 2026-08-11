@@ -24,6 +24,8 @@ ALLOWED_TYPES = {"image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp
 TYPE_ALIASES = {"image/jpg": "image/jpeg"}
 MAX_BYTES = 5 * 1024 * 1024
 THUMB_MAX_SIZE = (400, 400)  # 缩略图最大尺寸
+BACKGROUND_MAX_SIZE = (1920, 1920)  # 背景图压缩后的最长边
+BACKGROUND_QUALITY = 82
 
 
 async def _read_limited(file: UploadFile, max_bytes: int = MAX_BYTES) -> bytes:
@@ -101,10 +103,32 @@ def _make_thumbnail(content: bytes, mime_type: str) -> bytes | None:
         return None
 
 
+def _compress_background(content: bytes, mime_type: str) -> bytes | None:
+    """压缩背景图：最长边不超过 1920px，JPEG q82；GIF 动图保留原样。"""
+    if mime_type == "image/gif":
+        return content
+    try:
+        img = PILImage.open(io.BytesIO(content))
+        img.thumbnail(BACKGROUND_MAX_SIZE, PILImage.LANCZOS)
+        if img.mode in ("RGBA", "P"):
+            background = PILImage.new("RGB", img.size, (255, 255, 255))
+            if img.mode == "P":
+                img = img.convert("RGBA")
+            background.paste(img, mask=img.split()[3] if img.mode == "RGBA" else None)
+            img = background
+        elif img.mode != "RGB":
+            img = img.convert("RGB")
+        buf = io.BytesIO()
+        img.save(buf, format="JPEG", quality=BACKGROUND_QUALITY, optimize=True)
+        return buf.getvalue()
+    except Exception:
+        return None
+
+
 @router.post("")
 async def upload_image(
     file: UploadFile = File(...),
-    purpose: str = Query(default="post", pattern="^(post|avatar)$"),
+    purpose: str = Query(default="post", pattern="^(post|avatar|background)$"),
     request: Request = None,
     db: Session = Depends(get_db),
     user: User = Depends(current_user),
@@ -124,6 +148,16 @@ async def upload_image(
         raise HTTPException(status_code=400, detail="无法识别的图片格式，请重新选择文件")
     if real_type != content_type:
         raise HTTPException(status_code=400, detail="图片内容与声明格式不符，疑似伪装文件")
+
+    # 背景图：上传前先压缩（最长边 1920 / JPEG q82），避免大图原样存储拖慢页面
+    if purpose == "background":
+        loop = aio.get_running_loop()
+        compressed = await loop.run_in_executor(
+            None, _compress_background, content, content_type
+        )
+        if compressed:
+            content = compressed
+            content_type = "image/jpeg"
 
     ext = ALLOWED_TYPES[content_type]
     filename = f"{uuid4().hex}{ext}"
@@ -158,7 +192,7 @@ async def upload_image(
         url=url,
         mime_type=content_type,
         size_bytes=len(content),
-        audit_status="approved" if purpose == "avatar" else "pending",
+        audit_status="approved" if purpose in ("avatar", "background") else "pending",
     )
     db.add(image)
     db.commit()

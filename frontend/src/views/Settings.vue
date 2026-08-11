@@ -368,9 +368,9 @@ async function uploadAvatar(file: File) {
 }
 
 async function uploadBackground(file: File) {
-  try {
-    const { data } = await uploadImage(file)
-    form.value.background_url = data.data.url
+    try {
+      const { data } = await uploadImage(file, undefined, 'background')
+      form.value.background_url = data.data.url
   } catch (error) {
     ElMessage.error((error as Error).message)
   }

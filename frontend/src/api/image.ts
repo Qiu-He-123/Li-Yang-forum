@@ -4,7 +4,7 @@ import type { ImageUploadResult, MyImage } from '../types/api'
 export function uploadImage(
   file: File,
   onProgress?: (percent: number) => void,
-  purpose: 'post' | 'avatar' = 'post',
+  purpose: 'post' | 'avatar' | 'background' = 'post',
 ) {
   const formData = new FormData()
   formData.append('file', file)
@@ -24,10 +24,14 @@ export function uploadImage(
     // 单张图片上传允许更长超时（5MB × 慢网络），避免大图上传被 30s 默认超时打断
     timeout: 120_000,
   }
+  const params: Record<string, string> = {}
+  if (purpose === 'avatar' || purpose === 'background') {
+    params.purpose = purpose
+  }
   return http.post<unknown, { data: { code: number; msg: string; data: ImageUploadResult } }>(
     '/images',
     formData,
-    { ...config, params: purpose === 'avatar' ? { purpose: 'avatar' } : undefined },
+    { ...config, params: Object.keys(params).length ? params : undefined },
   )
 }
 
