@@ -452,26 +452,31 @@ onUnmounted(() => {
       <!-- ====== 透明统计：在线人数 / 今日发帖 / 注册人数 ====== -->
       <section class="home-stats" aria-label="站点统计">
         <div class="stats-item stats-item--link" title="查看在线用户" @click="onStatsClick('/stats/online')">
-          <span class="stats-dot stats-dot--green" aria-hidden="true"></span>
-          <span class="stats-num">{{ formatStatsNum(homeStats.logged_in_count) }}</span>
+          <span class="stats-top">
+            <span class="stats-dot stats-dot--green" aria-hidden="true"></span>
+            <span class="stats-num">{{ formatStatsNum(homeStats.logged_in_count) }}</span>
+          </span>
           <span class="stats-label">在线中</span>
         </div>
-        <span class="stats-divider" aria-hidden="true"></span>
         <div class="stats-item stats-item--link" title="查看在线游客" @click="onStatsClick('/stats/guests')">
-          <Icon name="user" :size="14" />
-          <span class="stats-num">{{ formatStatsNum(homeStats.visitor_count) }}</span>
+          <span class="stats-top">
+            <Icon name="user" :size="14" />
+            <span class="stats-num">{{ formatStatsNum(homeStats.visitor_count) }}</span>
+          </span>
           <span class="stats-label">游客在线</span>
         </div>
-        <span class="stats-divider" aria-hidden="true"></span>
         <div class="stats-item stats-item--link" title="查看今日发布" @click="onStatsClick('/stats/today-posts')">
-          <Icon name="file" :size="14" />
-          <span class="stats-num">{{ formatStatsNum(homeStats.today_post_count) }}</span>
+          <span class="stats-top">
+            <Icon name="file" :size="14" />
+            <span class="stats-num">{{ formatStatsNum(homeStats.today_post_count) }}</span>
+          </span>
           <span class="stats-label">今日发布</span>
         </div>
-        <span class="stats-divider" aria-hidden="true"></span>
         <div class="stats-item stats-item--link" title="查看注册用户" @click="onStatsClick('/stats/users')">
-          <Icon name="users" :size="14" />
-          <span class="stats-num">{{ formatStatsNum(homeStats.total_users) }}</span>
+          <span class="stats-top">
+            <Icon name="users" :size="14" />
+            <span class="stats-num">{{ formatStatsNum(homeStats.total_users) }}</span>
+          </span>
           <span class="stats-label">注册人数</span>
         </div>
       </section>
@@ -877,21 +882,33 @@ onUnmounted(() => {
 
 /* 透明统计条 */
 .home-stats {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  padding: 10px 14px;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0;
+  padding: 12px 8px;
   margin-bottom: 18px;
   background: var(--bg-50);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-xs);
-  font-size: 12px;
 }
 .stats-item {
   display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  min-width: 0;
+  padding: 2px 4px;
+  color: var(--text-500);
+}
+.stats-item + .stats-item {
+  border-left: 0.5px solid var(--bg-300);
+}
+.stats-top {
+  display: inline-flex;
   align-items: center;
   gap: 4px;
-  color: var(--text-500);
+  max-width: 100%;
   min-width: 0;
 }
 .stats-item--link {
@@ -920,14 +937,21 @@ onUnmounted(() => {
   50% { box-shadow: 0 0 0 5px rgba(52, 199, 89, 0.08); }
 }
 .stats-num {
+  max-width: 100%;
   font-weight: 700;
   color: var(--text-800);
-  font-size: 13px;
+  font-size: clamp(12px, 4.2vw, 15px);
   line-height: 1.2;
-  }
+  white-space: nowrap;
+}
 .stats-label {
+  max-width: 100%;
   color: var(--text-400);
-  font-size: 12px;
+  font-size: clamp(10px, 3vw, 12px);
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .stats-divider {
   width: 1px;

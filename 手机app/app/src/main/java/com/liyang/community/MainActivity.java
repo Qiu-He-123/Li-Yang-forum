@@ -139,9 +139,12 @@ public class MainActivity extends Activity {
         settings.setDatabaseEnabled(true);
         settings.setLoadWithOverviewMode(true);
         settings.setUseWideViewPort(true);
-        settings.setSupportMultipleWindows(false);
-        settings.setMediaPlaybackRequiresUserGesture(false);
-        // 自定义 UA 标记：前端可用 navigator.userAgent.includes('LYCommunityApp') 区分 App 和网页版
+          settings.setSupportMultipleWindows(false);
+          settings.setMediaPlaybackRequiresUserGesture(false);
+          // 文件选择必须允许访问内容 URI / 文件，否则网页上传图片会失败
+          settings.setAllowFileAccess(true);
+          settings.setAllowContentAccess(true);
+          // 自定义 UA 标记：前端可用 navigator.userAgent.includes('LYCommunityApp') 区分 App 和网页版
         settings.setUserAgentString(
                 WebSettings.getDefaultUserAgent(this) + " LYCommunityApp/1.0");
 
@@ -213,22 +216,26 @@ public class MainActivity extends Activity {
                     MainActivity.this.filePathCallback.onReceiveValue(null);
                 }
                 MainActivity.this.filePathCallback = filePathCallback;
-
-                  Intent intent = fileChooserParams.createIntent();
-                  intent.addCategory(Intent.CATEGORY_OPENABLE);
-                  if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP
-                          && fileChooserParams.getMode()
-                                  == WebChromeClient.FileChooserParams.MODE_OPEN_MULTIPLE) {
-                      intent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true);
-                  }
-                  try {
-                    startActivityForResult(
-                            Intent.createChooser(intent, "选择文件"),
-                            REQUEST_FILE_CHOOSER);
-                } catch (ActivityNotFoundException e) {
-                    MainActivity.this.filePathCallback.onReceiveValue(null);
-                    MainActivity.this.filePathCallback = null;
-                    return false;
+                try {
+                      Intent intent = fileChooserParams.createIntent();
+                      intent.addCategory(Intent.CATEGORY_OPENABLE);
+                      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP
+                              && fileChooserParams.getMode()
+                                      == WebChromeClient.FileChooserParams.MODE_OPEN_MULTIPLE) {
+                          intent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true);
+                      }
+                      // 显式带上网页声明的可接受类型，避免部分机型只能选到非图片文件
+                      String[] acceptTypes = fileChooserParams.getAcceptTypes();
+                      if (acceptTypes != null && acceptTypes.length > 0) {
+                          intent.putExtra(Intent.EXTRA_MIME_TYPES, acceptTypes);
+                      }
+                      startActivityForResult(
+                              Intent.createChooser(intent, "选择文件"),
+                              REQUEST_FILE_CHOOSER);
+                  } catch (Exception e) {
+                      MainActivity.this.filePathCallback.onReceiveValue(null);
+                      MainActivity.this.filePathCallback = null;
+                      return false;
                 }
                 return true;
             }
