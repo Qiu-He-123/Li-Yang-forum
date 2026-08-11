@@ -46,6 +46,10 @@ function choose(platform: 'android' | 'ios') {
   }
 }
 
+function goDownload() {
+  window.location.href = '/api/app-download'
+}
+
 async function copyAndGo() {
   const text = password.value || ''
   try {
@@ -113,6 +117,9 @@ async function copyAndGo() {
         <span>{{ loading ? '获取中…' : (password || '暂无密码') }}</span>
       </div>
 
+      <button class="dl-btn dl-btn--primary" type="button" @click="goDownload">
+        普通下载
+      </button>
       <button class="dl-btn dl-btn--copy" type="button" @click="copyAndGo">
         复制密码并跳转
       </button>
@@ -202,11 +209,19 @@ async function copyAndGo() {
   transform: scale(0.98);
 }
 .dl-btn--copy {
+  border: 1px solid var(--brand-400);
+  background: var(--bg-50);
+  color: var(--brand-600);
+}
+.dl-btn--copy:hover {
+  background: var(--brand-50);
+}
+.dl-btn--primary {
   border: none;
   background: var(--brand-500);
   color: #fff;
 }
-.dl-btn--copy:hover {
+.dl-btn--primary:hover {
   background: var(--brand-600);
 }
 </style>
