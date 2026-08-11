@@ -9,12 +9,17 @@
 注意：蓝奏云直链令牌只能由真实浏览器兑现（服务端解析出来的直链，
 浏览器访问会返回「文件未授权」）。因此优先直接提供本机部署的 APK
 （backend/static/），蓝奏云解析仅作为 APK 文件缺失时的后备。
+
+下载地址与密码不写死：从微云笔记（WEIYUN_NOTICE_URL）的
+「更新地址{...}」「密码{...}」字段读取，改地址只需改笔记，无需改代码。
 """
 
+import html as _html
 import json
 import re
 import time
 from pathlib import Path
+from urllib.parse import urlparse
 
 import requests
 from fastapi import APIRouter, Depends, Request
@@ -28,12 +33,12 @@ from app.models import AppDownloadLog
 
 router = APIRouter(prefix="/api/app-download", tags=["app"])
 
-LANZOU_SHARE_URL = "https://wwaox.lanzouu.com/iVeQ741sql0b"
-LANZOU_PASSWORD = "gwfm"
+# 微云笔记：里面维护「更新地址」和「密码」两个字段，作为蓝奏云下载源
+WEIYUN_NOTICE_URL = "https://share.weiyun.com/SpmKBnmC"
 _CACHE_TTL = 600
 # 本机部署的 APK（随仓库提交，替换新版本时直接覆盖这个文件即可）
 _APK_PATH = (
-    Path(__file__).resolve().parent.parent.parent.parent / "static" / "立洋社区-v1.0.0正式版.apk"
+    Path(__file__).resolve().parent.parent.parent.parent / "static" / "立洋社区-v1.0.1正式版.apk"
 )
 
 _BASE_UA = (
@@ -44,6 +49,7 @@ _BASE_UA = (
 _ALPHA = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789+/="
 
 _cache: dict = {"url": None, "ts": 0.0}
+_notice_cache: dict = {"fields": None, "ts": 0.0}
 
 
 def _custom_b64(s: str) -> bytes:
@@ -83,19 +89,19 @@ def _solve_acw_cookie(html: str) -> str:
     return "acw_sc__v2=" + v
 
 
-def _fetch_real_page(session: requests.Session) -> str:
+def _fetch_real_page(session: requests.Session, share_url: str) -> str:
     """抓分享页；遇到验证挑战则解 cookie 后重试。"""
-    resp = session.get(LANZOU_SHARE_URL, timeout=15)
+    resp = session.get(share_url, timeout=15)
     html = resp.text
     if "var arg1=" in html:
         cookie = _solve_acw_cookie(html)
         session.cookies.set("acw_sc__v2", cookie.split("=", 1)[1])
-        resp = session.get(LANZOU_SHARE_URL, timeout=15)
+        resp = session.get(share_url, timeout=15)
         html = resp.text
     return html
 
 
-def _resolve_direct_url() -> str:
+def _resolve_direct_url(share_url: str, password: str) -> str:
     session = requests.Session()
     session.headers.update(
         {
@@ -104,27 +110,29 @@ def _resolve_direct_url() -> str:
             "Accept-Language": "zh-CN,zh;q=0.9",
         }
     )
-    html = _fetch_real_page(session)
+    html = _fetch_real_page(session, share_url)
     m = re.search(r"ajaxm\.php\?file=(\d+)", html)
     if not m:
         raise RuntimeError("分享页结构解析失败")
     file_id = m.group(1)
+    parsed = urlparse(share_url)
+    host_base = f"{parsed.scheme}://{parsed.netloc}"
     signs = re.findall(r"'sign':'([^']+)'", html)
     if not signs:
         raise RuntimeError("未找到下载签名")
     for sign in signs:
         try:
             resp = session.post(
-                f"https://wwaox.lanzouu.com/ajaxm.php?file={file_id}",
+                f"{host_base}/ajaxm.php?file={file_id}",
                 data={
                     "action": "downprocess",
                     "sign": sign,
                     "kd": 1,
-                    "p": LANZOU_PASSWORD,
+                    "p": password,
                 },
                 headers={
                     "X-Requested-With": "XMLHttpRequest",
-                    "Referer": LANZOU_SHARE_URL,
+                    "Referer": share_url,
                 },
                 timeout=15,
             )
@@ -136,12 +144,59 @@ def _resolve_direct_url() -> str:
     raise RuntimeError("未取到可用直链")
 
 
+def _fetch_notice_fields() -> dict[str, str]:
+    """从微云笔记读取「标签{内容}」字段（含更新地址/密码），缓存 10 分钟。"""
+    cached = _notice_cache.get("fields")
+    if cached and time.time() - _notice_cache.get("ts", 0) < _CACHE_TTL:
+        return cached
+    try:
+        resp = requests.get(
+            WEIYUN_NOTICE_URL,
+            headers={
+                "User-Agent": _BASE_UA,
+                "Accept": "text/html,application/xhtml+xml,*/*;q=0.8",
+            },
+            timeout=15,
+        )
+        fields = _parse_notice_fields(resp.text)
+        _notice_cache["fields"] = fields
+        _notice_cache["ts"] = time.time()
+        return fields
+    except Exception as exc:
+        logger.warning("微云笔记读取失败: {}", exc)
+        return _notice_cache.get("fields") or {}
+
+
+def _parse_notice_fields(html_text: str) -> dict[str, str]:
+    """解析微云笔记：window.syncData → 第一条笔记 → 逐行「标签{内容}」。"""
+    m = re.search(r"window\.syncData\s*=\s*(\{.*?\})\s*;", html_text, re.S)
+    if not m:
+        return {}
+    try:
+        data = json.loads(m.group(1))
+        share = data.get("shareInfo") or data
+        notes = share.get("note_list") or []
+        if not notes:
+            return {}
+        content = notes[0].get("html_content") or notes[0].get("note_title") or ""
+    except Exception:
+        return {}
+    plain = _html.unescape(re.sub(r"<[^>]+>", "\n", content))
+    fields: dict[str, str] = {}
+    for raw in plain.split("\n"):
+        line = raw.strip()
+        fm = re.match(r"^(.+?)\{(.*)\}$", line)
+        if fm:
+            fields[fm.group(1).strip()] = fm.group(2).strip()
+    return fields
+
+
 @router.get("")
 def app_download(request: Request, db: Session = Depends(get_db)):
     """点击后直接下载手机端 APK。
 
     优先返回本机 static/ 目录里的 APK（真实可靠、无第三方反爬限制）；
-    文件缺失时才走蓝奏云解析，失败再回退分享页。
+    文件缺失时按微云笔记中的「更新地址/密码」走蓝奏云解析，失败回退分享页。
     """
     if _APK_PATH.exists():
         # 记录一次下载（IP / UA），供后台数据看板统计下载数与独立 IP
@@ -157,14 +212,21 @@ def app_download(request: Request, db: Session = Depends(get_db)):
             media_type="application/vnd.android.package-archive",
             filename=_APK_PATH.name,
         )
-    cached = _cache.get("url")
-    if cached and time.time() - _cache.get("ts", 0) < _CACHE_TTL:
-        return RedirectResponse(cached, status_code=302)
-    try:
-        direct = _resolve_direct_url()
-        _cache["url"] = direct
-        _cache["ts"] = time.time()
-        return RedirectResponse(direct, status_code=302)
-    except Exception as exc:
-        logger.warning("APK 直链解析失败，回退到分享页: {}", exc)
-        return RedirectResponse(LANZOU_SHARE_URL, status_code=302)
+    fields = _fetch_notice_fields()
+    share_url = fields.get("更新地址") or fields.get("下载地址")
+    password = fields.get("密码") or fields.get("下载密码")
+    if not share_url:
+        logger.warning("微云笔记中未配置下载地址")
+        return RedirectResponse("/", status_code=302)
+    if password:
+        cached = _cache.get("url")
+        if cached and time.time() - _cache.get("ts", 0) < _CACHE_TTL:
+            return RedirectResponse(cached, status_code=302)
+        try:
+            direct = _resolve_direct_url(share_url, password)
+            _cache["url"] = direct
+            _cache["ts"] = time.time()
+            return RedirectResponse(direct, status_code=302)
+        except Exception as exc:
+            logger.warning("APK 直链解析失败，回退到分享页: {}", exc)
+    return RedirectResponse(share_url, status_code=302)
