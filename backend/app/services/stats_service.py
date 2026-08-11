@@ -13,7 +13,6 @@ from sqlalchemy.orm import Session, selectinload
 
 from app.core.time_utils import beijing_today_start, to_iso_zh
 from app.models import Bottle, BottlePick, Post, User
-from app.services.avatar import avatar_url_or_default
 from app.services.badge_service import badge_dict
 from app.services.connection_manager import manager
 
@@ -117,7 +116,7 @@ def online_users_page(
             {
                 "id": u.id,
                 "nickname": u.nickname,
-                "avatar_url": avatar_url_or_default(u.avatar_url),
+                "avatar_url": u.avatar_url,
                 "badge": badge_dict(u.wearing_badge),
                 "school": u.school.name if u.school else None,
                 "connected_at": _iso_from_ts(ts),

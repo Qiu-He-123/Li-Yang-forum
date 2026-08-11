@@ -270,7 +270,7 @@ function clearSearch() {
             :style="row.avatar ? { backgroundImage: `url(${row.avatar})` } : {}"
           >
             <Icon v-if="type === 'guests'" name="user" :size="18" />
-            <span v-else>{{ row.name.charAt(0).toUpperCase() }}</span>
+            <span v-else-if="!row.avatar">{{ row.name.charAt(0).toUpperCase() }}</span>
           </span>
           <span class="row-main">
             <span class="row-name">

@@ -453,7 +453,7 @@ def recent_users(
         {
             "id": u.id,
             "nickname": u.nickname,
-            "avatar_url": avatar_url_or_default(u.avatar_url),
+            "avatar_url": u.avatar_url,
             "badge": badge_dict(u.wearing_badge),
             "school": u.school.name if u.school else None,
             "created_at": to_iso_zh(u.created_at),
