@@ -74,6 +74,16 @@ const routes = [
     meta: { requiresAuth: true },
   },
   {
+    path: '/activities',
+    name: 'activities',
+    component: () => import('../views/Activities.vue'),
+  },
+  {
+    path: '/activities/:id',
+    name: 'activity-detail',
+    component: () => import('../views/ActivityDetail.vue'),
+  },
+  {
     path: '/user/:id',
     name: 'user-home',
     component: () => import('../views/UserHome.vue'),
@@ -108,6 +118,12 @@ const routes = [
     path: '/settings',
     name: 'settings',
     component: () => import('../views/Settings.vue'),
+    meta: { requiresAuth: true },
+  },
+  {
+    path: '/settings/notifications',
+    name: 'settings-notifications',
+    component: () => import('../views/NotificationSettings.vue'),
     meta: { requiresAuth: true },
   },
   {
@@ -321,6 +337,11 @@ path: '/announcements',
         path: 'announcements',
         name: 'admin-announcements',
         component: () => import('../views/Admin/Announcements.vue'),
+      },
+      {
+        path: 'activities',
+        name: 'admin-activities',
+        component: () => import('../views/Admin/ActivitiesManage.vue'),
       },
       {
         path: 'badges',

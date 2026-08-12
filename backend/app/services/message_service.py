@@ -19,7 +19,7 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session, selectinload
 
 from app.core.errors import ErrorCode
-from app.core.time_utils import beijing_today_start, to_iso_zh
+from app.core.time_utils import beijing_today_start, now_utc, to_iso_zh
 from app.models import Follow, FriendRequest, Message, User
 from app.services.follow_service import _default_friend_ids, is_mutual_follow
 from app.services.avatar import avatar_url_or_default
@@ -326,6 +326,7 @@ def list_friends(db: Session, user: User) -> list[dict]:
         result.append({
             "user": _user_dict(u),
             "last_message": last_msg.content[:50] if last_msg else None,
+            "last_msg_type": last_msg.msg_type if last_msg else None,
             "last_time": to_iso_zh(last_msg.created_at) if last_msg else None,
             "unread_count": unread,
         })
@@ -445,6 +446,7 @@ def send_message(db: Session, sender: User, receiver_id: int, content: str, msg_
         "content": msg.content,
         "msg_type": msg.msg_type,
         "is_read": msg.is_read,
+        "read_at": None,
         "is_mutual": mutual,
         "is_default_friend": receiver_id in _default_friend_ids(db),
         "created_at": to_iso_zh(msg.created_at),
@@ -476,8 +478,10 @@ def get_messages(db: Session, user: User, friend_id: int, page: int = 1, page_si
         if m.receiver_id == user.id and not m.is_read
     ]
     if unread:
+        now = now_utc()
         for m in unread:
             m.is_read = True
+            m.read_at = now
         db.commit()
 
     items = [
@@ -488,6 +492,7 @@ def get_messages(db: Session, user: User, friend_id: int, page: int = 1, page_si
             "content": m.content,
             "msg_type": m.msg_type,
             "is_read": m.is_read,
+            "read_at": to_iso_zh(m.read_at) if m.read_at else None,
             "created_at": to_iso_zh(m.created_at),
         }
         for m in reversed(rows)
@@ -573,6 +578,7 @@ def list_conversations(db: Session, user: User) -> list[dict]:
         result.append({
             "user": _user_dict(other),
             "last_message": last_msg.content[:50] if last_msg else None,
+            "last_msg_type": last_msg.msg_type if last_msg else None,
             "last_time": to_iso_zh(last_time),
             "unread_count": unread,
             "is_mutual": mutual,

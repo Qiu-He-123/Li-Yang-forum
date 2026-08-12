@@ -241,9 +241,42 @@ class Message(Base, TimestampMixin):
     receiver_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
     content: Mapped[str] = mapped_column(Text)
     is_read: Mapped[bool] = mapped_column(Boolean, default=False)
+    read_at: Mapped[datetime | None] = mapped_column(DateTime, default=None)
     # 扩展字段：消息类型（text/image），会话分组
     msg_type: Mapped[str] = mapped_column(String(20), default="text")
     conversation_id: Mapped[str | None] = mapped_column(String(64), default=None, index=True)
+
+
+class Activity(Base, TimestampMixin):
+    """校园活动（活动板块）。"""
+
+    __tablename__ = "activities"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    title: Mapped[str] = mapped_column(String(100), index=True)
+    description: Mapped[str] = mapped_column(Text)
+    location: Mapped[str | None] = mapped_column(String(200), default=None)
+    cover_url: Mapped[str | None] = mapped_column(String(500), default=None)
+    start_at: Mapped[datetime | None] = mapped_column(DateTime, default=None, index=True)
+    end_at: Mapped[datetime | None] = mapped_column(DateTime, default=None)
+    organizer: Mapped[str | None] = mapped_column(String(100), default=None)
+    contact: Mapped[str | None] = mapped_column(String(100), default=None)
+    max_participants: Mapped[int | None] = mapped_column(Integer, default=None)
+    participant_count: Mapped[int] = mapped_column(Integer, default=0)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
+    created_by: Mapped[int | None] = mapped_column(ForeignKey("admin.id"), default=None)
+
+
+class ActivityParticipant(Base):
+    """活动报名表（一个用户同一活动只能报名一次）。"""
+
+    __tablename__ = "activity_participants"
+    __table_args__ = (UniqueConstraint("activity_id", "user_id"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    activity_id: Mapped[int] = mapped_column(ForeignKey("activities.id"), index=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
 
 class FriendRequest(Base):
@@ -283,6 +316,22 @@ class Notification(Base, TimestampMixin):
     reference_type: Mapped[str | None] = mapped_column(String(20), default=None)
     reference_id: Mapped[int | None] = mapped_column(Integer, default=None)
     read_at: Mapped[datetime | None] = mapped_column(DateTime, default=None)
+
+
+class NotificationSetting(Base, TimestampMixin):
+    """通知偏好设置（每个用户一行，所有开关默认开启）。"""
+
+    __tablename__ = "notification_settings"
+    __table_args__ = (UniqueConstraint("user_id"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    like: Mapped[bool] = mapped_column(Boolean, default=True, server_default="1")
+    comment: Mapped[bool] = mapped_column(Boolean, default=True, server_default="1")
+    mention: Mapped[bool] = mapped_column(Boolean, default=True, server_default="1")
+    follow: Mapped[bool] = mapped_column(Boolean, default=True, server_default="1")
+    system: Mapped[bool] = mapped_column(Boolean, default=True, server_default="1")
+    dm: Mapped[bool] = mapped_column(Boolean, default=True, server_default="1")
 
 
 class Category(Base, TimestampMixin):

@@ -128,6 +128,9 @@ const icons: Record<string, string> = {
   shuffle: '<path d="M18 14l5-5-5-5"/><path d="M18 5h-3a3 3 0 0 0-2.5 1.5L6 18"/><path d="M6 5l3 0a3 3 0 0 1 2.5 1.5L18 18"/><path d="M18 19l5-5-5-5"/>',
   compass: '<circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/>',
   sparkles: '<path d="M12 3l1.9 5.8L20 10l-6.1 1.9L12 18l-1.9-6.1L4 10l6.1-1.2L12 3z"/><path d="M5 19l.7 2L8 22l-2.3.7L5 25l-.7-2.3L2 22l2.3-1L5 19z"/>',
+  mic: '<path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/>',
+  keyboard: '<rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M6 14h.01M18 14h.01M9 14h6"/>',
+  close: '<line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>',
 }
 
 const path = computed(() => icons[props.name] || '')

@@ -31,11 +31,15 @@ AVATAR_MAX_SIZE = (256, 256)  # 头像最长边（展示最大 ~192px，256 足�
 AVATAR_QUALITY = 72
 POST_MAX_SIZE = (1280, 1280)  # 帖子/漂流瓶大图最长边
 POST_QUALITY = 72
+CHAT_MAX_SIZE = (900, 900)  # chat image max edge
+CHAT_QUALITY = 60
 # purpose -> (最大尺寸, JPEG 质量)；GIF 动图一律保留原样
 _COMPRESS_PLAN = {
     "avatar": (AVATAR_MAX_SIZE, AVATAR_QUALITY),
     "post": (POST_MAX_SIZE, POST_QUALITY),
     "background": (BACKGROUND_MAX_SIZE, BACKGROUND_QUALITY),
+    "chat": (CHAT_MAX_SIZE, CHAT_QUALITY),
+    "activity": (POST_MAX_SIZE, POST_QUALITY),
 }
 
 
@@ -141,7 +145,7 @@ def _compress_image(
 @router.post("")
 async def upload_image(
     file: UploadFile = File(...),
-    purpose: str = Query(default="post", pattern="^(post|avatar|background)$"),
+    purpose: str = Query(default="post", pattern="^(post|avatar|background|chat|activity)$"),
     request: Request = None,
     db: Session = Depends(get_db),
     user: User = Depends(current_user),
@@ -206,7 +210,7 @@ async def upload_image(
         url=url,
         mime_type=content_type,
         size_bytes=len(content),
-        audit_status="approved" if purpose in ("avatar", "background") else "pending",
+        audit_status="approved" if purpose in ("avatar", "background", "chat", "activity") else "pending",
     )
     db.add(image)
     db.commit()
@@ -220,6 +224,49 @@ async def upload_image(
     if image.audit_status == "pending":
         result["audit_note"] = "图片内容需人工审核"
     return ok(result)
+
+
+AUDIO_MAX_BYTES = 10 * 1024 * 1024
+ALLOWED_AUDIO_TYPES = {
+    "audio/webm": ".webm",
+    "audio/mp4": ".m4a",
+    "audio/aac": ".aac",
+    "audio/amr": ".amr",
+    "audio/ogg": ".ogg",
+    "audio/mpeg": ".mp3",
+}
+
+
+@router.post("/audio")
+async def upload_audio(
+    file: UploadFile = File(...),
+    request: Request = None,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+) -> dict:
+    """私聊语音消息上传（webm/opus 等），直接放行不入人工审核。"""
+    _check_content_length(request)
+    raw_content_type = file.content_type or ""
+    content_type = TYPE_ALIASES.get(raw_content_type, raw_content_type)
+    if content_type not in ALLOWED_AUDIO_TYPES:
+        raise HTTPException(status_code=400, detail="音频格式不支持")
+    content = await _read_limited(file, max_bytes=AUDIO_MAX_BYTES)
+    if not content:
+        raise HTTPException(status_code=400, detail="音频文件为空")
+    ext = ALLOWED_AUDIO_TYPES[content_type]
+    filename = f"{uuid4().hex}{ext}"
+    url = await storage_service.upload_image_async(filename, content, content_type)
+    db.add(
+        Image(
+            user_id=user.id,
+            url=url,
+            mime_type=content_type,
+            size_bytes=len(content),
+            audit_status="approved",
+        )
+    )
+    db.commit()
+    return ok({"id": 0, "url": url, "thumb_url": url, "audit_status": "approved"})
 
 
 @router.post("/verification")

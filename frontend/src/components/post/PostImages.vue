@@ -4,8 +4,9 @@
  * - 3 列网格，方形裁切
  * - 点击进入轻量图片预览（带左右切换、ESC 关闭）
  */
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, ref } from 'vue'
 
+import ImageViewer from '../common/ImageViewer.vue'
 import { Icon } from '../native'
 
 const props = withDefaults(defineProps<{
@@ -38,34 +39,17 @@ function srcFor(idx: number): string {
   return thumbUrls.value[idx]
 }
 
-// 预览始终用原图（保证清晰度）
+// 图片查看（使用公共 ImageViewer：左上角返回 + 双指/双击缩放）
 const previewVisible = ref(false)
 const previewIndex = ref(0)
-const previewUrl = computed(() => props.urls[previewIndex.value] || '')
 
 function openPreview(idx: number) {
   previewIndex.value = idx
   previewVisible.value = true
 }
-function closePreview() {
-  previewVisible.value = false
+function updateIndex(idx: number) {
+  previewIndex.value = idx
 }
-function prev() {
-  if (!props.urls.length) return
-  previewIndex.value = (previewIndex.value - 1 + props.urls.length) % props.urls.length
-}
-function next() {
-  if (!props.urls.length) return
-  previewIndex.value = (previewIndex.value + 1) % props.urls.length
-}
-function onKey(e: KeyboardEvent) {
-  if (!previewVisible.value) return
-  if (e.key === 'Escape') closePreview()
-  else if (e.key === 'ArrowLeft') prev()
-  else if (e.key === 'ArrowRight') next()
-}
-onMounted(() => document.addEventListener('keydown', onKey))
-onUnmounted(() => document.removeEventListener('keydown', onKey))
 
 function onImgError(idx: number) {
   if (props.thumb && !useOriginal.value.has(idx)) {
@@ -108,36 +92,15 @@ function onLoad(idx: number) {
     </div>
   </div>
 
-  <!-- 轻量图片预览 -->
-  <Teleport to="body">
-    <Transition name="fade">
-      <div v-if="previewVisible" class="img-preview" role="dialog" aria-modal="true" @click.self="closePreview">
-        <button class="preview-close" type="button" aria-label="关闭" @click="closePreview">
-          <Icon name="x" :size="24" color="#fff" />
-        </button>
-        <button
-          v-if="urls.length > 1"
-          class="preview-nav preview-prev"
-          type="button"
-          aria-label="上一张"
-          @click.stop="prev"
-        >
-          <Icon name="chevron-left" :size="28" color="#fff" />
-        </button>
-        <img :src="previewUrl" class="preview-img" :alt="`预览${previewIndex + 1}`" />
-        <button
-          v-if="urls.length > 1"
-          class="preview-nav preview-next"
-          type="button"
-          aria-label="下一张"
-          @click.stop="next"
-        >
-          <Icon name="chevron-right" :size="28" color="#fff" />
-        </button>
-        <div v-if="urls.length > 1" class="preview-counter">{{ previewIndex + 1 }} / {{ urls.length }}</div>
-      </div>
-    </Transition>
-  </Teleport>
+  <!-- 图片查看器：返回 + 双指/双击缩放 -->
+  <ImageViewer
+    :visible="previewVisible"
+    :url="urls[previewIndex] || ''"
+    :urls="urls"
+    :initial-index="previewIndex"
+    @update:visible="previewVisible = $event"
+    @update:index="updateIndex"
+  />
 </template>
 
 <style scoped>

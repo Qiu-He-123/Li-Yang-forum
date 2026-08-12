@@ -12,3 +12,9 @@ export function isAppEnv(): boolean {
     navigator.userAgent.includes('LYCommunityApp')
   )
 }
+
+/** 跳转下载手机端 App（网页端语音等仅 App 支持的功能提示后调用） */
+export function downloadApp(): void {
+  if (typeof window === 'undefined') return
+  window.location.href = '/api/app-download'
+}

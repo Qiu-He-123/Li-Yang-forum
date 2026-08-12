@@ -330,6 +330,80 @@ export function adminDeleteAnnouncement(annId: number) {
   return http.delete(`/admin/announcements/${annId}`)
 }
 
+// ============ 活动管理 ============
+
+export interface AdminActivity {
+  id: number
+  title: string
+  description: string
+  location: string | null
+  cover_url: string | null
+  start_at: string | null
+  end_at: string | null
+  organizer: string | null
+  contact: string | null
+  max_participants: number | null
+  participant_count: number
+  is_active: boolean
+  created_at: string | null
+}
+
+export interface AdminActivityParticipant {
+  user_id: number
+  nickname: string
+  avatar_url: string | null
+  created_at: string | null
+}
+
+export interface ActivityCreatePayload {
+  title: string
+  description: string
+  location?: string | null
+  cover_url?: string | null
+  start_at?: string | null
+  end_at?: string | null
+  organizer?: string | null
+  contact?: string | null
+  max_participants?: number | null
+  is_active?: boolean
+}
+
+export function adminListActivities(params: {
+  page?: number
+  page_size?: number
+  keyword?: string
+} = {}) {
+  return http.get<unknown, { data: { code: number; msg: string; data: PageResp<AdminActivity> } }>(
+    '/admin/activities',
+    { params },
+  )
+}
+
+export function adminCreateActivity(payload: ActivityCreatePayload) {
+  return http.post<unknown, { data: { code: number; msg: string; data: AdminActivity } }>(
+    '/admin/activities',
+    payload,
+  )
+}
+
+export function adminUpdateActivity(activityId: number, payload: Partial<AdminActivity>) {
+  return http.patch(`/admin/activities/${activityId}`, payload)
+}
+
+export function adminDeleteActivity(activityId: number) {
+  return http.delete(`/admin/activities/${activityId}`)
+}
+
+export function adminActivityParticipants(
+  activityId: number,
+  params: { page?: number; page_size?: number } = {},
+) {
+  return http.get<
+    unknown,
+    { data: { code: number; msg: string; data: PageResp<AdminActivityParticipant> } }
+  >(`/admin/activities/${activityId}/participants`, { params })
+}
+
 // ============ 日志 ============
 
 export interface AdminLog {

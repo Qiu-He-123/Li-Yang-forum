@@ -10,6 +10,7 @@ from loguru import logger
 from sqlalchemy import select
 
 from app.api.routes import (
+    activities,
     admin, announcements, app_download, auth, badges, bottles, browse_history, circle_apply, circles, checkin,
     comments, deepseek, feedback, follows, images, interactions, match, messages, notifications,
     polls, posts, schools, search, settings as settings_router, stats, topics, users, ws,
@@ -369,6 +370,7 @@ app.include_router(badges.router)
 app.include_router(images.router)
 app.include_router(admin.router)
 app.include_router(announcements.router)
+app.include_router(activities.router)
 app.include_router(notifications.router)
 # 阶段四：圈子申请路由必须在 circles.router 之前注册，
 # 否则 /circles/apply 和 /circles/my-applies 会被 /circles/{slug} 抢先匹配

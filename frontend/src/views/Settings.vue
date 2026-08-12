@@ -767,7 +767,16 @@ onMounted(async () => {
           <p v-if="permLoading" class="mt-3 text-xs text-slate-400">保存中…</p>
         </el-tab-pane>
         <el-tab-pane label="通知设置" name="notifications">
-          <p class="text-sm text-slate-600">通知设置功能尚未开放，敬请期待。</p>
+          <div class="rounded-xl border border-slate-200 bg-white p-5 text-center">
+            <p class="text-base font-bold text-slate-800">消息通知中心</p>
+            <p class="mt-2 text-xs leading-relaxed text-slate-500">
+              管理点赞、评论、@我、新增粉丝、私信、系统通知等提醒。<br />
+              手机端 App 可在锁屏/后台收到推送，网页版仅提供设置入口。
+            </p>
+            <el-button type="primary" round class="mt-4" @click="router.push('/settings/notifications')">
+              前往通知设置
+            </el-button>
+          </div>
         </el-tab-pane>
         <el-tab-pane label="我的公告" name="announcements">
           <div v-loading="announcementsLoading">

@@ -121,6 +121,7 @@ const funcGrid = computed(() => {
   { icon: 'sparkles', color: '#34c759', label: '我创建的吧', to: '/my/circles-applied' },
   { icon: 'gift', color: '#00c7be', label: '每日签到', to: '/my/checkin' },
   { icon: 'medal', color: '#f7b500', label: '我的徽章', to: '/my/badges' },
+  { icon: 'calendar', color: '#ff3b30', label: '社区活动', to: '/activities' },
   ]
   // 邀请码：未认证显示「填写邀请码」，已认证显示「分享邀请码」
   const inviteItem = session.isVerified()
@@ -208,7 +209,9 @@ function formatCooldown(sec: number): string {
   return `${Math.max(1, m)}分钟`
 }
 
-// ============ 我的页直接编辑（背景图/名字/校区） ============
+// ============ 我的页直接编辑（点头像/名字/校区） ============
+const avatarUploading = ref(false)
+const avatarInputRef = ref<HTMLInputElement | null>(null)
 const bgUploading = ref(false)
 const bgInputRef = ref<HTMLInputElement | null>(null)
 
@@ -220,9 +223,33 @@ const schoolDialogVisible = ref(false)
 const schoolSaving = ref(false)
 const selectedSchoolId = ref<number>(0)
 
+function onAvatarClick() {
+  if (!isMe.value || avatarUploading.value) return
+  avatarInputRef.value?.click()
+}
+
 function openBgPicker() {
   if (!isMe.value || bgUploading.value) return
   bgInputRef.value?.click()
+}
+
+async function onAvatarFileChange(e: Event) {
+  const input = e.target as HTMLInputElement
+  const file = input.files?.[0]
+  input.value = ''
+  if (!file) return
+  avatarUploading.value = true
+  try {
+    const { data } = await uploadImage(file, undefined, 'avatar')
+    await updateMe({ avatar_url: data.data.url })
+    await userStore.loadProfile()
+    profile.value = userStore.profile
+    toast.success('头像已更新')
+  } catch (err) {
+    toast.error((err as Error).message)
+  } finally {
+    avatarUploading.value = false
+  }
 }
 
 async function onBgFileChange(e: Event) {
@@ -306,7 +333,7 @@ function goMyBadges() {
 }
 
 const settingsList = [
-  { icon: 'bell', label: '消息通知中心设置', desc: '管理各类通知提醒', to: '/settings' },
+  { icon: 'bell', label: '消息通知中心设置', desc: '管理点赞、私信等推送提醒', to: '/settings/notifications' },
   { icon: 'lock', label: '隐私设置', desc: '谁可以看你的内容', to: '/settings' },
   { icon: 'help-circle', label: '帮助与反馈', desc: '常见问题与意见反馈', to: '' },
   { icon: 'info', label: '关于立洋社区', desc: '版本 v1.2.0', to: '' },
@@ -688,15 +715,21 @@ onMounted(async () => {
       <div class="hero-body">
         <button
           class="hero-avatar"
+          :class="{ 'is-editable': isMe }"
           type="button"
+          :disabled="avatarUploading"
+          @click="onAvatarClick"
           :style="
             profile?.avatar_url
               ? { backgroundImage: `url(${profile.avatar_url})` }
               : { background: avatarGradient(profile?.id || userId) }
           "
-          aria-label="头像"
+          aria-label="修改头像"
         >
           <span v-if="!profile?.avatar_url">{{ displayInitial }}</span>
+          <span v-if="isMe" class="avatar-camera">
+            <Icon name="camera" :size="14" />
+          </span>
         </button>
         <h2 class="hero-name" :class="{ 'is-editable': isMe }" @click="onNameClick">
           <span>{{ displayName }}</span>
@@ -720,7 +753,7 @@ onMounted(async () => {
           @click="isMe && goMyBadges()"
         >
           <BadgeIcon :badge="profile?.wearing_badge" :size="16" />
-          <span v-if="profile?.wearing_badge">佩戴中：{{ profile.wearing_badge.name }}</span>
+          <span v-if="profile?.wearing_badge">{{ isMe ? '佩戴中：' : '' }}{{ profile.wearing_badge.name }}</span>
           <span v-else>{{ isMe ? '还没有佩戴徽章' : '未佩戴徽章' }}</span>
           <span v-if="isMe" class="wearing-badge-action">
             <Icon name="chevron-right" :size="11" />
@@ -914,6 +947,15 @@ onMounted(async () => {
         </button>
       </template>
     </NativeDialog>
+
+    <!-- 隐藏的头像文件选择（点击头像直接触发） -->
+    <input
+      ref="avatarInputRef"
+      class="hidden-file-input"
+      type="file"
+      accept="image/*"
+      @change="onAvatarFileChange"
+    />
 
     <!-- 隐藏的背景图文件选择（仅"更换背景图"按钮触发） -->
     <input
@@ -1178,6 +1220,32 @@ onMounted(async () => {
   flex-direction: column;
   align-items: center;
   text-align: center;
+}
+.hero-avatar.is-editable {
+  cursor: pointer;
+  transition: transform 0.15s var(--ease-apple), box-shadow 0.15s;
+}
+.hero-avatar.is-editable:hover {
+  transform: scale(1.03);
+  box-shadow: var(--shadow-lg, 0 10px 24px -8px rgba(0, 0, 0, 0.25));
+}
+.hero-avatar.is-editable:active {
+  transform: scale(0.98);
+}
+.avatar-camera {
+  position: absolute;
+  right: -3px;
+  bottom: -3px;
+  z-index: 5;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  display: grid;
+  place-items: center;
+  border: 2px solid #fff;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
 }
 .hero-avatar {
   width: 80px;

@@ -2,6 +2,7 @@ package com.liyang.community;
 
 import android.annotation.SuppressLint;
 import android.app.Activity;
+import android.app.NotificationManager;
 import android.content.ActivityNotFoundException;
 import android.content.ClipData;
 import android.content.ClipboardManager;
@@ -9,6 +10,8 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageInfo;
 import android.net.Uri;
+import android.os.Build;
+import android.content.pm.PackageManager;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
@@ -25,6 +28,7 @@ import android.webkit.WebResourceError;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebResourceResponse;
 import android.webkit.WebSettings;
+import android.webkit.JavascriptInterface;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.ProgressBar;
@@ -45,6 +49,7 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.Arrays;
 import java.util.Locale;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -59,10 +64,11 @@ import java.util.regex.Pattern;
 public class MainActivity extends Activity {
 
     private static final int REQUEST_FILE_CHOOSER = 1001;
+    private static final int REQUEST_POST_NOTIFICATIONS = 1002;
     /** 内核主版本号低于该值就提示更新（Chromium 100 ≈ 2022 年的内核） */
     private static final int MIN_WEBVIEW_MAJOR = 100;
     /** 要打开的网页地址（改这里即可，不用 strings.xml） */
-    private static final String APP_URL = "https://al.u3593529.nyat.app:32449";
+    public static final String APP_URL = "https://al.u3593529.nyat.app:32449";
     /** 微云公告分享页 */
     private static final String NOTICE_URL = "https://share.weiyun.com/SpmKBnmC";
     /** 联系管理员按钮复制的 QQ 号 */
@@ -157,6 +163,7 @@ public class MainActivity extends Activity {
                 WebSettings.getDefaultUserAgent(this) + " LYCommunityApp/1.0");
 
         CookieManager.getInstance().setAcceptCookie(true);
+        webView.addJavascriptInterface(new LyJsBridge(), "LYCommunityApp");
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP) {
             CookieManager.getInstance().setAcceptThirdPartyCookies(webView, true);
         }
@@ -183,6 +190,7 @@ public class MainActivity extends Activity {
             public void onPageFinished(WebView view, String url) {
                 progressBar.setVisibility(View.GONE);
                 hideSplashWhenReady();
+                syncNotificationService();
             }
 
             @Override
@@ -263,6 +271,12 @@ public class MainActivity extends Activity {
                     OnBackInvokedDispatcher.PRIORITY_DEFAULT,
                     backCallback);
         }
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        syncNotificationService();
     }
 
     private void handleBack() {
@@ -353,7 +367,77 @@ public class MainActivity extends Activity {
         });
     }
 
+    // ---------- 原生桥接（网页端调用） ----------
+
+    /**
+     * 暴露给网页的桥：window.LYCommunityApp
+     * - setNotificationPrefs(json): 保存通知偏好，并控制推送服务启停
+     * - getNotificationPrefs(): 读取当前通知偏好
+     * - requestNotificationPermission(): 请求系统通知权限（Android 13+）
+     */
+    private class LyJsBridge {
+        @JavascriptInterface
+        public void setNotificationPrefs(String json) {
+            NotificationService.savePrefs(MainActivity.this, json);
+            syncNotificationService();
+        }
+
+        @JavascriptInterface
+        public String getNotificationPrefs() {
+            return NotificationService.readPrefs(MainActivity.this).toJson().toString();
+        }
+
+        @JavascriptInterface
+        public void requestNotificationPermission() {
+            ensureNotificationPermission();
+        }
+    }
+
+    /** Android 13+ 需要动态申请 POST_NOTIFICATIONS 权限。 */
+    private boolean hasNotificationPermission() {
+        return Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU
+                || checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)
+                        == PackageManager.PERMISSION_GRANTED;
+    }
+
+    private void ensureNotificationPermission() {
+        if (hasNotificationPermission()) return;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            requestPermissions(
+                    new String[]{android.Manifest.permission.POST_NOTIFICATIONS},
+                    REQUEST_POST_NOTIFICATIONS);
+        }
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == REQUEST_POST_NOTIFICATIONS
+                && grantResults.length > 0
+                && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+            syncNotificationService();
+        }
+    }
+
+    /** 根据通知偏好启停后台推送服务：有任意分类开启 + 系统权限授予时才启动。 */
+    private void syncNotificationService() {
+        NotificationService.NotificationPrefs p =
+                NotificationService.readPrefs(this);
+        boolean anyEnabled = p.like || p.comment || p.mention || p.follow || p.system || p.dm;
+        if (!anyEnabled || !hasNotificationPermission()) {
+            stopService(new Intent(this, NotificationService.class));
+            return;
+        }
+        String cookie = CookieManager.getInstance().getCookie(APP_URL);
+        if (cookie == null || !cookie.contains("access_token")) {
+            stopService(new Intent(this, NotificationService.class));
+            return;
+        }
+        startService(new Intent(this, NotificationService.class));
+    }
+
     // ---------- 文件选择器结果处理 ----------
+
 
     /**
      * 把系统文件选择器返回的 content:// URI 复制到应用私有缓存目录，

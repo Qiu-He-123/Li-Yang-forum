@@ -145,10 +145,10 @@ const featureSub = [
     desc: '勇敢表达心意',
   },
   {
-    slug: 'treehole',
-    name: '匿名树洞',
-    icon: 'lock',
-    desc: '匿名倾诉心事',
+    slug: 'activities',
+    name: '社区活动',
+    icon: 'calendar',
+    desc: '查看社区活动',
   },
 ]
 
@@ -320,6 +320,10 @@ function openFeature(slug: string) {
   }
   if (slug === 'bottle') {
     router.push('/bottle')
+    return
+  }
+  if (slug === 'activities') {
+    router.push('/activities')
     return
   }
   router.push(`/circle/${slug}`)

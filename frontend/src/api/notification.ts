@@ -15,6 +15,36 @@ export interface NotificationDetail extends NotificationItem {
   post_id: number | null
 }
 
+/** 通知偏好设置（与后端 notification_settings 表一一对应，默认全开） */
+export interface NotificationSettings {
+  like: boolean
+  comment: boolean
+  mention: boolean
+  follow: boolean
+  system: boolean
+  dm: boolean
+}
+
+/** 读取当前用户通知偏好设置 */
+export function fetchNotificationSettings() {
+  const config: LoadingAxiosRequestConfig = {
+    showGlobalLoading: false,
+    showGlobalError: false,
+  }
+  return http.get<
+    unknown,
+    { data: { code: number; msg: string; data: NotificationSettings } }
+  >('/notifications/settings', config)
+}
+
+/** 更新当前用户通知偏好设置（只传需要修改的字段） */
+export function updateNotificationSettings(payload: Partial<NotificationSettings>) {
+  return http.put<
+    unknown,
+    { data: { code: number; msg: string; data: NotificationSettings } }
+  >('/notifications/settings', payload)
+}
+
 /** 通知列表（可按 type 过滤 + 分页） */
 export function listNotifications(type?: NotificationType, page = 1, pageSize = 20) {
   return http.get<unknown, { data: { code: number; msg: string; data: NotificationListResp } }>('/notifications', {

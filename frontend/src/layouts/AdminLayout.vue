@@ -86,6 +86,7 @@ const menuGroups = computed<MenuGroup[]>(() => [
       { index: '/admin/circles-audit', label: '吧审核', icon: '🏷️' },
       { index: '/admin/reports', label: '举报处理', icon: '🚩', badge: menuBadge('/admin/reports') },
       { index: '/admin/announcements', label: '公告管理', icon: '📢' },
+      { index: '/admin/activities', label: '活动管理', icon: '🎪' },
       { index: '/admin/badges', label: '徽章管理', icon: '🏅' },
       { index: '/admin/badge-rules', label: '徽章自动发放', icon: '🤖' },
       { index: '/admin/images-audit', label: '图片审核', icon: '🖼️', badge: menuBadge('/admin/images-audit') },

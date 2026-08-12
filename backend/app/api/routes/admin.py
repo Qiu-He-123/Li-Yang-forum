@@ -12,7 +12,7 @@ from app.models import Admin
 from app.schemas.auth import AdminLoginIn
 from app.schemas.common import ok
 from app.schemas.interactions import AnnouncementCreate
-from app.services import admin_service, badge_service, circle_apply_service, explore_service
+from app.services import activity_service, admin_service, badge_service, circle_apply_service, explore_service
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -250,6 +250,78 @@ def admin_delete_announcement(ann_id: int, request: Request, db: Session = Depen
     """删除公告。"""
     admin_service.admin_delete_announcement(ann_id, request, db, admin)
     return ok()
+
+
+
+# ============ 活动管理 ============
+
+class ActivityCreateIn(BaseModel):
+    title: str
+    description: str
+    location: str | None = None
+    cover_url: str | None = None
+    start_at: str | None = None
+    end_at: str | None = None
+    organizer: str | None = None
+    contact: str | None = None
+    max_participants: int | None = None
+    is_active: bool = True
+
+
+@router.get("/activities")
+def admin_list_activities(
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=100),
+    keyword: str | None = Query(default=None),
+    db: Session = Depends(get_db),
+    _: Admin = Depends(admin_user),
+) -> dict:
+    """活动列表（管理端，含停用）。"""
+    return ok(activity_service.admin_list_activities(db, page, page_size, keyword))
+
+
+@router.post("/activities")
+def admin_create_activity(
+    payload: ActivityCreateIn,
+    db: Session = Depends(get_db),
+    admin: Admin = Depends(admin_user),
+) -> dict:
+    """创建活动。"""
+    return ok(activity_service.admin_create_activity(db, payload.model_dump(), admin.id))
+
+
+@router.patch("/activities/{activity_id}")
+def admin_update_activity(
+    activity_id: int,
+    payload: dict,
+    db: Session = Depends(get_db),
+    _: Admin = Depends(admin_user),
+) -> dict:
+    """更新活动。"""
+    return ok(activity_service.admin_update_activity(db, activity_id, payload))
+
+
+@router.delete("/activities/{activity_id}")
+def admin_delete_activity(
+    activity_id: int,
+    db: Session = Depends(get_db),
+    _: Admin = Depends(admin_user),
+) -> dict:
+    """删除活动。"""
+    activity_service.admin_delete_activity(db, activity_id)
+    return ok()
+
+
+@router.get("/activities/{activity_id}/participants")
+def admin_activity_participants(
+    activity_id: int,
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=100),
+    db: Session = Depends(get_db),
+    _: Admin = Depends(admin_user),
+) -> dict:
+    """活动报名名单。"""
+    return ok(activity_service.admin_activity_participants(db, activity_id, page, page_size))
 
 
 # ============ 日志系统 ============

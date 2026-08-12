@@ -25,6 +25,22 @@ def list_notifications(
     return ok(notification_service.list_notifications(user.id, db, type, page, page_size))
 
 
+@router.get("/settings")
+def get_settings(db: Session = Depends(get_db), user: User = Depends(current_user)) -> dict:
+    """读取当前用户的推送/通知偏好设置（点赞/评论/@我/粉丝/系统/私信）。"""
+    return ok(notification_service.get_notification_settings(user.id, db))
+
+
+@router.put("/settings")
+def put_settings(
+    payload: dict,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+) -> dict:
+    """更新当前用户的推送/通知偏好设置。只接受已知开关字段，其余忽略。"""
+    return ok(notification_service.update_notification_settings(user.id, db, payload))
+
+
 @router.get("/unread-count")
 def unread_count(db: Session = Depends(get_db), user: User = Depends(current_user_allow_banned)) -> dict:
     """返回未读通知数 + 私信未读数（底部导航栏消息红点用）。

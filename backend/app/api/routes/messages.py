@@ -34,7 +34,7 @@ class FriendRequestIn(BaseModel):
 
 class SendMessageIn(BaseModel):
     content: str = Field(min_length=1, max_length=2000)
-    msg_type: str = Field(default="text", pattern="^(text|image)$")
+    msg_type: str = Field(default="text", pattern="^(text|image|voice)$")
 
 
 class MessagePermissionIn(BaseModel):
@@ -156,6 +156,7 @@ async def send_message(
             "receiver_id": result["receiver_id"],
             "content": result["content"],
             "msg_type": result["msg_type"],
+            "read_at": result.get("read_at"),
             "created_at": result["created_at"],
         })
     except Exception:

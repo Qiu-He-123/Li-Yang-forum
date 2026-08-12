@@ -269,3 +269,36 @@ def unread_count(user_id: int, db: Session) -> dict:
         )
         type_counts[ntype] = int(tc or 0)
     return {"unread": int(count or 0), "by_type": type_counts}
+
+
+SETTING_FIELDS = ["like", "comment", "mention", "follow", "system", "dm"]
+
+
+def get_notification_settings(user_id: int, db: Session) -> dict:
+    """读取当前用户通知偏好；从未设置过则创建一行默认全开并返回。"""
+    from app.models import NotificationSetting
+
+    row = db.scalar(select(NotificationSetting).where(NotificationSetting.user_id == user_id))
+    if row is None:
+        row = NotificationSetting(user_id=user_id)
+        db.add(row)
+        db.commit()
+        db.refresh(row)
+    return {k: bool(getattr(row, k)) for k in SETTING_FIELDS}
+
+
+def update_notification_settings(user_id: int, db: Session, payload: dict) -> dict:
+    """按需更新通知偏好（payload 只包含要修改的字段），返回最新完整设置。"""
+    from app.models import NotificationSetting
+
+    row = db.scalar(select(NotificationSetting).where(NotificationSetting.user_id == user_id))
+    if row is None:
+        row = NotificationSetting(user_id=user_id)
+        db.add(row)
+    for k, v in payload.items():
+        if k in SETTING_FIELDS:
+            setattr(row, k, bool(v))
+    db.commit()
+    db.refresh(row)
+    return {k: bool(getattr(row, k)) for k in SETTING_FIELDS}
+

@@ -2,9 +2,9 @@ import { http, type LoadingAxiosRequestConfig } from './http'
 import type { ImageUploadResult, MyImage } from '../types/api'
 
 export function uploadImage(
-  file: File,
+  file: File | Blob,
   onProgress?: (percent: number) => void,
-  purpose: 'post' | 'avatar' | 'background' = 'post',
+  purpose: 'post' | 'avatar' | 'background' | 'chat' | 'activity' = 'post',
 ) {
   const formData = new FormData()
   formData.append('file', file)
@@ -52,6 +52,33 @@ export function uploadVerificationImage(file: File, onProgress?: (percent: numbe
   }
   return http.post<unknown, { data: { code: number; msg: string; data: ImageUploadResult } }>(
     '/images/verification',
+    formData,
+    config,
+  )
+}
+
+/** 私聊语音消息上传（webm/opus），带上传进度回调 */
+export function uploadAudio(
+  file: Blob,
+  onProgress?: (percent: number) => void,
+) {
+  const formData = new FormData()
+  // 用 File 包装并明确音频 MIME，避免个别环境 Blob 类型丢失导致后端拒绝
+  const audioFile = new File([file], 'voice.webm', { type: 'audio/webm' })
+  formData.append('file', audioFile)
+  const config: LoadingAxiosRequestConfig = {
+    onUploadProgress: (progressEvent) => {
+      if (progressEvent.total && onProgress) {
+        const percent = Math.round((progressEvent.loaded * 100) / progressEvent.total)
+        onProgress(percent)
+      }
+    },
+    showGlobalLoading: false,
+    showGlobalError: true,
+    timeout: 120_000,
+  }
+  return http.post<unknown, { data: { code: number; msg: string; data: { url: string } } }>(
+    '/images/audio',
     formData,
     config,
   )

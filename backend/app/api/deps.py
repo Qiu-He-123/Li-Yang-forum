@@ -110,6 +110,20 @@ def current_user_allow_banned(
     return user
 
 
+def current_user_optional(
+    access_token: str | None = Cookie(default=None),
+    db: Session = Depends(get_db),
+) -> User | None:
+    """可选登录：未登录返回 None，登录后返回用户（封号用户也返回，仅用于附加展示状态）。"""
+    if not access_token:
+        return None
+    try:
+        user_id = int(decode_token(access_token))
+    except (jwt.InvalidTokenError, ValueError):
+        return None
+    return db.get(User, user_id)
+
+
 def optional_user(access_token: str | None = Cookie(default=None), db: Session = Depends(get_db)) -> User | None:
     """可选用户：有有效 token 返回 User，否则返回 None（匿名访问）。
 

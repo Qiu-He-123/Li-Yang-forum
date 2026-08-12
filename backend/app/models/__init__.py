@@ -1,4 +1,6 @@
 from app.models.entities import (
+    Activity,
+    ActivityParticipant,
     Admin,
     Announcement,
     AnnouncementRead,
@@ -33,6 +35,7 @@ from app.models.entities import (
     Mention,
     Message,
     Notification,
+    NotificationSetting,
     OperationLog,
     Poll,
     PollOption,
@@ -59,6 +62,8 @@ from app.models.entities import (
 from app.models.rate_limit import LoginFailure, RateLimit
 
 __all__ = [
+    "Activity",
+    "ActivityParticipant",
     "Admin",
     "Announcement",
     "AnnouncementRead",
@@ -94,6 +99,7 @@ __all__ = [
     "Mention",
     "Message",
     "Notification",
+    "NotificationSetting",
     "OperationLog",
     "Poll",
     "PollOption",
