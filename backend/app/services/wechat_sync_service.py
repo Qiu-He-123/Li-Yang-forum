@@ -17,6 +17,7 @@ import threading
 from datetime import timedelta
 
 from fastapi import HTTPException
+from loguru import logger
 from sqlalchemy import and_, case, desc, func, or_, select
 from sqlalchemy.orm import Session, selectinload
 
@@ -757,12 +758,19 @@ def _media_worker_loop() -> None:
                     )
 
                     def _download(md):
-                        return wechat_local.download_moment_media(
-                            md, account_id, create_time=(
-                                int(moment.create_time.timestamp())
-                                if moment.create_time else 0
+                        try:
+                            return wechat_local.download_moment_media(
+                                md, account_id, create_time=(
+                                    int(moment.create_time.timestamp())
+                                    if moment.create_time else 0
+                                )
                             )
-                        )
+                        except Exception as exc:  # 单条失败只记日志，不拖垮整批
+                            logger.exception(
+                                "[WECHAT_MEDIA] 媒体下载失败 type={} md5={} url={}: {}",
+                                md.get("type"), md.get("md5"), (md.get("url") or "")[:80], exc,
+                            )
+                            return None
 
                     media = []
                     with ThreadPoolExecutor(max_workers=8) as pool:
@@ -805,8 +813,8 @@ def _media_worker_loop() -> None:
                     _schedule_post_audit(post.id)
             finally:
                 db.close()
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.exception("[WECHAT_MEDIA] 媒体任务处理异常: {}", exc)
         finally:
             with _media_inflight_lock:
                 _media_inflight.discard(moment_id)

@@ -640,6 +640,7 @@ def download_moment_media(md: dict, account_id: str, create_time: int = 0) -> di
     url = (md.get("url") or "").strip()
     if not url or mtype == 0:
         return None
+    thumb_url = ""  # 所有类型都进 return 字典；图片无缩略图，置空即可
     if mtype == 2:  # 图片
         fixed = fix_sns_url(url, md.get("token") or "")
         try:
