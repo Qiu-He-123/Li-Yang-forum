@@ -32,6 +32,18 @@ def line(title: str) -> None:
     print(f"\n{'=' * 60}\n  {title}\n{'=' * 60}")
 
 
+def _find_python() -> list[str] | None:
+    """找可用的 Python 命令：优先 py -3 启动器（可靠、避开微软商店假 python），其次 python。"""
+    for cmd in (["py", "-3"], ["python"]):
+        try:
+            r = subprocess.run([*cmd, "--version"], capture_output=True, text=True, timeout=15)
+            if r.returncode == 0 and "Python" in (r.stdout + r.stderr):
+                return cmd
+        except Exception:
+            continue
+    return None
+
+
 def run(cmd: list[str], cwd: Path | None = None) -> bool:
     try:
         return subprocess.run(cmd, cwd=str(cwd) if cwd else None).returncode == 0
@@ -44,15 +56,15 @@ def main() -> int:
     problems = 0
 
     # ---------- 1) Python ----------
-    py = shutil.which("python")
+    py = _find_python()
     if not py:
-        print("[缺失] 未安装 Python！")
+        print("[缺失] 未检测到可用的 Python（py 启动器或 python 均不可用）！")
         print("       请到 https://www.python.org/downloads/ 下载 3.10+ 版本")
-        print("       安装时务必勾选「Add python.exe to PATH」，然后重新运行本脚本。")
+        print("       安装时勾选「Add python.exe to PATH」和「py launcher」，然后重新运行本脚本。")
         problems += 1
     else:
         ver = subprocess.run(
-            [py, "-c", "import sys;print(f'{sys.version_info.major}.{sys.version_info.minor}')"],
+            [*py, "-c", "import sys;print(f'{sys.version_info.major}.{sys.version_info.minor}')"],
             capture_output=True, text=True,
         ).stdout.strip()
         try:
@@ -71,7 +83,7 @@ def main() -> int:
     line("虚拟环境 backend/.venv")
     if not VENV_PY.is_file():
         print("[修复] 正在创建虚拟环境…")
-        if py and run([py, "-m", "venv", str(BACKEND / ".venv")]):
+        if py and run([*py, "-m", "venv", str(BACKEND / ".venv")]):
             print("[完成] 虚拟环境已创建")
         else:
             print("[失败] 创建虚拟环境失败，请确认 Python 安装完整（含 venv 组件）")
@@ -113,6 +125,9 @@ def main() -> int:
         if not (FRONTEND / "node_modules").is_dir():
             print("[修复] 正在安装前端依赖（npm install）…")
             if not run(["cmd", "/c", f"cd /d {FRONTEND} && npm install --registry=https://registry.npmjs.org"]):
+                print("      默认源失败，改用国内镜像 npmmirror 重试…")
+                run(["cmd", "/c", f"cd /d {FRONTEND} && npm install --registry=https://registry.npmmirror.com"])
+            if not (FRONTEND / "node_modules").is_dir():
                 print("[失败] 前端依赖安装失败，请检查网络后重试")
                 problems += 1
         else:
