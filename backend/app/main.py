@@ -433,8 +433,18 @@ async def _start_wechat_auto_sync() -> None:
                 try:
                     with SessionLocal() as db:
                         if not _wss.has_auto_sync_binding(db):
+                            logger.info(
+                                "[WECHAT_AUTO_SYNC] 没有开启自动同步的绑定，跳过（请在微信同步页开启自动同步）"
+                            )
                             continue
                         now = _wss.sns_mtimes()
+                        if not any(v is not None for v in now.values()):
+                            logger.warning(
+                                "[WECHAT_AUTO_SYNC] 找不到任何 sns.db（微信数据目录/账号配置问题），"
+                                "不会同步；请用 诊断同步.py 排查"
+                            )
+                            _last_mtimes = now
+                            continue
                         if now == _last_mtimes:
                             continue  # 朋友圈没有刷新，不扫描
                         _last_mtimes = now

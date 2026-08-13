@@ -153,42 +153,92 @@ def decrypt_to_tmp(src: str, key_hex: str) -> str:
 
 # ============ 账号配置发现 ============
 
+def _standard_data_roots() -> list[str]:
+    """常见微信 4.x 数据根目录（跨机器自动发现用）。"""
+    roots = [
+        os.path.expandvars(r"%USERPROFILE%\Documents\xwechat_files"),
+        os.path.expandvars(r"%USERPROFILE%\Documents\WeChat Files"),
+        os.path.expandvars(r"%USERPROFILE%\Documents\WeChat Files\All Users"),
+        r"D:\Users\Documents\xwechat_files",  # 历史默认位置兜底
+    ]
+    return [r for r in roots if os.path.isdir(r)]
+
+
 def list_accounts() -> list[dict]:
-    """扫描 微信同步客户端/账号配置/*，返回带密钥的账号列表。"""
+    """扫描 微信同步客户端/账号配置/*，返回带密钥的账号列表。
+
+    账号配置缺目录/缺 datadir 时不静默失败：还会自动扫描常见微信数据根目录
+    下的 wxid_* 账号（密钥留空由 resolve/check 阶段再判定），避免换机器后
+    账号配置不全导致同步整体失效。
+    """
     out = []
-    if not ACCOUNTS_DIR.is_dir():
-        return out
-    for entry in sorted(os.listdir(ACCOUNTS_DIR)):
-        d = ACCOUNTS_DIR / entry
-        key_file = d / "db_key.txt"
-        cfg_file = d / "config.json"
-        if not key_file.is_file():
-            continue
+    seen: set[str] = set()
+    if ACCOUNTS_DIR.is_dir():
+        for entry in sorted(os.listdir(ACCOUNTS_DIR)):
+            d = ACCOUNTS_DIR / entry
+            key_file = d / "db_key.txt"
+            cfg_file = d / "config.json"
+            if not key_file.is_file():
+                continue
+            try:
+                key_hex = key_file.read_text(encoding="utf-8").strip()
+            except OSError:
+                continue
+            cfg = {}
+            if cfg_file.is_file():
+                try:
+                    cfg = json.loads(cfg_file.read_text(encoding="utf-8"))
+                except (ValueError, OSError):
+                    pass
+            datadir = cfg.get("datadir") or ""
+            out.append(
+                {
+                    "account_dir": str(d),
+                    "account_id": entry,
+                    "wxid": re.sub(r"_([a-zA-Z0-9]{4})$", "", entry),
+                    "datadir": datadir,
+                    "key_hex": key_hex,
+                }
+            )
+            seen.add(entry)
+    # 自动发现：常见数据根目录下的 wxid_* 账号（补充账号配置里没有的）
+    for root in _standard_data_roots():
         try:
-            key_hex = key_file.read_text(encoding="utf-8").strip()
+            for entry in sorted(os.listdir(root)):
+                if not entry.startswith("wxid_"):
+                    continue
+                base = Path(root) / entry
+                if not (base / "db_storage").is_dir():
+                    continue
+                if entry in seen:
+                    continue
+                seen.add(entry)
+                # 尝试从账号配置同名目录读密钥（通常没有则留空）
+                acc_dir = ACCOUNTS_DIR / entry
+                key_hex = ""
+                if acc_dir.is_dir():
+                    kf = acc_dir / "db_key.txt"
+                    if kf.is_file():
+                        try:
+                            key_hex = kf.read_text(encoding="utf-8").strip()
+                        except OSError:
+                            key_hex = ""
+                out.append(
+                    {
+                        "account_dir": str(acc_dir if acc_dir.is_dir() else base),
+                        "account_id": entry,
+                        "wxid": re.sub(r"_([a-zA-Z0-9]{4})$", "", entry),
+                        "datadir": str(base),
+                        "key_hex": key_hex,
+                    }
+                )
         except OSError:
             continue
-        cfg = {}
-        if cfg_file.is_file():
-            try:
-                cfg = json.loads(cfg_file.read_text(encoding="utf-8"))
-            except (ValueError, OSError):
-                pass
-        datadir = cfg.get("datadir") or ""
-        out.append(
-            {
-                "account_dir": str(d),
-                "account_id": entry,
-                "wxid": re.sub(r"_([a-zA-Z0-9]{4})$", "", entry),
-                "datadir": datadir,
-                "key_hex": key_hex,
-            }
-        )
     return out
 
 
 def resolve_sns_db(account: dict) -> str | None:
-    """定位账号的 sns.db（支持 datadir 指向账号目录或数据根目录）。"""
+    """定位账号的 sns.db（支持 datadir 指向账号目录或数据根目录，含跨机器标准路径兜底）。"""
     datadir = account.get("datadir") or ""
     cands = []
     if datadir:
@@ -197,8 +247,10 @@ def resolve_sns_db(account: dict) -> str | None:
         for p in base.iterdir():
             if p.is_dir():
                 cands.append(p / "db_storage" / "sns" / "sns.db")
-    cands.append(Path(os.environ.get("USERPROFILE", "C:/Users")) / "Documents" /
-                 "xwechat_files" / account["account_id"] / "db_storage" / "sns" / "sns.db")
+    # 跨机器兜底：常见数据根目录下按账号目录找
+    for root in _standard_data_roots():
+        for acc in (account["account_id"], account["account_id"].rsplit("_", 1)[0]):
+            cands.append(Path(root) / acc / "db_storage" / "sns" / "sns.db")
     for c in cands:
         if os.path.isfile(c):
             return str(c)
