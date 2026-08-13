@@ -123,7 +123,6 @@ INSTALL_ROOTS = [
 
 # 微信数据目录（账号下 *.db）
 DATA_ROOTS = [
-    r"D:\Users\Documents\xwechat_files",
     os.path.expandvars(r"%USERPROFILE%\Documents\xwechat_files"),
     os.path.expandvars(r"%USERPROFILE%\Documents\WeChat Files"),
     os.path.expandvars(r"%USERPROFILE%\Documents\WeChat Files\All Users"),

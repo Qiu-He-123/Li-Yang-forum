@@ -240,7 +240,8 @@ Windows（推荐）：右键 `安装定时备份.bat` → 以管理员身份运�
 Windows（手动，等价操作）：
 
 ```bat
-schtasks /Create /SC DAILY /ST 03:00 /TN "LY Community DB Backup" /TR "D:\立洋社区\定时备份数据库.bat"
+:: 把 <仓库绝对路径> 换成你自己电脑上仓库的实际路径
+schtasks /Create /SC DAILY /ST 03:00 /TN "LY Community DB Backup" /TR "<仓库绝对路径>\定时备份数据库.bat"
 ```
 
 ### 恢复数据

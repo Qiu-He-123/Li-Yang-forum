@@ -121,7 +121,6 @@ def decrypt_db(src, key_hex, dst):
 # ============ 目录检测 ============
 
 DATA_ROOTS = [
-    r"D:\Users\Documents\xwechat_files",
     os.path.expandvars(r"%USERPROFILE%\Documents\xwechat_files"),
     os.path.expandvars(r"%USERPROFILE%\Documents\WeChat Files"),
     os.path.expandvars(r"%USERPROFILE%\Documents\WeChat Files\All Users"),

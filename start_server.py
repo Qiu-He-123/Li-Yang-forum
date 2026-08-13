@@ -37,11 +37,10 @@ import client_common  # noqa: E402
 
 CONFIG = CLIENT_DIR / "config.json"
 IMAGE_KEY_TOOL = ROOT / "获取微信朋友圈" / "获取图片密钥.py"
-# 数据库密钥工具：已内置到仓库 工具/微信密钥工具（不再依赖外部 ai群聊 目录）
+# 数据库密钥工具：已内置到仓库 工具/微信密钥工具，完全自包含
 _DB_KEY_TOOL_CANDIDATES = [
     ROOT / "工具" / "微信密钥工具" / "key_grabber_ui.py",
     ROOT / "key_grabber_ui.py",
-    ROOT.parent / "ai群聊" / "取聊天记录_自研" / "聊天记录导出工具" / "key_grabber_ui.py",
 ]
 DB_KEY_TOOL = next((p for p in _DB_KEY_TOOL_CANDIDATES if p.is_file()), _DB_KEY_TOOL_CANDIDATES[0])
 MONITOR_PY = ROOT / "图片密钥监控.py"

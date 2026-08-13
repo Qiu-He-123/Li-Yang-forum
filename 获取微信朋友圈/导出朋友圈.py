@@ -3,7 +3,7 @@
 """
 微信 PC 版朋友圈导出工具
 
-基于仓库外 ai群聊 项目（取聊天记录_自研/聊天记录导出工具）的解密链路：
+基于微信 4.x 本地缓存与数据库的解密链路：
   1. 用 db_key.txt 里的密钥（微信运行时从内存抓取，32 字节 hex）
   2. 找到当前账号的 db_storage\\sns\\sns.db 并复制到临时目录
   3. SQLCipher4 口令模式解密（PBKDF2-HMAC-SHA512 + AES-256-CBC）
@@ -54,17 +54,11 @@ DATA_ROOTS = [
     os.path.expandvars(r"%USERPROFILE%\Documents\WeChat Files\All Users"),
 ]
 
-# 外部 ai群聊 项目提供的 db_key：换电脑后按相对位置探测，找不到就靠 --key 参数
+# 参考密钥文件：优先本目录下 db_key.txt，没有则靠 --key 参数
 def _find_ref_key_file() -> str:
     here = Path(__file__).resolve().parent
-    candidates = [
-        here.parent.parent / "ai群聊" / "取聊天记录_自研" / "聊天记录导出工具" / "db_key.txt",
-        here / "db_key.txt",
-    ]
-    for c in candidates:
-        if c.is_file():
-            return str(c)
-    return ""
+    key = here / "db_key.txt"
+    return str(key) if key.is_file() else ""
 
 REF_KEY_FILE = _find_ref_key_file()
 

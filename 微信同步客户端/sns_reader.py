@@ -24,10 +24,9 @@ from pathlib import Path
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 EXPORTER_PATH = _REPO_ROOT / "获取微信朋友圈" / "导出朋友圈.py"
 IMAGE_KEY_DEFAULT = _REPO_ROOT / "获取微信朋友圈" / "图片密钥.json"
-# 聊天记录导出：已内置到仓库 工具/微信密钥工具；旧外部 ai群聊 仅作兜底
+# 聊天记录导出：已内置到仓库 工具/微信密钥工具，完全自包含
 _CHAT_EXPORT_CANDIDATES = [
     _REPO_ROOT / "工具" / "微信密钥工具" / "export_chat.py",
-    _REPO_ROOT.parent / "ai群聊" / "取聊天记录_自研" / "聊天记录导出工具" / "export_chat.py",
 ]
 
 

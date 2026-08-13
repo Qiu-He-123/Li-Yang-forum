@@ -20,7 +20,8 @@
 ## 安装
 
 ```bat
-cd /d "D:\Users\Downloads\立洋社区\获取抖音视频"
+:: 进入本工具目录（双击运行或从仓库任意位置进入）
+cd /d "%~dp0"
 pip install -r requirements.txt
 ```
 
