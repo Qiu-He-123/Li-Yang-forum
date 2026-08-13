@@ -94,7 +94,8 @@ def _parse_douyin(text: str) -> dict:
     if cookies:
         try:
             record = douyin_share.parse_by_api(aweme_id, cookies)
-        except Exception:
+        except Exception as exc:
+            douyin_share._last_api_fail = str(exc)[:120]
             record = None
     if not record:
         try:
@@ -107,9 +108,12 @@ def _parse_douyin(text: str) -> dict:
         except Exception:
             record = None
     if not record or not record.get("video_urls"):
+        reason = getattr(douyin_share, "_last_api_fail", "") or ""
+        if reason:
+            raise HTTPException(status_code=400, detail=f"抖音解析失败：{reason}")
         raise HTTPException(
             status_code=400,
-            detail="抖音解析失败（可能是视频已删除/私密、风控拦截，或登录 cookies 过期）",
+            detail="抖音解析失败（视频可能已删除/私密，或需要重新抓取抖音登录 cookies）",
         )
     return {
         "platform": "douyin",

@@ -20,11 +20,15 @@ import datetime
 import json
 import re
 import sys
+import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 from urllib.parse import urlencode, quote
 
 import httpx
+
+# 最近一次 API 解析失败原因（供上层给出准确提示，空串=成功）
+_last_api_fail: str = ""
 
 BASE_DIR = Path(__file__).resolve().parent
 OUTPUT_DIR = BASE_DIR / "output"
@@ -224,9 +228,15 @@ def resolve_short_url(text: str) -> tuple[Optional[str], Optional[str]]:
         return None, None
 
 
-def parse_by_api(aweme_id: str, cookies: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
-    """路径1：Web 详情 API + a_bogus + 登录 Cookie。"""
+def parse_by_api(aweme_id: str, cookies: List[Dict[str, Any]], attempts: int = 3) -> Optional[Dict[str, Any]]:
+    """路径1：Web 详情 API + a_bogus + 登录 Cookie。
+
+    抖音风控是瞬时/间歇的：失败自动重试 attempts 次；
+    并记录具体失败原因到 _last_api_fail，供上层给出准确提示。
+    """
+    global _last_api_fail
     if not cookies:
+        _last_api_fail = "缺少 cookies.json（未登录抖音）"
         return None
     headers = {
         "User-Agent": UA90,
@@ -234,16 +244,33 @@ def parse_by_api(aweme_id: str, cookies: List[Dict[str, Any]]) -> Optional[Dict[
         "Accept": "application/json, text/plain, */*",
         "Cookie": cookie_str(cookies),
     }
-    ms_token = _gen_ms_token()
     with httpx.Client(headers=headers, timeout=30, follow_redirects=True) as c:
-        r = c.get(_signed_detail_url(aweme_id, ms_token))
-        body = r.json()
-        if body.get("status_code") != 0:
-            return None
-        detail = body.get("aweme_detail") or {}
-        if not detail:
-            return None
-        return _item_to_record(detail, f"https://www.douyin.com/video/{aweme_id}")
+        for attempt in range(attempts):
+            try:
+                ms_token = _gen_ms_token()
+                r = c.get(_signed_detail_url(aweme_id, ms_token))
+            except Exception as e:  # noqa: BLE001
+                _last_api_fail = f"接口请求失败：{e}"
+                time.sleep(1.5 * (attempt + 1))
+                continue
+            try:
+                body = r.json()
+            except Exception:  # noqa: BLE001  非 JSON = 风控验证页
+                _last_api_fail = "接口返回非 JSON（疑似风控拦截，需重新抓取抖音 cookies）"
+                time.sleep(1.5 * (attempt + 1))
+                continue
+            code = body.get("status_code")
+            if code != 0:
+                _last_api_fail = f"接口返回 status_code={code}（风控或登录态失效，需重新抓取抖音 cookies）"
+                time.sleep(1.5 * (attempt + 1))
+                continue
+            detail = body.get("aweme_detail") or {}
+            if not detail:
+                _last_api_fail = "接口无详情（视频可能已删除或私密）"
+                continue
+            _last_api_fail = ""
+            return _item_to_record(detail, f"https://www.douyin.com/video/{aweme_id}")
+    return None
 
 
 def parse_by_share_page(aweme_id: str) -> Optional[Dict[str, Any]]:
