@@ -63,9 +63,9 @@ def refresh_cache(cfg: dict, sns_src: str) -> bool:
 
 def main() -> None:
     cfg = load_config()
-    scan_interval = max(3, int(cfg.get("scan_interval_seconds", 3)))
+    scan_interval = max(3, int(cfg.get("scan_interval_seconds", 8)))
     # 节流：抢焦点点朋友圈很打扰人，只在"数据确实旧了"且"距上次点击够久"时才点
-    min_click_interval = max(10, int(cfg.get("refresh_min_interval_seconds", 60)))
+    min_click_interval = max(5, int(cfg.get("refresh_min_interval_seconds", 8)))
     stale_after = max(0, int(cfg.get("refresh_stale_after_seconds", 30)))
     log("守护客户端启动（后端直读模式，客户端仅刷新本地缓存）")
     global _last_window_warning
