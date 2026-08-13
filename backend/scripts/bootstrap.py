@@ -7,6 +7,7 @@
 编码：脚本强制 UTF-8 输出（配合 bat 里的 chcp 65001 + PYTHONUTF8=1），
 避免中文在 GBK 控制台乱码；不使用 ANSI 颜色码（cmd 下会显示成垃圾字符）。
 """
+import hashlib
 import os
 import re
 import shutil
@@ -156,6 +157,22 @@ def _reqs_fresh(marker: Path, req_files: list[Path]) -> bool:
     return all(r.is_file() and r.stat().st_mtime <= marker_t for r in req_files)
 
 
+def _src_tree_hash(src_dir: Path) -> str:
+    """对前端源码树做内容哈希：内容没变就不重建（git pull 只改 mtime 也能跳过）。"""
+    h = hashlib.md5()
+    for p in sorted(src_dir.rglob("*")):
+        if not p.is_file():
+            continue
+        try:
+            h.update(p.relative_to(src_dir).as_posix().encode("utf-8"))
+            with open(p, "rb") as f:
+                for chunk in iter(lambda: f.read(65536), b""):
+                    h.update(chunk)
+        except OSError:
+            continue
+    return h.hexdigest()
+
+
 def main() -> int:
     line("环境自检与自动修复")
     problems = 0
@@ -291,16 +308,25 @@ def main() -> int:
                 print("[失败] 前端依赖安装失败，请检查网络后重试")
                 problems += 1
 
-        # ---------- 6) 前端构建（缺失/源码更新/依赖更新自动构建） ----------
+        # ---------- 6) 前端构建（缺失/源码内容变化/依赖更新才构建） ----------
         line("前端构建（生产模式产物）")
         dist_html = FRONTEND / "dist" / "index.html"
-        newest = max((p.stat().st_mtime for p in (FRONTEND / "src").rglob("*") if p.is_file()), default=0)
-        stale = bool(dist_html.is_file() and newest and dist_html.stat().st_mtime < newest)
-        if not dist_html.is_file() or stale or npm_installed:
-            print("[修复] 正在构建前端（npm run build，首次约需几分钟）…")
-            if not run(["cmd", "/c", f"cd /d {FRONTEND} && npm run build"]):
-                print("[失败] 前端构建失败，请查看上方报错（常见：TypeScript 类型错误）")
+        hash_file = FRONTEND / "dist" / ".src_hash"
+        src_hash = _src_tree_hash(FRONTEND / "src")
+        prev_hash = hash_file.read_text(encoding="utf-8").strip() if hash_file.is_file() else ""
+        need_build = (not dist_html.is_file()) or npm_installed or (prev_hash != src_hash)
+        if need_build:
+            # build:fast = vite build（跳过 vue-tsc 类型检查，构建快数倍；全量检查可手动 npm run build）
+            print("[修复] 正在构建前端（vite build 快速模式）…")
+            if not run(["cmd", "/c", f"cd /d {FRONTEND} && npm run build:fast"]):
+                print("[失败] 前端构建失败，请查看上方报错")
                 problems += 1
+            else:
+                try:
+                    hash_file.parent.mkdir(parents=True, exist_ok=True)
+                    hash_file.write_text(src_hash, encoding="utf-8")
+                except OSError:
+                    pass
         if dist_html.is_file():
             print("[OK] 前端构建产物就绪")
 

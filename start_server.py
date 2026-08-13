@@ -10,6 +10,7 @@
 会弹出解密图片窗口，不需要重启服务器。
 """
 
+import hashlib
 import json
 import importlib.util
 import os
@@ -103,6 +104,22 @@ def load_server_config() -> dict:
     cfg["bind_host"] = str(cfg.get("bind_host") or "127.0.0.1").strip() or "127.0.0.1"
     cfg["open_browser"] = bool(cfg.get("open_browser", True))
     return cfg
+
+
+def _src_tree_hash(src_dir: Path) -> str:
+    """对前端源码树做内容哈希：内容没变就不重建（git pull 只改 mtime 也能跳过）。"""
+    h = hashlib.md5()
+    for p in sorted(src_dir.rglob("*")):
+        if not p.is_file():
+            continue
+        try:
+            h.update(p.relative_to(src_dir).as_posix().encode("utf-8"))
+            with open(p, "rb") as f:
+                for chunk in iter(lambda: f.read(65536), b""):
+                    h.update(chunk)
+        except OSError:
+            continue
+    return h.hexdigest()
 
 
 def _lan_ip() -> str:
@@ -800,15 +817,15 @@ def launch_server(acc: dict, cfg: dict, use_gui: bool = True) -> bool:
             save_config(cfg)
 
     # 前端生产构建：后端在 server_config 端口直接托管 frontend/dist（不再启动 vite）
+    # 用源码内容哈希判断是否需要重建：git pull 只改 mtime 不改内容时直接跳过
     _dist_html = ROOT / "frontend" / "dist" / "index.html"
-    _src_newest = max(
-        (p.stat().st_mtime for p in (ROOT / "frontend" / "src").rglob("*") if p.is_file()),
-        default=0,
-    )
-    if not _dist_html.is_file() or (_src_newest and _dist_html.stat().st_mtime < _src_newest):
-        notify("提示", "前端未构建或源码有更新，正在构建（首次约需几分钟）…")
+    _hash_file = ROOT / "frontend" / "dist" / ".src_hash"
+    _src_hash = _src_tree_hash(ROOT / "frontend" / "src")
+    _prev_hash = _hash_file.read_text(encoding="utf-8").strip() if _hash_file.is_file() else ""
+    if not _dist_html.is_file() or _prev_hash != _src_hash:
+        notify("提示", "前端未构建或源码有变化，正在构建（vite build 快速模式）…")
         _build = subprocess.run(
-            ["cmd", "/c", f"cd /d {ROOT}\\frontend && npm run build"],
+            ["cmd", "/c", f"cd /d {ROOT}\\frontend && npm run build:fast"],
             cwd=str(ROOT),
             capture_output=True,
             text=True,
@@ -817,6 +834,11 @@ def launch_server(acc: dict, cfg: dict, use_gui: bool = True) -> bool:
         if _build.returncode != 0:
             notify("前端构建失败", _build.stderr[-2000:] or _build.stdout[-2000:], "error")
             return False
+        try:
+            _hash_file.parent.mkdir(parents=True, exist_ok=True)
+            _hash_file.write_text(_src_hash, encoding="utf-8")
+        except OSError:
+            pass
         _dist_html = ROOT / "frontend" / "dist" / "index.html"
     if not _dist_html.is_file():
         notify("提示", "前端构建产物缺失：frontend/dist/index.html 不存在", "error")
