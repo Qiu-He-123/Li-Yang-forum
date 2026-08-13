@@ -19,7 +19,8 @@ from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
 from app.core.time_utils import now_utc, to_iso_zh
-from app.models import Notification
+from app.models import Notification, User
+from app.services.avatar import avatar_url_or_default
 
 
 def create_notification(
@@ -151,6 +152,20 @@ def list_notifications(
         .limit(page_size)
     ).all()
     items = [_notification_dict(n) for n in rows]
+    # 批量补发送人信息：通知列表头像/昵称（修复消息页点赞/评论头像显示 U 的问题）
+    sender_ids = {n.sender_id for n in rows if n.sender_id}
+    senders: dict[int, User] = {}
+    if sender_ids:
+        for u in db.scalars(select(User).where(User.id.in_(sender_ids))):
+            senders[u.id] = u
+    for n, d in zip(rows, items):
+        u = senders.get(n.sender_id)  # type: ignore[arg-type]
+        if u is not None:
+            d["sender_nickname"] = u.nickname
+            d["sender_avatar_url"] = avatar_url_or_default(u.avatar_url)
+        else:
+            d["sender_nickname"] = None
+            d["sender_avatar_url"] = None
     # 为帖子/评论类通知补充 post_id，前端跳转原帖用（评论的 reference_id 是 comment_id）
     from app.models import Comment, Post
 
@@ -219,6 +234,15 @@ def get_notification(notification_id: int, user_id: int, db: Session) -> dict:
             post_id = comment.post_id
     data = _notification_dict(n)
     data["post_id"] = post_id
+    # 单条详情同样补发送人昵称/头像
+    if n.sender_id:
+        sender = db.get(User, n.sender_id)
+        if sender:
+            data["sender_nickname"] = sender.nickname
+            data["sender_avatar_url"] = avatar_url_or_default(sender.avatar_url)
+        else:
+            data["sender_nickname"] = None
+            data["sender_avatar_url"] = None
     return data
 
 

@@ -23,6 +23,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from app.core.time_utils import now_utc, to_iso_zh
 from app.models import (
+    Like,
     Post,
     User,
     WechatBinding,
@@ -613,6 +614,18 @@ def moments_feed(
         .all()
     )
     items = []
+    # 当前用户已点赞的帖子 id 集合（前端据此回填点赞态，刷新不丢）
+    liked_ids: set[int] = set()
+    if user is not None and rows:
+        liked_ids = set(
+            db.scalars(
+                select(Like.target_id).where(
+                    Like.user_id == user.id,
+                    Like.target_type == "post",
+                    Like.target_id.in_([p.id for p in rows]),
+                )
+            )
+        )
     for p in rows:
         d = post_dict(p, db=db)
         d.update(
@@ -623,6 +636,7 @@ def moments_feed(
                 ),
                 "pinned_until": _to_iso(p.pinned_until),
                 "wechat_created_at": _to_iso(p.source_created_at),
+                "liked": p.id in liked_ids,
             }
         )
         items.append(d)

@@ -60,6 +60,8 @@ export interface WechatFeedItem {
   is_pinned: boolean
   pinned_until: string | null
   wechat_created_at: string | null
+  /** 当前用户是否已点赞（刷新后据此回填点赞态） */
+  liked?: boolean
 }
 
 export function bindWechat(query: string) {

@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { onMounted, ref, watch } from 'vue'
 
 import { createComment, listComments } from '../../api/comment'
 import { likeTarget, unlikeTarget } from '../../api/interaction'
+import { useInteractionStore } from '../../stores/interaction'
 import type { WechatFeedItem } from '../../api/wechat'
 import type { CommentItem } from '../../types/api'
 import { toast } from '../native/Toast'
@@ -14,14 +14,20 @@ interface Props {
 }
 
 const props = defineProps<Props>()
-const router = useRouter()
-const likedSet = ref<Set<number>>(new Set())
+const store = useInteractionStore()
 
-// 微信式内联评论：懒加载 + 内联输入
+// 点赞态：用全局 interaction store（登录时从 /users/me/likes/posts 回填），
+// 刷新/翻页后仍保持"已点赞"；后端点赞幂等，一人一帖只能赞一次
+function isLiked(postId: number): boolean {
+  return store.likedPostIds.has(postId)
+}
+
+// 微信式内联评论：默认展示前 10 条，点"查看更多"再 +10
+const COMMENTS_PAGE_SIZE = 10
 const commentsMap = ref<Record<number, CommentItem[]>>({})
-const commentsLoaded = ref<Set<number>>(new Set())
+const commentsTotal = ref<Record<number, number>>({})
+const commentsPage = ref<Record<number, number>>({})
 const commentsLoading = ref<Set<number>>(new Set())
-const commentOpenId = ref<number | null>(null)
 const commentText = ref('')
 
 function fmtCount(n: number): string {
@@ -49,46 +55,47 @@ function avatarLetter(item: WechatFeedItem): string {
 }
 
 async function toggleLike(post: WechatFeedItem) {
-  const liked = likedSet.value.has(post.id)
-  likedSet.value.add(post.id)
-  post.like_count += 1
+  const liked = isLiked(post.id)
+  store.toggleLikedPost(post.id, !liked) // 乐观更新
+  post.like_count += liked ? -1 : 1
   try {
-    if (liked) {
-      await unlikeTarget('post', post.id)
-      likedSet.value.delete(post.id)
-      post.like_count -= 1
-    } else {
-      await likeTarget('post', post.id)
-    }
+    const res = liked ? await unlikeTarget('post', post.id) : await likeTarget('post', post.id)
+    post.like_count = res.data.data.like_count // 以服务端返回为准
   } catch {
-    if (liked) {
-      post.like_count += 1
-      likedSet.value.add(post.id)
-    } else {
-      post.like_count -= 1
-      likedSet.value.delete(post.id)
-    }
+    store.toggleLikedPost(post.id, liked) // 失败回滚
+    post.like_count += liked ? 1 : -1
     toast.error('操作失败，请先登录')
   }
 }
 
-async function toggleComments(post: WechatFeedItem) {
-  if (commentOpenId.value === post.id) {
-    commentOpenId.value = null
-    return
-  }
-  commentOpenId.value = post.id
-  if (commentsLoaded.value.has(post.id)) return
-  commentsLoading.value.add(post.id)
+// 评论：每条动态默认加载前 10 条；查看更多再翻一页
+async function loadComments(post: WechatFeedItem, page: number) {
+  const id = post.id
+  if (commentsLoading.value.has(id)) return
+  commentsLoading.value.add(id)
   try {
-    const data = (await listComments(post.id, 1, 50)).data.data
-    commentsMap.value[post.id] = data.items || []
+    const data = (await listComments(id, page, COMMENTS_PAGE_SIZE)).data.data
+    const existing = commentsMap.value[id] || []
+    commentsMap.value[id] = page === 1 ? data.items || [] : [...existing, ...(data.items || [])]
+    commentsTotal.value[id] = data.total
+    commentsPage.value[id] = page
   } catch {
-    commentsMap.value[post.id] = []
+    if (page === 1) commentsMap.value[id] = commentsMap.value[id] || []
   } finally {
-    commentsLoaded.value.add(post.id)
-    commentsLoading.value.delete(post.id)
+    commentsLoading.value.delete(id)
   }
+}
+
+function loadAllComments() {
+  for (const post of props.items) {
+    if (commentsMap.value[post.id] === undefined && !commentsLoading.value.has(post.id)) {
+      loadComments(post, 1)
+    }
+  }
+}
+
+function showMoreComments(post: WechatFeedItem) {
+  loadComments(post, (commentsPage.value[post.id] || 1) + 1)
 }
 
 async function submitComment(post: WechatFeedItem) {
@@ -97,6 +104,7 @@ async function submitComment(post: WechatFeedItem) {
   try {
     const data = (await createComment(post.id, { content })).data.data
     commentsMap.value[post.id] = [...(commentsMap.value[post.id] || []), data]
+    commentsTotal.value[post.id] = (commentsTotal.value[post.id] || 0) + 1
     post.comment_count += 1
     commentText.value = ''
     toast.success('评论成功')
@@ -106,9 +114,16 @@ async function submitComment(post: WechatFeedItem) {
   }
 }
 
-function openPost(post: WechatFeedItem) {
-  router.push(`/post/${post.id}`)
-}
+onMounted(() => {
+  store.loadAll()
+  loadAllComments()
+})
+
+// 翻页/刷新后新出现的动态也要自动加载评论
+watch(
+  () => props.items,
+  () => loadAllComments(),
+)
 </script>
 
 <template>
@@ -135,15 +150,19 @@ function openPost(post: WechatFeedItem) {
           <span v-else-if="post.ai_status === 'rejected'" class="moment-status moment-status--rejected">未通过</span>
           <span class="moment-time">{{ timeText(post.wechat_created_at || post.created_at) }}</span>
         </div>
-        <p class="moment-content" @click="openPost(post)">{{ post.content }}</p>
+        <p class="moment-content">{{ post.content }}</p>
         <div v-if="post.image_urls.length && !post.video_urls?.length" class="moment-grid" :class="`grid-${Math.min(post.image_urls.length, 3)}`">
-          <img
+          <!-- 点图看大图（Element Plus 预览），绝不跳转帖子详情页 -->
+          <el-image
             v-for="(url, i) in post.image_urls"
             :key="i"
             :src="url"
+            :preview-src-list="post.image_urls"
+            :initial-index="i"
+            preview-teleported
+            fit="cover"
+            class="moment-img"
             :alt="`图片${i + 1}`"
-            loading="lazy"
-            @click="openPost(post)"
           />
         </div>
         <!-- 视频：HTML5 播放器 -->
@@ -158,28 +177,33 @@ function openPost(post: WechatFeedItem) {
           ></video>
         </div>
         <div class="moment-foot">
-          <button type="button" class="moment-action" :class="{ liked: likedSet.has(post.id) }" @click="toggleLike(post)">
-            <span>{{ likedSet.has(post.id) ? '❤' : '🤍' }}</span>
+          <button type="button" class="moment-action" :class="{ liked: isLiked(post.id) }" @click="toggleLike(post)">
+            <span>{{ isLiked(post.id) ? '❤' : '🤍' }}</span>
             <span>{{ fmtCount(post.like_count) }}</span>
           </button>
-          <button type="button" class="moment-action" :class="{ active: commentOpenId === post.id }" @click="toggleComments(post)">
-            <span>💬</span>
-            <span>{{ fmtCount(post.comment_count) }}</span>
-          </button>
+          <span class="moment-action"><span>💬</span><span>{{ fmtCount(post.comment_count) }}</span></span>
           <span class="moment-source">来自微信朋友圈</span>
         </div>
 
-        <!-- 微信式内联评论：不进入帖子，直接在此查看/发表 -->
-        <div v-if="commentOpenId === post.id" class="moment-comments">
-          <div v-if="commentsLoading.has(post.id)" class="moment-comment-empty">加载评论…</div>
+        <!-- 微信式内联评论：默认展示前 10 条，更多点"查看更多"再 +10；不进入帖子页 -->
+        <div class="moment-comments">
+          <div v-if="commentsLoading.has(post.id) && !commentsMap[post.id]?.length" class="moment-comment-empty">加载评论…</div>
           <template v-else>
             <div v-if="commentsMap[post.id]?.length" class="moment-comment-list">
               <div v-for="c in commentsMap[post.id]" :key="c.id" class="moment-comment-line">
                 <span class="moment-comment-author">{{ c.author }}</span>
                 <span class="moment-comment-body">{{ c.content }}</span>
               </div>
+              <button
+                v-if="(commentsMap[post.id]?.length || 0) < (commentsTotal[post.id] || 0)"
+                type="button"
+                class="moment-comment-more"
+                @click="showMoreComments(post)"
+              >
+                查看更多评论（还剩 {{ (commentsTotal[post.id] || 0) - (commentsMap[post.id]?.length || 0) }} 条）
+              </button>
             </div>
-            <div v-else class="moment-comment-empty">还没有评论，来抢沙发～</div>
+            <div v-else-if="!commentsLoading.has(post.id)" class="moment-comment-empty">还没有评论，来抢沙发～</div>
             <div class="moment-comment-input-row">
               <input
                 v-model="commentText"
@@ -310,12 +334,16 @@ function openPost(post: WechatFeedItem) {
 .moment-grid.grid-3 {
   grid-template-columns: repeat(3, 1fr);
 }
-.moment-grid img {
+.moment-grid img,
+.moment-img {
   width: 100%;
   aspect-ratio: 1;
   object-fit: cover;
   cursor: pointer;
   display: block;
+}
+.moment-img :deep(img) {
+  object-fit: cover;
 }
 .moment-videos {
   display: flex;
@@ -385,6 +413,15 @@ function openPost(post: WechatFeedItem) {
   color: var(--text-800, #222);
   white-space: pre-wrap;
   word-break: break-word;
+}
+.moment-comment-more {
+  border: none;
+  background: transparent;
+  color: #576b95;
+  font-size: 12px;
+  cursor: pointer;
+  padding: 2px 0;
+  align-self: flex-start;
 }
 .moment-comment-empty {
   color: var(--text-400, #999);
