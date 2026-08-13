@@ -19,6 +19,19 @@ if errorlevel 1 (
     exit /b 1
 )
 
+:: 自动读取 Windows 系统代理并配给 git（VPN 代理模式下浏览器能开 GitHub、git 却直连被墙）
+for /f "tokens=2,* delims==" %%A in ('reg query "HKCU\Software\Microsoft\Windows\CurrentVersion\Internet Settings" /v ProxyEnable 2^>nul ^| find "ProxyEnable"') do set "PROXY_ENABLE=%%A"
+for /f "tokens=2,* delims==" %%A in ('reg query "HKCU\Software\Microsoft\Windows\CurrentVersion\Internet Settings" /v ProxyServer 2^>nul ^| find "ProxyServer"') do set "PROXY_SERVER=%%B"
+if not defined PROXY_ENABLE set "PROXY_ENABLE=0"
+if defined PROXY_SERVER (
+    set "PROXY_SERVER=%PROXY_SERVER: =%"
+    if "%PROXY_ENABLE%"=="1" (
+        git config http.proxy "%PROXY_SERVER%" >nul 2>&1
+        git config https.proxy "%PROXY_SERVER%" >nul 2>&1
+        echo [代理] 已使用系统代理 %PROXY_SERVER%
+    )
+)
+
 :: 1) 暂存所有改动（密钥/数据库/上传文件已在 .gitignore 排除）
 echo [1/3] 暂存所有改动...
 git add -A
