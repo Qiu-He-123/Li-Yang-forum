@@ -7,6 +7,8 @@
   "images_key": "",
   "images_dir": "",
   "scan_interval_seconds": 3,
+  "refresh_min_interval_seconds": 60,
+  "refresh_stale_after_seconds": 30,
   "friend_snapshot_interval_seconds": 600,
   "manual_max_items": 300,
   "state_file": "state.json",

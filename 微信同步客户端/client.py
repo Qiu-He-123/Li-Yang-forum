@@ -64,7 +64,12 @@ def refresh_cache(cfg: dict, sns_src: str) -> bool:
 def main() -> None:
     cfg = load_config()
     scan_interval = max(3, int(cfg.get("scan_interval_seconds", 3)))
+    # 节流：抢焦点点朋友圈很打扰人，只在"数据确实旧了"且"距上次点击够久"时才点
+    min_click_interval = max(10, int(cfg.get("refresh_min_interval_seconds", 60)))
+    stale_after = max(0, int(cfg.get("refresh_stale_after_seconds", 30)))
     log("守护客户端启动（后端直读模式，客户端仅刷新本地缓存）")
+    global _last_window_warning
+    last_click = 0.0
 
     while True:
         try:
@@ -76,11 +81,22 @@ def main() -> None:
                 sns_reader.find_sns_db(cfg.get("datadir"), key_hex) if key_hex else (None, None, None)
             )
             if sns_src:
-                ok = refresh_cache(cfg, sns_src)
-                global _last_window_warning
-                if not ok and time.time() - _last_window_warning >= 60:
-                    _last_window_warning = time.time()
-                    log("朋友圈窗口未打开，跳过本次刷新（后端仍会读取现有缓存）")
+                now = time.time()
+                # sns.db 在 stale_after 秒内有更新 => 微信自己已在拉取，完全不用抢焦点
+                fresh = False
+                try:
+                    fresh = (now - os.path.getmtime(sns_src)) < stale_after
+                except OSError:
+                    pass
+                need_click = (not fresh) and (now - last_click >= min_click_interval)
+                if need_click:
+                    ok = refresh_cache(cfg, sns_src)
+                    if ok:
+                        last_click = now
+                    elif time.time() - _last_window_warning >= 60:
+                        _last_window_warning = time.time()
+                        log("朋友圈窗口未打开，跳过本次刷新（后端仍会读取现有缓存）")
+                # else: 数据新鲜或未到点击间隔 -> 静默跳过，不打断用户
             else:
                 log("未找到可解密的 sns.db：请确认微信已登录、已完成解密门禁")
                 time.sleep(10)
