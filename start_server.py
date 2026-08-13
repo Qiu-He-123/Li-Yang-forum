@@ -706,12 +706,32 @@ class StartupWindow:
                 self.cfg["device_token"] = token
                 save_config(self.cfg)
 
+        # 前端生产构建：后端在 8000 端口直接托管 frontend/dist（不再启动 vite 开发服务器）
+        # dist 缺失或比源码旧时自动重新构建
+        _dist_html = ROOT / "frontend" / "dist" / "index.html"
+        _src_newest = max(
+            (p.stat().st_mtime for p in (ROOT / "frontend" / "src").rglob("*") if p.is_file()),
+            default=0,
+        )
+        if not _dist_html.is_file() or (_src_newest and _dist_html.stat().st_mtime < _src_newest):
+            messagebox.showinfo("提示", "前端未构建或源码有更新，正在构建（首次约需几分钟）…")
+            _build = subprocess.run(
+                ["cmd", "/c", f"cd /d {ROOT}\\frontend && npm run build"],
+                cwd=str(ROOT),
+                capture_output=True,
+                text=True,
+                timeout=1800,
+            )
+            if _build.returncode != 0:
+                messagebox.showerror("前端构建失败", _build.stderr[-2000:] or _build.stdout[-2000:])
+                return
+            _dist_html = ROOT / "frontend" / "dist" / "index.html"
+        if not _dist_html.is_file():
+            messagebox.showerror("提示", "前端构建产物缺失：frontend/dist/index.html 不存在")
+            return
+
         subprocess.Popen(
             ["cmd", "/k", f"cd /d {ROOT}\\backend && call .venv\\Scripts\\activate.bat && python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --no-server-header"],
-            cwd=str(ROOT),
-        )
-        subprocess.Popen(
-            ["cmd", "/k", f"cd /d {ROOT}\\frontend && npm run dev -- --host 127.0.0.1 --port 5173"],
             cwd=str(ROOT),
         )
         if self.client_var.get():
@@ -727,7 +747,8 @@ class StartupWindow:
         if MONITOR_PY.is_file():
             subprocess.Popen([str(py), str(MONITOR_PY)])
         self.root.destroy()
-        os.startfile("http://127.0.0.1:5173/")
+        # 生产模式：打开后端托管的页面（8000，含前端构建产物）
+        os.startfile("http://127.0.0.1:8000/")
 
 
 if __name__ == "__main__":
