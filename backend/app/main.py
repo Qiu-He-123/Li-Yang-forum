@@ -127,8 +127,11 @@ async def api_read_challenge(request: Request, call_next):
 
     验证通过后由 /captcha/verify 签发 10 分钟挑战通行证 Cookie，
     持有通行证期间不再弹验证码。
+
+    仅生产模式启用：dev/内测服经 frp 穿透时所有用户共用一个出口 IP，
+    按 IP 计数会误伤全体正常用户。
     """
-    if request.method == "GET" and request.url.path.startswith("/api"):
+    if settings.env != "dev" and request.method == "GET" and request.url.path.startswith("/api"):
         path = request.url.path
         if path not in _CHALLENGE_EXEMPT:
             ip = extract_ip(request)

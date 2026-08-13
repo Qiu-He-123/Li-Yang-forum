@@ -5,6 +5,7 @@ import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
 
 import { useAdminStore } from '../../stores/admin'
 import { fetchCaptcha } from '../../api/auth'
+import { toast } from '../../components/native/Toast'
 
 const router = useRouter()
 const route = useRoute()
@@ -31,6 +32,7 @@ async function loadCaptcha() {
     captchaId.value = data.data.captcha_id
     captchaImg.value = data.data.image
   } catch {
+    toast.error('验证码加载失败，点击图片重试')
     captchaId.value = ''
     captchaImg.value = ''
   }

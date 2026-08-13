@@ -28,7 +28,8 @@ from app.models.captcha import CaptchaTicket, DownloadToken
 from app.services.rate_limit_service import check_rate_limit
 
 CAPTCHA_TTL = timedelta(minutes=5)
-CAPTCHA_FETCH_LIMIT_PER_MINUTE = 10
+CAPTCHA_FETCH_LIMIT_PER_MINUTE = 30
+CAPTCHA_VERIFY_LIMIT_PER_MINUTE = 20
 CAPTCHA_CLEANUP_OLDER_THAN = timedelta(minutes=15)
 
 DOWNLOAD_TOKEN_TTL = timedelta(minutes=2)
@@ -86,6 +87,11 @@ def verify_captcha(db: Session, captcha_id: str | None, captcha_text: str | None
     if not captcha_id or not captcha_text:
         raise HTTPException(status_code=400, detail=ErrorCode.CAPTCHA_REQUIRED)
 
+    # 校验限流：每 IP 每分钟最多 20 次，防对验证码答案爆破
+    safe_ip = ip or "unknown"
+    if not check_rate_limit(db, f"cap:{safe_ip}:verify", CAPTCHA_VERIFY_LIMIT_PER_MINUTE):
+        raise HTTPException(status_code=429, detail=ErrorCode.RATE_LIMITED)
+
     ticket = db.scalar(select(CaptchaTicket).where(CaptchaTicket.ticket_id == captcha_id))
     if not ticket:
         raise HTTPException(status_code=400, detail=ErrorCode.CAPTCHA_INVALID)
@@ -97,7 +103,6 @@ def verify_captcha(db: Session, captcha_id: str | None, captcha_text: str | None
     if ticket.created_at < now_utc() - CAPTCHA_TTL:
         raise HTTPException(status_code=400, detail=ErrorCode.CAPTCHA_EXPIRED)
 
-    safe_ip = ip or "unknown"
     if ticket.ip and ticket.ip != safe_ip:
         raise HTTPException(status_code=400, detail=ErrorCode.CAPTCHA_INVALID)
 

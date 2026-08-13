@@ -44,7 +44,7 @@ if errorlevel 1 (
 cd /d "%~dp0"
 
 REM --- Start backend and frontend ---
-start "LY Community Backend" cmd /k "cd /d %~dp0backend && call .venv\Scripts\activate.bat && python -m uvicorn app.main:app --host 127.0.0.1 --port 8000"
+start "LY Community Backend" cmd /k "cd /d %~dp0backend && call .venv\Scripts\activate.bat && python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --no-server-header"
 start "LY Community Frontend" cmd /k "cd /d %~dp0frontend && npm run dev -- --host 127.0.0.1 --port 5173"
 
 timeout /t 5 /nobreak >nul

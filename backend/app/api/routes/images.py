@@ -370,7 +370,8 @@ async def get_private_image(
             user_id = None
 
     if not (user_id == image.user_id or _is_admin_request(db, request)):
-        raise HTTPException(status_code=403, detail="无权查看该图片")
+        # 防 IDOR 存在性探测：未授权一律返回「图片不存在」（与不存在同响应）
+        raise HTTPException(status_code=404, detail="图片不存在")
 
     data = await storage_service.read_private(filename)
     if data is None:

@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 
 import { fetchCaptcha } from '../../api/auth'
+import { toast } from '../native/Toast'
 import { useSessionStore } from '../../stores/session'
 import { useSchoolStore } from '../../stores/school'
 import { useUserStore } from '../../stores/user'
@@ -50,7 +51,8 @@ async function loadCaptcha() {
     captchaId.value = data.data.captcha_id
     captchaImg.value = data.data.image
   } catch {
-    // 验证码加载失败不阻塞登录/注册主流程，提交时后端会再次校验
+    // 加载失败明确提示（否则用户只看到空输入框，不知道要填什么）
+    toast.error('验证码加载失败，点击图片重试')
     captchaId.value = ''
     captchaImg.value = ''
   }
