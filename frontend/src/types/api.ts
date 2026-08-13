@@ -44,6 +44,10 @@ export interface Post {
   has_ai_content?: boolean
   is_public?: boolean
   image_urls: string[]
+  /** 视频 URL 列表（微信朋友圈视频等，HTML5 video 渲染） */
+  video_urls?: string[]
+  /** 来源：normal / wechat_auto / wechat_manual / video_share（抖音/B站/快手分享） */
+  source?: string
   is_anonymous: boolean
   category: string
   school: string

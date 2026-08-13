@@ -43,8 +43,8 @@ DL_DAILY_LIMIT = 20
 
 
 class DownloadTokenIn(BaseModel):
-    captcha_id: str = Field(min_length=1, max_length=64)
-    captcha_text: str = Field(min_length=1, max_length=16)
+    captcha_id: str | None = Field(default=None, min_length=1, max_length=64)
+    captcha_text: str | None = Field(default=None, min_length=1, max_length=16)
 
 
 def _find_apk() -> Path | None:

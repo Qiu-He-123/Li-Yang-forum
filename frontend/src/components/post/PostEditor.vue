@@ -1917,7 +1917,7 @@ defineExpose({
             <Icon name="image-plus" :size="14" />
             我的图片
           </button>
-          <span class="images-hint">已选 {{ imageUrls.length }} 张 · 最多 9 张 · 带图需人工审核</span>
+          <span class="images-hint">已选 {{ imageUrls.length }} 张 · 最多 9 张 · 带图/视频需人工审核</span>
         </div>
       </div>
       <div class="image-grid">

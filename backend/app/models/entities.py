@@ -67,6 +67,9 @@ class User(Base, TimestampMixin):
     wearing_badge_id: Mapped[int | None] = mapped_column(
         ForeignKey("badges.id"), default=None, index=True
     )
+    # 金币体系：余额 + 新手引导完成标记
+    coins: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    onboarding_done: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
 
     school: Mapped[School] = relationship()
     wearing_badge: Mapped["Badge | None"] = relationship(
@@ -95,6 +98,8 @@ class Badge(Base, TimestampMixin):
     sort_order: Mapped[int] = mapped_column(Integer, default=0)
     # 系统徽章（如管理员/集团成员）不允许删除，只可停用
     is_system: Mapped[bool] = mapped_column(Boolean, default=False)
+    # 金币购买价格（0 = 不可购买）
+    price: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
 
 
 class BadgeCode(Base, TimestampMixin):
@@ -165,6 +170,8 @@ class Post(Base, TimestampMixin):
     category: Mapped[str] = mapped_column(String(32), index=True)
     content: Mapped[str] = mapped_column(Text)
     image_urls: Mapped[str] = mapped_column(Text, default="[]")
+    # 视频（微信朋友圈 mp4 等）：JSON 数组，前端 HTML5 video 渲染
+    video_urls: Mapped[str] = mapped_column(Text, default="[]")
     is_anonymous: Mapped[bool] = mapped_column(Boolean, default=False)
     is_public: Mapped[bool] = mapped_column(Boolean, default=True)
     is_draft: Mapped[bool] = mapped_column(Boolean, default=False)
@@ -187,6 +194,17 @@ class Post(Base, TimestampMixin):
     location: Mapped[str | None] = mapped_column(String(100), default=None)
     # 邀请码系统：未认证用户到期后隐藏（保留作者本人可见）
     is_hidden_by_unverify: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
+    # 微信朋友圈同步：来源 / 关联朋友圈动态 / 置顶 / 朋友圈发布时间
+    source: Mapped[str] = mapped_column(String(20), default="normal", index=True)
+    # 抖音/快手原始分享文本（直链过期后可重新解析换新直链）
+    video_share_text: Mapped[str | None] = mapped_column(Text, default=None)
+    wechat_moment_id: Mapped[int | None] = mapped_column(
+        ForeignKey("wechat_moments.id"), default=None, index=True
+    )
+    is_pinned: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
+    pinned_at: Mapped[datetime | None] = mapped_column(DateTime, default=None)
+    pinned_until: Mapped[datetime | None] = mapped_column(DateTime, default=None, index=True)
+    source_created_at: Mapped[datetime | None] = mapped_column(DateTime, default=None, index=True)
 
     author: Mapped[User] = relationship()
     school: Mapped[School] = relationship()
@@ -1016,3 +1034,85 @@ class AppDownloadLog(Base, TimestampMixin):
     id: Mapped[int] = mapped_column(primary_key=True)
     ip: Mapped[str] = mapped_column(String(45), index=True)
     user_agent: Mapped[str | None] = mapped_column(String(255), default=None)
+
+
+class WechatFriend(Base, TimestampMixin):
+    """微信好友快照（由同步客户端从 contact.db 定期上报）。
+    wxid 唯一；wechat_id 为用户设置的微信号（alias），用于绑定匹配。
+    """
+
+    __tablename__ = "wechat_friends"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    wxid: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    wechat_id: Mapped[str | None] = mapped_column(String(64), default=None, index=True)
+    nickname: Mapped[str] = mapped_column(String(100), default="")
+    remark: Mapped[str | None] = mapped_column(String(100), default=None)
+    last_seen_at: Mapped[datetime | None] = mapped_column(DateTime, default=None)
+
+
+class WechatBinding(Base, TimestampMixin):
+    """用户与微信好友的绑定关系。
+    绑定规则：先添加社区微信，再输入自己的微信号/wxid，匹配成功即绑定且不可自改。
+    sync_enabled_at 为自动同步的历史分界线：只同步该时间之后发布的朋友圈。
+    """
+
+    __tablename__ = "wechat_bindings"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), unique=True, index=True)
+    wxid: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    wechat_id: Mapped[str | None] = mapped_column(String(64), default=None)
+    nickname: Mapped[str] = mapped_column(String(100), default="")
+    sync_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
+    sync_enabled_at: Mapped[datetime | None] = mapped_column(DateTime, default=None)
+    bound_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    # 分步绑定：status=pending（待消息验证码）-> verified（已绑定）
+    status: Mapped[str] = mapped_column(String(20), default="pending")
+    verify_code: Mapped[str | None] = mapped_column(String(16), default=None)
+    verify_code_expires_at: Mapped[datetime | None] = mapped_column(DateTime, default=None)
+    unbound_at: Mapped[datetime | None] = mapped_column(DateTime, default=None)
+    unbound_by_admin_id: Mapped[int | None] = mapped_column(
+        ForeignKey("admin.id"), default=None
+    )
+
+
+class WechatMoment(Base, TimestampMixin):
+    """同步客户端上报的原始朋友圈动态，tid 全局唯一用于增量去重。"""
+
+    __tablename__ = "wechat_moments"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    tid: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    wxid: Mapped[str] = mapped_column(String(64), index=True)
+    author_name: Mapped[str] = mapped_column(String(100), default="")
+    content: Mapped[str] = mapped_column(Text, default="")
+    create_time: Mapped[datetime | None] = mapped_column(DateTime, default=None, index=True)
+    media_json: Mapped[str] = mapped_column(Text, default="[]")
+    fetched_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+
+class CoinTransaction(Base, TimestampMixin):
+    """金币流水：所有增加/扣减必须写流水，可审计、可回溯。"""
+
+    __tablename__ = "coin_transactions"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    amount: Mapped[int] = mapped_column(Integer, default=0)  # 正=增加 负=扣减
+    balance_after: Mapped[int] = mapped_column(Integer, default=0)
+    type: Mapped[str] = mapped_column(String(32), default="", index=True)
+    ref_id: Mapped[str | None] = mapped_column(String(64), default=None)
+    description: Mapped[str | None] = mapped_column(String(200), default=None)
+
+
+class WechatRecentMessage(Base):
+    """客户端上报的"社区账号收到的最近消息"，用于绑定验证码校验。"""
+
+    __tablename__ = "wechat_recent_messages"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    peer_wxid: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    last_text: Mapped[str] = mapped_column(Text, default="")
+    last_time: Mapped[int] = mapped_column(Integer, default=0)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())

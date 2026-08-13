@@ -36,12 +36,19 @@ def _public_bucket_policy(bucket: str) -> str:
 class StorageService:
     def _new_client(self, settings):
         from minio import Minio
+        from urllib3 import PoolManager
 
         return Minio(
             settings.minio_endpoint,
             access_key=settings.minio_access_key,
             secret_key=settings.minio_secret_key,
             secure=settings.minio_secure,
+            # 显式短超时 + 关闭重试：MinIO 不在线时秒级失败，不再让
+            # 检查线程在后台空转 30 秒
+            http_client=PoolManager(
+                timeout=2.0,
+                retries=False,
+            ),
         )
 
     def _check_minio(self) -> bool:
@@ -51,6 +58,10 @@ class StorageService:
             return _minio_available
 
         settings = get_settings()
+        if not settings.minio_endpoint:
+            _minio_checked = True
+            _minio_available = False
+            return False
         try:
             client = self._new_client(settings)
 
@@ -77,9 +88,8 @@ class StorageService:
         settings = get_settings()
 
         if not self._check_minio():
-            root = Path("uploads")
-            root.mkdir(exist_ok=True)
-            path = root / filename
+            path = Path("uploads") / filename
+            path.parent.mkdir(parents=True, exist_ok=True)
             async with aiofiles.open(str(path), "wb") as f:
                 await f.write(content)
             return f"/uploads/{filename}"
@@ -99,9 +109,8 @@ class StorageService:
             logger.warning("MinIO upload failed, fallback to local: {}", type(exc).__name__)
             global _minio_available
             _minio_available = False
-            root = Path("uploads")
-            root.mkdir(exist_ok=True)
-            path = root / filename
+            path = Path("uploads") / filename
+            path.parent.mkdir(parents=True, exist_ok=True)
             async with aiofiles.open(str(path), "wb") as f:
                 await f.write(content)
             return f"/uploads/{filename}"

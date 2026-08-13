@@ -20,6 +20,7 @@ import {
   updatePost,
   viewPost,
 } from '../api/post'
+import { refreshVideoLink } from '../api/video'
 import {
   favoritePost,
   unlikeTarget,
@@ -46,12 +47,33 @@ const uiStore = useUIStore()
 const postId = ref<number>(Number(route.params.id))
 const post = ref<Post | null>(null)
 const related = ref<Post[]>([])
+// 直链视频：播放失败（直链过期）时提示刷新链接
+const videoBroken = ref(false)
+const refreshingVideo = ref(false)
 // Bug 修复：初始 loading 必须为 true。
 // 原先 loading=false + post=null，onMounted 中 await session.validateSession() 期间
 // 模板会先渲染 EmptyState "帖子不存在或已被删除"，再切到 loading-tip，造成闪烁误导用户。
 const loading = ref(true)
 // 帖子加载失败提示（区分私密发布与已删除）
 const postError = ref('')
+
+async function refreshVideoLinkNow() {
+  if (!post.value) return
+  refreshingVideo.value = true
+  try {
+    const data = (await refreshVideoLink(post.value.id)).data.data
+    if (data.video_url) {
+      post.value.video_urls = [data.video_url]
+      videoBroken.value = false
+      toast.success('已刷新视频链接')
+    }
+  } catch (e: unknown) {
+    const err = e as { response?: { data?: { msg?: string } } }
+    toast.error(err.response?.data?.msg || '刷新失败，请稍后再试')
+  } finally {
+    refreshingVideo.value = false
+  }
+}
 
 // 编辑帖子弹窗
 const editDialogVisible = ref(false)
@@ -540,7 +562,7 @@ onMounted(() => {
         <button class="icon-btn" type="button" aria-label="返回" @click="onBack">
           <Icon name="arrow-left" :size="20" />
         </button>
-        <h1 class="header-title">帖子详情</h1>
+        <h1 class="header-title">{{ post?.video_urls?.length ? '视频' : '帖子详情' }}</h1>
         <button
           class="icon-btn icon-btn--report"
           type="button"
@@ -684,13 +706,41 @@ onMounted(() => {
 
               <h1 v-if="post.title" class="post-title">{{ post.title }}</h1>
 
-              <!-- 图片墙（带预览）：详情页用原图保证清晰度，列表页才用缩略图 -->
+              <!-- 图片墙（带预览）：详情页用原图保证清晰度，列表页才用缩略图；视频帖不重复展示封面（播放器在正文下方） -->
               <div class="post-images-block">
-                <PostImages v-if="post.image_urls?.length" :urls="post.image_urls" :thumb="false" />
+                <PostImages
+                  v-if="post.image_urls?.length && !post.video_urls?.length"
+                  :urls="post.image_urls"
+                  :videos="post.video_urls"
+                  :thumb="false"
+                />
               </div>
 
               <div v-if="post.content" class="post-body">
                 <MarkdownText :content="post.content" />
+              </div>
+
+              <!-- 视频帖：播放器放在文字下方，宽高按视频实际比例自适应（直链播放） -->
+              <div v-if="post.video_urls?.length" class="post-video-wrap">
+                <video
+                  v-for="(vurl, vi) in post.video_urls"
+                  :key="vi"
+                  class="post-video-player"
+                  :src="vurl"
+                  controls
+                  playsinline
+                  preload="metadata"
+                  @error="videoBroken = true"
+                ></video>
+                <p class="post-video-source">
+                  来自{{ post.source === 'wechat_auto' || post.source === 'wechat_manual' ? '微信朋友圈' : '抖音/B站/快手分享' }}
+                </p>
+                <div v-if="videoBroken" class="video-refresh-tip">
+                  <span>视频链接已失效（原平台直链有时效）</span>
+                  <button type="button" :disabled="refreshingVideo" @click="refreshVideoLinkNow">
+                    {{ refreshingVideo ? '刷新中…' : '刷新链接' }}
+                  </button>
+                </div>
               </div>
 
               <!-- 标签 -->
@@ -1182,6 +1232,51 @@ onMounted(() => {
   text-wrap: balance;
   word-break: break-word;
   overflow-wrap: break-word;
+}
+
+/* 视频帖：播放器在文字下方，宽高跟随视频实际比例（不拉伸不变形） */
+.post-video-wrap {
+  margin: 16px 0;
+}
+.post-video-player {
+  width: 100%;
+  height: auto;
+  max-height: 72vh;
+  display: block;
+  border-radius: 12px;
+  background: #000;
+  object-fit: contain;
+}
+.post-video-source {
+  font-size: 12px;
+  color: var(--text-400, #999);
+  margin: 6px 0 0;
+}
+.video-refresh-tip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 8px;
+  padding: 8px 10px;
+  background: rgba(178, 106, 0, 0.08);
+  border-radius: 8px;
+  font-size: 12px;
+  color: #b26a00;
+}
+.video-refresh-tip button {
+  border: 1px solid #b26a00;
+  color: #b26a00;
+  background: #fff;
+  border-radius: 999px;
+  padding: 4px 12px;
+  font-size: 12px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.video-refresh-tip button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 /* AI 审核状态提示横幅（仅作者本人可见） */

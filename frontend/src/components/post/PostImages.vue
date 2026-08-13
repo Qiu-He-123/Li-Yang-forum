@@ -11,9 +11,11 @@ import { Icon } from '../native'
 
 const props = withDefaults(defineProps<{
   urls: string[]
+  /** 视频 URL 列表（微信朋友圈视频等），渲染为 HTML5 video */
+  videos?: string[]
   /** 列表场景用缩略图（400x400 JPEG ~30KB），详情页传 false 用原图 */
   thumb?: boolean
-}>(), { thumb: true })
+}>(), { thumb: true, videos: () => [] })
 
 const errored = ref<Set<number>>(new Set())
 const loaded = ref<Set<number>>(new Set())
@@ -92,6 +94,18 @@ function onLoad(idx: number) {
     </div>
   </div>
 
+  <!-- 视频：HTML5 播放器，列表页只取封面不预载（无控件，点卡片进详情播放） -->
+  <div v-if="videos.length" class="post-videos">
+    <video
+      v-for="(vurl, vi) in videos"
+      :key="'v' + vi + vurl"
+      class="post-video"
+      :controls="!thumb"
+      :preload="thumb ? 'metadata' : 'auto'"
+      :src="vurl"
+    ></video>
+  </div>
+
   <!-- 图片查看器：返回 + 双指/双击缩放 -->
   <ImageViewer
     :visible="previewVisible"
@@ -123,6 +137,19 @@ function onLoad(idx: number) {
   object-fit: cover;
   display: block;
   transition: transform 0.2s var(--ease-apple);
+}
+.post-videos {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+}
+.post-video {
+  width: 100%;
+  max-height: 420px;
+  border-radius: var(--radius-sm);
+  background: #000;
+  display: block;
 }
 .img-cell:hover img {
   transform: scale(1.03);

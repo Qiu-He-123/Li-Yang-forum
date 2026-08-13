@@ -62,6 +62,8 @@ declare module 'vue' {
     InfiniteScrollFooter: typeof import('./../components/common/InfiniteScrollFooter.vue')['default']
     InviteCodeDialog: typeof import('./../components/auth/InviteCodeDialog.vue')['default']
     MarkdownText: typeof import('./../components/common/MarkdownText.vue')['default']
+    MomentsTimeline: typeof import('./../components/wechat/MomentsTimeline.vue')['default']
+    OnboardingTour: typeof import('./../components/OnboardingTour.vue')['default']
     Pagination: typeof import('./../components/common/Pagination.vue')['default']
     PostCard: typeof import('./../components/post/PostCard.vue')['default']
     PostDetailDialog: typeof import('./../components/admin/PostDetailDialog.vue')['default']

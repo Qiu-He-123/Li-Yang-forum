@@ -241,9 +241,9 @@ function goTagSearch(tag: string) {
       <MarkdownText v-if="restText" :content="restText" class="post-summary" :clamp="3" />
     </a>
 
-    <!-- 缩略图 -->
-    <div v-if="post.image_urls.length" class="post-images-wrap">
-      <PostImages :urls="post.image_urls" />
+    <!-- 缩略图 / 视频（视频帖只显示视频，不重复显示封面） -->
+    <div v-if="post.image_urls.length || post.video_urls?.length" class="post-images-wrap">
+      <PostImages :urls="post.video_urls?.length ? [] : post.image_urls" :videos="post.video_urls" />
     </div>
 
     <!-- 标签 -->

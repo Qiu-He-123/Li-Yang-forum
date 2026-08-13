@@ -112,7 +112,7 @@ const inputText = ref('')
 const loading = ref(false)
 const sending = ref(false)
 const messagesContainer = ref<HTMLElement | null>(null)
-const inputRef = ref<HTMLInputElement | null>(null)
+const inputRef = ref<HTMLTextAreaElement | null>(null)
 
 // 权限状态
 const isMutual = ref(false)
@@ -232,6 +232,7 @@ async function onSend() {
   sending.value = true
   const sentText = text
   inputText.value = ''
+  resetChatInputHeight()
   try {
     const { data } = await sendMessage(friendId.value, sentText)
     const msg = data.data
@@ -370,6 +371,7 @@ function togglePanel(type: 'plus' | 'emoji') {
 function insertEmoji(e: string) {
   inputText.value += e
   inputRef.value?.focus()
+  nextTick(onChatInput)
 }
 
 /** 预申请麦克风权限并缓存录音流（进入语音模式时调用，按下即录） */
@@ -605,6 +607,18 @@ function onKeydown(e: KeyboardEvent) {
     e.preventDefault()
     onSend()
   }
+}
+
+/** 输入框随内容自动变高（微信式，上限 88px） */
+function onChatInput() {
+  const el = inputRef.value
+  if (!el) return
+  el.style.height = 'auto'
+  el.style.height = Math.min(el.scrollHeight, 88) + 'px'
+}
+
+function resetChatInputHeight() {
+  if (inputRef.value) inputRef.value.style.height = 'auto'
 }
 
 function formatTime(dateStr: string | null): string {
@@ -905,17 +919,18 @@ watch(friendId, async () => {
 
         <!-- 中间输入区 -->
         <div class="chat-input-wrap" :class="{ 'is-disabled': !canSend, 'is-voice-mode': inputMode === 'voice' }">
-          <input
+          <textarea
             v-if="inputMode === 'keyboard'"
             ref="inputRef"
             v-model="inputText"
             class="chat-input"
-            type="text"
+            rows="1"
             :placeholder="inputPlaceholder"
             :disabled="!canSend"
+            @input="onChatInput"
             @keydown="onKeydown"
             @focus="onInputFocus"
-          />
+          ></textarea>
           <div
             v-else
             class="chat-hold-talk"
@@ -1192,6 +1207,9 @@ watch(friendId, async () => {
   font-size: 15px;
   line-height: 1.5;
   color: #000;
+  /* 保留换行（Shift+Enter 输入的多行消息） */
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 /* 权限提示条 */
@@ -1438,6 +1456,11 @@ watch(friendId, async () => {
   background: transparent;
   font-family: inherit;
   color: #000;
+  /* 支持多行：Shift+Enter 换行，Enter 发送（微信式） */
+  resize: none;
+  overflow-y: auto;
+  max-height: 88px;
+  display: block;
 }
 .chat-input:disabled {
   color: #999;

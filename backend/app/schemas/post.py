@@ -15,6 +15,7 @@ def _validate_image_url(url: str) -> str:
     允许：
     - http:// 或 https:// 开头的绝对 URL
     - /uploads/ 开头的相对路径（本地存储）
+    - /api/videos/proxy?...（抖音视频反代播放地址，video_urls 用）
     禁止：
     - javascript: 协议
     - data: 协议（避免 base64 大图）
@@ -25,7 +26,7 @@ def _validate_image_url(url: str) -> str:
     url_lower = url.lower().strip()
     if url_lower.startswith(("http://", "https://")):
         return url
-    if url_lower.startswith("/uploads/"):
+    if url_lower.startswith(("/uploads/", "/api/videos/proxy?")):
         return url
     if url_lower.startswith(("javascript:", "data:", "vbscript:", "file:")):
         raise ValueError("图片 URL 不允许使用该协议")
@@ -43,6 +44,9 @@ class PostCreate(BaseModel):
     # 草稿允许空 content（仅有标题/图片/投票也可保存）；正式发布需 content 非空
     content: str = Field(default="", max_length=5000)
     image_urls: list[str] = Field(default_factory=list, max_length=9)
+    video_urls: list[str] = Field(default_factory=list, max_length=3)
+    # 来源：normal / wechat_auto / wechat_manual / video_share（抖音快手分享）
+    source: str = "normal"
     is_anonymous: bool = False
     is_public: bool = True
     school_id: int
@@ -58,10 +62,10 @@ class PostCreate(BaseModel):
     mention_user_ids: list[int] = Field(default_factory=list)
     poll: PollCreate | None = None
 
-    @field_validator("image_urls")
+    @field_validator("image_urls", "video_urls")
     @classmethod
-    def validate_image_urls(cls, v: list[str]) -> list[str]:
-        """T7-11：校验每个图片 URL，防止 XSS。"""
+    def validate_urls(cls, v: list[str]) -> list[str]:
+        """T7-11：校验每个图片/视频 URL，防止 XSS。"""
         return [_validate_image_url(url) for url in v]
 
     @model_validator(mode="after")

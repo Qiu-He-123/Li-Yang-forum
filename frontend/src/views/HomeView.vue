@@ -24,7 +24,15 @@ import { Dialog as NativeDialog } from '../components/native'
 import DownloadAppButton from '../components/DownloadAppButton.vue'
 import { useInfiniteScroll } from '../composables/useInfiniteScroll'
 import { Icon } from '../components/native'
+import MomentsTimeline from '../components/wechat/MomentsTimeline.vue'
 import { toast } from '../components/native/Toast'
+import {
+  getWechatFeed,
+  getWechatStatus,
+  refreshWechatMoments,
+  type WechatFeedItem,
+  type WechatStatus,
+} from '../api/wechat'
 import { useSessionStore } from '../stores/session'
 import { useUserStore } from '../stores/user'
 import { useUIStore } from '../stores/ui'
@@ -125,6 +133,62 @@ function formatStatsNum(n: number): string {
 
 // 首页 Tab：推荐 / 最新（后端 view=hot/latest，匿名也可访问）
 const feedView = computed<'hot' | 'latest'>(() => (route.query.view === 'latest' ? 'latest' : 'hot'))
+const momentsActive = computed(() => route.query.tab === 'moments')
+const momentsItems = ref<WechatFeedItem[]>([])
+const momentsLoading = ref(false)
+const momentsStatus = ref<WechatStatus | null>(null)
+
+function switchFeedTab(name: 'hot' | 'latest' | 'moments') {
+  if (name === 'moments') {
+    router.replace({ query: { tab: 'moments' } })
+    loadMomentsFeed()
+    loadMomentsStatus()
+  } else {
+    router.replace({ query: { view: name } })
+    if (name === 'latest') onViewChange('latest')
+  }
+}
+
+async function loadMomentsFeed() {
+  momentsLoading.value = true
+  try {
+    const data = (await getWechatFeed(1, 50)).data.data
+    momentsItems.value = data.items
+  } catch {
+    momentsItems.value = []
+  } finally {
+    momentsLoading.value = false
+  }
+}
+
+async function loadMomentsStatus() {
+  if (!session.userId) {
+    momentsStatus.value = null
+    return
+  }
+  try {
+    momentsStatus.value = (await getWechatStatus()).data.data
+  } catch {
+    momentsStatus.value = null
+  }
+}
+
+async function momentsRefresh() {
+  try {
+    await refreshWechatMoments()
+    toast.success('已通知同步，几秒后自动刷新')
+    window.setTimeout(loadMomentsFeed, 4000)
+  } catch {
+    toast.error('刷新太频繁，请稍后再试')
+  }
+}
+
+watch(momentsActive, (v) => {
+  if (v) {
+    loadMomentsFeed()
+    loadMomentsStatus()
+  }
+})
 
 // 首页特色入口
 // - 随机交友：独占一行（大卡片），跳转独立漂流瓶页面（不再是帖子流）
@@ -199,6 +263,11 @@ onMounted(async () => {
       // 匿名用户也能看首页 feed
       await postStore.loadPosts()
     }
+  }
+  // 直接刷新到 微信朋友圈 Tab（?tab=moments）时补齐 feed 加载
+  if (momentsActive.value) {
+    loadMomentsFeed()
+    loadMomentsStatus()
   }
 })
 
@@ -491,22 +560,32 @@ onUnmounted(() => {
           <button
             class="feed-tab"
             type="button"
-            :class="{ 'is-active': feedView === 'hot' }"
+            :class="{ 'is-active': !momentsActive && feedView === 'hot' }"
             role="tab"
-            :aria-selected="feedView === 'hot'"
-            @click="router.replace({ query: { view: 'hot' } }); onViewChange('hot')"
+            :aria-selected="!momentsActive && feedView === 'hot'"
+            @click="switchFeedTab('hot')"
           >
             推荐
           </button>
           <button
             class="feed-tab"
             type="button"
-            :class="{ 'is-active': feedView === 'latest' }"
+            :class="{ 'is-active': !momentsActive && feedView === 'latest' }"
             role="tab"
-            :aria-selected="feedView === 'latest'"
-            @click="router.replace({ query: { view: 'latest' } }); onViewChange('latest')"
+            :aria-selected="!momentsActive && feedView === 'latest'"
+            @click="switchFeedTab('latest')"
           >
             最新
+          </button>
+          <button
+            class="feed-tab feed-tab--moments"
+            type="button"
+            :class="{ 'is-active': momentsActive }"
+            role="tab"
+            :aria-selected="momentsActive"
+            @click="switchFeedTab('moments')"
+          >
+            微信朋友圈
           </button>
           <button
             class="feed-tab feed-tab--mode"
@@ -518,17 +597,17 @@ onUnmounted(() => {
           </button>
         </div>
 
-        <PostListSkeleton v-if="postStore.loading" :count="5" />
+        <PostListSkeleton v-if="!momentsActive && postStore.loading" :count="5" />
 
         <!-- :class swr-updated：SWR 刷新数据变化时渐变过渡（文字逐字淡变+图片滑动），不销毁 DOM 保持滚动 -->
-        <div v-else-if="postStore.posts.length" :class="{ 'swr-updated': fadeActive }" class="feed">
+        <div v-else-if="!momentsActive && postStore.posts.length" :class="{ 'swr-updated': fadeActive }" class="feed">
           <article
             v-for="post in postStore.posts"
             :key="post.id"
             class="card"
-            :class="post.image_urls?.length ? 'card--image' : 'card--text'"
+            :class="post.image_urls?.length || post.video_urls?.length ? 'card--image' : 'card--text'"
             :style="
-              !post.image_urls?.length && post.category
+              !post.image_urls?.length && !post.video_urls?.length && post.category
                 ? { background: getCircleMeta(resolveCircleSlug(post)).cardBg }
                 : {}
             "
@@ -541,6 +620,15 @@ onUnmounted(() => {
               :alt="post.title || post.content.slice(0, 30)"
               loading="lazy"
             />
+            <!-- 视频帖：首页只展示封面帧，点击进详情播放（不预载大流量） -->
+            <video
+              v-else-if="post.video_urls?.length"
+              class="card-img card-video"
+              :src="post.video_urls[0]"
+              preload="metadata"
+              muted
+              playsinline
+            ></video>
             <div class="card-body">
               <div class="card-top">
                 <span
@@ -600,14 +688,33 @@ onUnmounted(() => {
           </article>
         </div>
 
-        <div v-else-if="postStore.error" class="feed-error">
+        <div v-else-if="!momentsActive && postStore.error" class="feed-error">
           <p class="feed-error-text">加载失败，请检查网络后重试</p>
           <button class="feed-error-btn" type="button" @click="retryFeed">重新加载</button>
         </div>
-        <EmptyState v-else text="暂无帖子，发布第一条校园动态。" />
+        <EmptyState v-else-if="!momentsActive" text="暂无帖子，发布第一条校园动态。" />
+
+        <!-- 微信朋友圈频道 -->
+        <template v-else>
+          <div v-if="momentsStatus?.bound" class="moments-toolbar">
+            <span class="moments-count">已同步 {{ momentsStatus.synced_count }} 条</span>
+            <button type="button" class="moments-btn" @click="momentsRefresh">手动刷新</button>
+            <button type="button" class="moments-btn moments-btn--ghost" @click="router.push('/wechat')">管理</button>
+          </div>
+          <!-- 未绑定：底部常驻引导条（仅朋友圈频道显示） -->
+          <div v-else class="moments-guide-bar">
+            <div class="moments-guide-text">
+              <p class="moments-guide-title">绑定微信</p>
+              <p class="moments-guide-desc">可以自动/手动同步微信朋友圈</p>
+            </div>
+            <button type="button" class="moments-guide-btn" @click="router.push('/wechat')">去绑定</button>
+          </div>
+          <MomentsTimeline :items="momentsItems" :loading="momentsLoading" />
+        </template>
 
         <!-- 底部状态：放在瀑布流容器之外，避免多列布局把它排到帖子右边 -->
         <InfiniteScrollFooter
+          v-if="!momentsActive"
           :loading="loadMoreLoading"
           :error="loadMoreError"
           :has-more="postStore.hasMore"
@@ -957,6 +1064,66 @@ onUnmounted(() => {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+.moments-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 4px;
+}
+.moments-count {
+  font-size: 13px;
+  color: var(--text-500, #666);
+  flex: 1;
+}
+.moments-btn {
+  border: 1px solid #4f9cff;
+  color: #4f9cff;
+  background: #fff;
+  border-radius: 999px;
+  padding: 5px 14px;
+  font-size: 13px;
+  cursor: pointer;
+}
+.moments-btn--ghost {
+  border-color: #ddd;
+  color: var(--text-500, #777);
+}
+.moments-guide-bar {
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 8px -12px -24px;
+  padding: 12px 14px calc(12px + env(safe-area-inset-bottom, 0px));
+  background: var(--bg-app, #f6f7f9);
+  border-top: 1px solid rgba(0, 0, 0, 0.06);
+}
+.moments-guide-text {
+  flex: 1;
+  min-width: 0;
+}
+.moments-guide-title {
+  font-size: 14px;
+  font-weight: 600;
+  margin: 0;
+  color: var(--text-800, #222);
+}
+.moments-guide-desc {
+  font-size: 12px;
+  color: var(--text-400, #999);
+  margin: 2px 0 0;
+}
+.moments-guide-btn {
+  border: none;
+  background: #4f9cff;
+  color: #fff;
+  border-radius: 999px;
+  padding: 7px 18px;
+  font-size: 13px;
+  cursor: pointer;
+}
 .stats-divider {
   width: 1px;
   height: 14px;
@@ -1088,6 +1255,14 @@ onUnmounted(() => {
   height: 240px;
   display: block;
   object-fit: cover;
+}
+/* 视频帖封面帧：不拦截点击（点卡片进详情播放），高度跟随视频实际比例 */
+.card-video {
+  background: #000;
+  pointer-events: none;
+  height: auto !important;
+  max-height: 420px;
+  object-fit: contain;
 }
 .card:nth-of-type(4n+1) .card-img { height: 280px; }
 .card:nth-of-type(4n+2) .card-img { height: 205px; }

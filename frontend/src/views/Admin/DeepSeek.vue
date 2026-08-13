@@ -47,7 +47,7 @@ const scopeOptions = [
   { label: '帖子（标题 + 正文）', value: 'post', hint: '发布 / 编辑帖子时用 AI 审核标题与正文' },
   { label: '评论', value: 'comment', hint: '发表评论时用 AI 审核' },
   { label: '漂流瓶', value: 'bottle', hint: '投放漂流瓶时用 AI 审核内容' },
-  { label: '帖子图片', value: 'image', hint: '含图片的帖子直接转人工审核（AI 暂不支持图片识别）' },
+  { label: '帖子图片/视频', value: 'image', hint: '含图片或视频的帖子直接转人工审核（AI 暂不支持图片/视频识别）' },
 ]
 
 // 人工复核触发条件选项

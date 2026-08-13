@@ -32,11 +32,60 @@ CAPTCHA_FETCH_LIMIT_PER_MINUTE = 30
 CAPTCHA_VERIFY_LIMIT_PER_MINUTE = 20
 CAPTCHA_CLEANUP_OLDER_THAN = timedelta(minutes=15)
 
+# 生成字符集：只用小写字母 + 数字，并排除易混淆字符（0/O/o、1/l/I/i），
+# 配合下方"存储与校验都 lower()"实现大小写不敏感，用户输大写也能过
+CAPTCHA_CHARS = "abcdefghjkmnpqrstuvwxyz23456789"
+
 DOWNLOAD_TOKEN_TTL = timedelta(minutes=2)
 DOWNLOAD_TOKEN_LIMIT_PER_MINUTE = 3
 
 CHALLENGE_PASS_COOKIE = "challenge_pass"
 CHALLENGE_PASS_TTL = timedelta(minutes=10)
+
+
+def _render_captcha_image(text: str) -> str:
+    """用 PIL 画一张验证码图（5 位、随机字体、干扰线和点），返回 base64 JPEG。
+    自绘而不是用 fast_captcha，是因为它不接受自定义字符集；
+    我们要保证图片里不出现 0/O/1/l/I 这类易混淆字符。
+    """
+    import base64
+    import io
+    import random as _rnd
+    from pathlib import Path
+
+    from PIL import Image, ImageDraw, ImageFont
+
+    import fast_captcha
+
+    font_dir = Path(fast_captcha.__file__).parent / "fonts"
+    fonts = sorted(font_dir.glob("*.ttf")) or []
+    font_path = str(_rnd.choice(fonts)) if fonts else None
+    font = ImageFont.truetype(font_path, 38) if font_path else ImageFont.load_default()
+
+    width, height = 170, 54
+    img = Image.new("RGB", (width, height), (255, 255, 255))
+    draw = ImageDraw.Draw(img)
+    for i, ch in enumerate(text):
+        draw.text(
+            (6 + i * 32 + _rnd.randint(0, 6), _rnd.randint(3, 10)),
+            ch,
+            font=font,
+            fill=tuple(_rnd.randint(0, 180) for _ in range(3)),
+        )
+    for _ in range(4):
+        draw.line(
+            [(_rnd.randint(0, width), _rnd.randint(0, height)) for _ in range(2)],
+            fill=tuple(_rnd.randint(0, 255) for _ in range(3)),
+            width=1,
+        )
+    for _ in range(320):
+        draw.point(
+            (_rnd.randint(0, width - 1), _rnd.randint(0, height - 1)),
+            fill=tuple(_rnd.randint(0, 255) for _ in range(3)),
+        )
+    buf = io.BytesIO()
+    img.save(buf, format="JPEG", quality=82)
+    return base64.b64encode(buf.getvalue()).decode()
 
 
 def generate_captcha(db: Session, ip: str | None) -> dict:
@@ -52,18 +101,10 @@ def generate_captcha(db: Session, ip: str | None) -> dict:
     )
     db.commit()
 
-    from fast_captcha import img_captcha
-
-    # 安全加固：5 位验证码 + 干扰点，提升 OCR 自动化识别成本
-    img_b64, text = img_captcha(
-        code_num=5,
-        width=170,
-        height=54,
-        draw_points=True,
-        points_density=6,
-        img_type="jpeg",
-        img_byte="base64",
-    )
+    # 安全加固：5 位验证码 + 干扰点；自绘字符集排除易混淆字符，
+    # 存储与校验都 lower()，大小写不敏感
+    text = "".join(secrets.choice(CAPTCHA_CHARS) for _ in range(5))
+    img_b64 = _render_captcha_image(text)
     ticket = CaptchaTicket(
         ticket_id=secrets.token_urlsafe(24),
         answer=text.lower(),

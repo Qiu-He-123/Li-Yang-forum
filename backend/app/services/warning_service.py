@@ -145,6 +145,7 @@ def handle_violation(
     target_type: str | None = None,
     target_id: int | None = None,
     severity: str = "medium",
+    penalize: bool = True,
 ) -> dict:
     """处理违规：增加警告值 + 阈值判定 + 发通知/封号。
 
@@ -155,6 +156,28 @@ def handle_violation(
     - 封号：通知内容告知"警告值达到 X，账号被封禁 Z"
     """
     cfg = get_warning_config(db)
+
+    if not penalize:
+        target_label = "帖子" if target_type == "post" else ("评论" if target_type == "comment" else "内容")
+        preview_part = (
+            f"您发布的{target_label}《{content_preview}》未通过审核。"
+            if content_preview
+            else f"您的{target_label}未通过审核。"
+        )
+        db.add(
+            Notification(
+                user_id=user.id,
+                title=f"{target_label}审核未通过",
+                content=(
+                    f"{preview_part}原因：{reason}。"
+                    "自动同步的内容不扣分；如需发布，请到「微信朋友圈」手动导入后修改。"
+                ),
+                type="system",
+                reference_type=target_type,
+                reference_id=target_id,
+            )
+        )
+        return {"action": "reject", "score_after": user.warning_score or 0, "duration_hours": 0}
 
     # 根据 severity 调整违规增加值
     severity_multiplier = {"low": 0.5, "medium": 1.0, "high": 1.5}.get(severity, 1.0)

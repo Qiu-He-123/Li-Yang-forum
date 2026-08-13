@@ -40,6 +40,22 @@ rate_limit_service.LOGIN_FAIL_THRESHOLD = 100000  # 测试中不锁定
 
 
 @pytest.fixture(scope="session", autouse=True)
+def _disable_captcha_verification():
+    """测试环境关闭图形验证码校验（注册/登录/下载），免得每处都造票据。"""
+    import app.services.admin_service as admin_svc
+    import app.services.auth_service as auth_svc
+    from app.api.routes import app_download
+
+    def _noop(*_args, **_kwargs):
+        return None
+
+    auth_svc.verify_captcha = _noop
+    admin_svc.verify_captcha = _noop
+    app_download.verify_captcha = _noop
+    yield
+
+
+@pytest.fixture(scope="session", autouse=True)
 def _ensure_schema():
     """session 级：在所有测试前确保 schema 已创建。
 
@@ -135,6 +151,8 @@ def register(
         "school_id": school_id,
         "agreed": True,
         "invite_code": invite_code,
+        "captcha_id": "test-ticket",
+        "captcha_text": "test",
     }
     resp = client.post("/auth/register", json=body).json()
     assert resp["code"] == 0, f"register failed: {resp}"

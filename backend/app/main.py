@@ -1,4 +1,5 @@
 from pathlib import Path
+import logging
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
@@ -12,8 +13,9 @@ from sqlalchemy import select
 from app.api.routes import (
     activities,
     admin, announcements, app_download, auth, badges, bottles, browse_history, captcha, circle_apply, circles, checkin,
-    comments, deepseek, feedback, follows, images, interactions, match, messages, notifications,
+    coins, comments, deepseek, feedback, follows, images, interactions, match, messages, notifications, onboarding,
     polls, posts, schools, search, settings as settings_router, stats, topics, users, ws,
+    videos, wechat_sync,
 )
 from app.api.deps import extract_ip
 from app.core.config import get_settings
@@ -27,6 +29,22 @@ from app.models.captcha import CaptchaTicket as _CaptchaTicket, DownloadToken as
 from app.models import Announcement, Badge, Category, CategoryAdmin, School, SeedInviteCode, WarningConfig, WarningLog  # noqa: F401  保证模型注册到 Base.metadata
 
 setup_logger()
+
+
+class _QuietSyncLogFilter(logging.Filter):
+    """把同步客户端的心跳/扫描请求从 uvicorn 访问日志里滤掉，避免每 3 秒刷屏。"""
+
+    QUIET_PATHS = (
+        "/api/wechat-sync/ping",
+        "/api/wechat-sync/cutoffs",
+        "/api/wechat-sync/messages/recent",
+    )
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        return not any(p in record.getMessage() for p in self.QUIET_PATHS)
+
+
+logging.getLogger("uvicorn.access").addFilter(_QuietSyncLogFilter())
 settings = get_settings()
 
 # 生产环境关闭 API 文档（/docs /redoc /openapi.json），避免接口结构泄露给攻击者
@@ -99,6 +117,7 @@ _WRITE_LIMITS: dict[str, tuple[str, int]] = {
     "/search": ("search", 30),
     "/match": ("match", 10),
     "/images": ("upload", 10),
+    "/wechat-sync": ("wechat_sync", 600),
 }
 
 # 高频访问挑战阈值：每 IP 每分钟超过该值的 GET /api 请求触发验证码（正常用户无感）
@@ -357,6 +376,112 @@ async def _start_security_cleanup() -> None:
     _asyncio.create_task(_loop())
 
 
+@app.on_event("startup")
+async def _reaudit_stuck_wechat_posts() -> None:
+    """自愈：把卡在"审核中"的微信同步帖子重新送 AI 审核。
+
+    同步发帖之前漏了触发后台审核，历史帖子会一直停在 pending；
+    每次启动时扫一遍并补发审核任务，新帖子则在创建时直接调度。
+    """
+    import asyncio as _asyncio
+    from app.services import audit_service
+    from app.models import Post
+
+    with SessionLocal() as db:
+        stuck = db.scalars(
+            select(Post).where(
+                Post.wechat_moment_id.isnot(None),
+                Post.ai_status == "pending",
+            )
+        ).all()
+        ids = [p.id for p in stuck]
+    for post_id in ids:
+        _asyncio.create_task(audit_service.audit_post_background(post_id))
+    if ids:
+        logger.info("重新调度 {} 条卡住的微信同步帖子进行 AI 审核", len(ids))
+
+
+@app.on_event("startup")
+async def _start_wechat_auto_sync() -> None:
+    """微信自动同步：朋友圈每次被刷新（sns.db 变化）时自动扫描发布。
+
+    不固定全量扫描：循环每 N 秒（设置 wechat_sync_interval_seconds，默认 10、
+    最小 5）只 stat 一下 sns.db 的修改时间，几乎零开销；只有 mtime 变了
+    （微信刚拉到新朋友圈）才真正扫描入库并发帖。没有开启自动同步的绑定
+    则直接跳过。
+    """
+    import asyncio as _asyncio
+
+    from app.services import wechat_sync_service as _wss
+    from app.services.settings_service import get_int as _get_int
+
+    _lock = _asyncio.Lock()
+    _last_mtimes: dict = {}
+
+    with SessionLocal() as _db:
+        _last_mtimes = _wss.sns_mtimes()
+
+    async def _loop() -> None:
+        nonlocal _last_mtimes
+        while True:
+            with SessionLocal() as _db:
+                interval = max(5, _get_int(_db, "wechat_sync_interval_seconds", 10))
+            await _asyncio.sleep(interval)
+            if _lock.locked():
+                continue
+            async with _lock:
+                try:
+                    with SessionLocal() as db:
+                        if not _wss.has_auto_sync_binding(db):
+                            continue
+                        now = _wss.sns_mtimes()
+                        if now == _last_mtimes:
+                            continue  # 朋友圈没有刷新，不扫描
+                        _last_mtimes = now
+                        added = _wss.sync_moments_from_local(db)
+                        if added:
+                            logger.info(
+                                "[WECHAT_AUTO_SYNC] 朋友圈已刷新，新增入库 {} 条", added
+                            )
+                except Exception as exc:
+                    logger.warning("[WECHAT_AUTO_SYNC] err={}", exc)
+
+    _asyncio.create_task(_loop())
+
+
+@app.on_event("startup")
+async def _start_video_link_guard() -> None:
+    """抖音/快手视频直链守护：定时检测失效直链并自动重解析恢复。
+
+    直链有签名时效，后台每 video_link_refresh_interval 分钟探测一次，
+    失效的帖子自动用存的分享文本重新解析换新直链，用户无感。
+    """
+    import asyncio as _asyncio
+
+    from app.services import video_service as _vs
+    from app.services.settings_service import get_int as _get_int
+
+    _lock = _asyncio.Lock()
+
+    async def _loop() -> None:
+        while True:
+            with SessionLocal() as _db:
+                interval_min = max(5, _get_int(_db, "video_link_refresh_interval", 30))
+            await _asyncio.sleep(interval_min * 60)
+            if _lock.locked():
+                continue
+            async with _lock:
+                try:
+                    with SessionLocal() as db:
+                        fixed = _vs.check_and_restore_video_links(db)
+                        if fixed:
+                            logger.info("[VIDEO_LINK_GUARD] 自动恢复 {} 条失效直链", fixed)
+                except Exception as exc:
+                    logger.warning("[VIDEO_LINK_GUARD] err={}", exc)
+
+    _asyncio.create_task(_loop())
+
+
 def _init_categories(db) -> None:
     """初始化圈子数据（幂等，已有则跳过）。"""
     initial_circles = [
@@ -372,6 +497,7 @@ def _init_categories(db) -> None:
         ("匿名树洞", "treehole", None, "匿名倾诉心事", "#8e8e93", 9),
         ("校园问答", "qa", None, "校园问题互助问答", "#007aff", 10),
         ("跳蚤市场", "flea", None, "闲置物品跳蚤市场", "#34c759", 11),
+        ("视频", "video", None, "抖音/快手视频分享", "#ff2d55", 12),
     ]
     for name, slug, icon, description, color, sort_order in initial_circles:
         if not db.scalar(select(Category).where(Category.slug == slug)):
@@ -477,6 +603,8 @@ app.include_router(comments.router)
 app.include_router(interactions.router)
 app.include_router(users.router)
 app.include_router(badges.router)
+app.include_router(coins.router)
+app.include_router(onboarding.router)
 app.include_router(images.router)
 app.include_router(admin.router)
 app.include_router(announcements.router)
@@ -496,10 +624,13 @@ app.include_router(feedback.router)
 app.include_router(deepseek.router)
 app.include_router(topics.router)
 app.include_router(polls.router)
+app.include_router(wechat_sync.router)
+app.include_router(wechat_sync.device_router)
 app.include_router(stats.router)
 app.include_router(bottles.router)
 app.include_router(match.router)
 app.include_router(ws.router)
+app.include_router(videos.router)
 app.mount("/uploads", StaticFiles(directory="uploads", check_dir=False), name="uploads")
 
 # 前端构建产物的绝对路径（避免相对路径在不同工作目录下失效）

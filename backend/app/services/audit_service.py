@@ -252,7 +252,7 @@ def record_audit_log(
     _record_audit_log(db, target_type, target_id, user_id, audit, content)
 
 
-def _handle_violation(db: Session, user_id: int, target_type: str, target_id: int, reason: str, content_preview: str = "", severity: str = "medium") -> None:
+def _handle_violation(db: Session, user_id: int, target_type: str, target_id: int, reason: str, content_preview: str = "", severity: str = "medium", penalize: bool | None = None) -> None:
     """处理违规：增加警告值 + 阈值判定 + 发通知/封号。
 
     新机制（警告值系统）：
@@ -267,6 +267,13 @@ def _handle_violation(db: Session, user_id: int, target_type: str, target_id: in
     """
     from app.services import warning_service
 
+    # 自动同步的朋友圈被 AI 判违规：不扣分、不封号，只发审核未通过通知
+    if penalize is None and target_type == "post" and target_id:
+        post = db.get(Post, target_id)
+        penalize = not (post is not None and post.source == "wechat_auto")
+    if penalize is None:
+        penalize = True
+
     user = db.get(User, user_id)
     if not user:
         return
@@ -275,6 +282,7 @@ def _handle_violation(db: Session, user_id: int, target_type: str, target_id: in
         db, user, reason=reason, content_preview=content_preview,
         target_type=target_type, target_id=target_id,
         severity=severity,
+        penalize=penalize,
     )
 
 

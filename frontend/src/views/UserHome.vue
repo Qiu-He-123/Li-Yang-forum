@@ -113,6 +113,7 @@ function fmtBadgeTime(t?: string | null): string {
 
 const funcGrid = computed(() => {
   const items = [
+  { icon: 'message-circle', color: '#007aff', label: '绑定微信', to: '/wechat' },
   { icon: 'file-text', color: '#007aff', label: '我的作品', to: 'posts' },
   { icon: 'bookmark', color: '#ff3b30', label: '我的收藏', to: '/my/favorites' },
   { icon: 'heart', color: '#ff9500', label: '我的点赞', to: 'likes' },
@@ -883,6 +884,7 @@ onMounted(async () => {
           v-for="item in funcGrid"
           :key="item.label"
           class="func-entry"
+          :class="{ 'menu-wechat-bind': item.label === '绑定微信' }"
           type="button"
           @click="onFuncClick(item)"
         >

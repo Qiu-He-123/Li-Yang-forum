@@ -46,6 +46,7 @@ const SILENT_URL_PATTERNS: string[] = [
   '/search/users',
   '/captcha',                // 验证码图片（静默加载，不遮罩）
   '/users/',                 // 用户主页相关
+  '/wechat/',                // 微信朋友圈同步（绑定/校验/同步配置等页面级操作不弹全屏加载）
   '/polls/',                 // 投票详情
   '/match/',                 // 匹配相关
   '/bottle/',                // 漂流瓶

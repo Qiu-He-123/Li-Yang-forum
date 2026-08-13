@@ -47,12 +47,12 @@ def test_update_me_avatar_and_bio(client):
     resp = client.patch(
         "/users/me",
         json={
-            "avatar_url": "https://example.com/avatar.png",
+            "avatar_url": "/uploads/avatar.png",
             "bio": "T9-1 测试简介",
         },
     ).json()
     assert resp["code"] == 0
-    assert resp["data"]["avatar_url"] == "https://example.com/avatar.png"
+    assert resp["data"]["avatar_url"] == "/uploads/avatar.png"
     assert resp["data"]["bio"] == "T9-1 测试简介"
 
 

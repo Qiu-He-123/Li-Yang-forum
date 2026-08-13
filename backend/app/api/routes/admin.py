@@ -451,6 +451,44 @@ def admin_update_settings(
     return ok(admin_service.admin_update_settings(payload, request, db, admin))
 
 
+# ============ 微信朋友圈管理 ============
+
+@router.get("/wechat/bindings")
+def admin_wechat_bindings(
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=100),
+    keyword: str | None = Query(default=None),
+    db: Session = Depends(get_db),
+    _: Admin = Depends(admin_user),
+) -> dict:
+    """微信绑定列表（后台管理）。"""
+    return ok(admin_service.admin_wechat_bindings(db, page, page_size, keyword))
+
+
+@router.get("/wechat/moments")
+def admin_wechat_moments(
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=100),
+    keyword: str | None = Query(default=None),
+    db: Session = Depends(get_db),
+    _: Admin = Depends(admin_user),
+) -> dict:
+    """已同步的朋友圈动态列表（后台管理）。"""
+    return ok(admin_service.admin_wechat_moments(db, page, page_size, keyword))
+
+
+@router.post("/wechat/bindings/{binding_id}/unbind")
+def admin_wechat_unbind(
+    binding_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    admin: Admin = Depends(admin_user),
+) -> dict:
+    """管理员解绑微信（解除绑定关系 + 关闭自动同步）。"""
+    admin_service.admin_wechat_unbind(binding_id, request, db, admin)
+    return ok()
+
+
 @router.get("/explore/stats")
 def admin_explore_stats(
     db: Session = Depends(get_db),

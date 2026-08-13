@@ -59,6 +59,7 @@ def post_dict(
         "id": post.id,
         "content": post.content,
         "image_urls": json.loads(post.image_urls or "[]"),
+        "video_urls": json.loads(post.video_urls or "[]"),
         "is_anonymous": post.is_anonymous,
         "category": post.category,
         "school": post.school.name,
@@ -269,7 +270,9 @@ async def create_post(payload: PostCreate, request: Request, db: Session, user: 
         raise HTTPException(status_code=403, detail=ErrorCode.USER_BANNED)
 
     # 审核策略（受后台「AI 审核配置 - 审核范围 / 人工复核触发」控制）：
-    # 1. 含图片且开启 image 范围 → 图片不走 AI 审核，一律人工审核（帖子同步转人工审核）
+    # 0. 抖音/快手分享视频（source=video_share）：发布即通过，不审核
+    #    （内容来自公开平台，且直链会失效需快速发布；不占人工/AI 审核资源）
+    # 1. 含图片/视频且开启 image 范围 → 图片/视频不走 AI 审核，一律人工审核（帖子转人工）
     # 2. 未开启 post 范围 → 帖子免审，直接放行
     # 3. 开启 post 且 AI 可用 → 后台异步 AI 审核（pending）
     # 4. 开启 post 且 AI 不可用（未开启/无余额/调用失败）→
@@ -279,9 +282,12 @@ async def create_post(payload: PostCreate, request: Request, db: Session, user: 
     from app.services.notification_service import create_notification
     scope = settings_service.get_audit_scope(db)
     triggers = settings_service.get_manual_review_triggers(db)
-    if payload.image_urls and "image" in scope:
+    if payload.source == "video_share":
+        initial_ai_status = "approved"
+        manual_reason = None
+    elif (payload.image_urls or payload.video_urls) and "image" in scope:
         initial_ai_status = "manual_review"
-        manual_reason = "图片内容需人工审核"
+        manual_reason = "图片/视频内容需人工审核"
     elif "post" not in scope:
         initial_ai_status = "approved"
         manual_reason = None
@@ -308,6 +314,7 @@ async def create_post(payload: PostCreate, request: Request, db: Session, user: 
         category=payload.category,
         content=payload.content,
         image_urls=json.dumps(payload.image_urls, ensure_ascii=False),
+        video_urls=json.dumps(payload.video_urls, ensure_ascii=False),
         is_anonymous=payload.is_anonymous,
         is_public=payload.is_public,
         is_draft=payload.is_draft,
@@ -318,6 +325,7 @@ async def create_post(payload: PostCreate, request: Request, db: Session, user: 
         title=payload.title,
         is_original=payload.is_original,
         has_ai_content=payload.has_ai_content,
+        source=payload.source,
         # 阶段二新增字段
         topic_id=topic_id,
         location=payload.location,
@@ -426,9 +434,14 @@ async def update_post(post_id: int, payload: PostUpdate, request: Request, db: S
         from app.services.notification_service import create_notification
         scope = settings_service.get_audit_scope(db)
         triggers = settings_service.get_manual_review_triggers(db)
-        if post.image_urls and json.loads(post.image_urls or "[]") and "image" in scope:
+        if post.source == "video_share":
+            # 抖音/快手分享视频：发布即通过，不审核
+            post.ai_status = "approved"
+            post.reject_reason = None
+        elif (post.image_urls and json.loads(post.image_urls or "[]")
+                or post.video_urls and json.loads(post.video_urls or "[]")) and "image" in scope:
             post.ai_status = "manual_review"
-            post.reject_reason = "图片内容需人工审核"
+            post.reject_reason = "图片/视频内容需人工审核"
         elif "post" not in scope:
             post.ai_status = "approved"
             post.reject_reason = None

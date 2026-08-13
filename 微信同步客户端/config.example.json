@@ -1,0 +1,14 @@
+{
+  "api_base": "http://127.0.0.1:8000",
+  "device_token": "请先运行 backend/scripts/init_wechat_sync.py 查看令牌并填入",
+  "data_root": "D:\\Users\\Documents\\xwechat_files",
+  "datadir": "D:\\Users\\Documents\\xwechat_files",
+  "key_file": "D:\\Users\\Downloads\\ai群聊\\取聊天记录_自研\\聊天记录导出工具\\db_key.txt",
+  "images_key": "D:\\Users\\Downloads\\立洋社区\\获取微信朋友圈\\图片密钥.json",
+  "images_dir": "D:\\Users\\Downloads\\立洋社区\\获取微信朋友圈\\朋友圈图片",
+  "scan_interval_seconds": 3,
+  "friend_snapshot_interval_seconds": 600,
+  "manual_max_items": 300,
+  "state_file": "state.json",
+  "current_account": ""
+}

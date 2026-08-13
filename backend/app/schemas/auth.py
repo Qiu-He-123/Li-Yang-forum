@@ -16,8 +16,8 @@ class RegisterIn(BaseModel):
     agreed: bool
     qq: str | None = Field(default=None, max_length=20)
     invite_code: str | None = Field(default=None, max_length=16)
-    captcha_id: str = Field(min_length=1, max_length=64)
-    captcha_text: str = Field(min_length=1, max_length=16)
+    captcha_id: str | None = Field(default=None, min_length=1, max_length=64)
+    captcha_text: str | None = Field(default=None, min_length=1, max_length=16)
 
     @field_validator("username")
     @classmethod
@@ -33,8 +33,8 @@ class LoginIn(BaseModel):
 
     username: str
     password: str
-    captcha_id: str = Field(min_length=1, max_length=64)
-    captcha_text: str = Field(min_length=1, max_length=16)
+    captcha_id: str | None = Field(default=None, min_length=1, max_length=64)
+    captcha_text: str | None = Field(default=None, min_length=1, max_length=16)
 
 
 class AdminLoginIn(BaseModel):
@@ -45,8 +45,8 @@ class AdminLoginIn(BaseModel):
 
     username: str = Field(min_length=1, max_length=32)
     password: str = Field(min_length=1, max_length=72)
-    captcha_id: str = Field(min_length=1, max_length=64)
-    captcha_text: str = Field(min_length=1, max_length=16)
+    captcha_id: str | None = Field(default=None, min_length=1, max_length=64)
+    captcha_text: str | None = Field(default=None, min_length=1, max_length=16)
 
 
 class RefreshIn(BaseModel):

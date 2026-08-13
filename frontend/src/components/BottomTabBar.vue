@@ -34,7 +34,7 @@ interface TabItem {
 const tabs = computed<TabItem[]>(() => [
   { key: 'home', label: '首页', icon: 'home', to: '/' },
   { key: 'discover', label: '圈子', icon: 'map-pin', to: '/circles' },
-  { key: 'create', label: '发布', icon: 'pen-line', to: '/post/create', requiresAuth: true },
+  { key: 'create', label: '发布', icon: 'pen-line', to: '/publish', requiresAuth: true },
   {
     key: 'notifications',
     label: '消息',

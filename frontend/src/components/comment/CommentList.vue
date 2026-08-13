@@ -32,6 +32,9 @@ const draft = ref('')
 const replyTo = ref<number | null>(null)
 const replyDraft = ref('')
 const submitting = ref(false)
+// 编辑框高度复位用
+const commentInputRef = ref<HTMLTextAreaElement | null>(null)
+const replyInputRef = ref<HTMLTextAreaElement | null>(null)
 // 评论分页状态，支持「加载更多」
 const currentPage = ref(1)
 const pageSize = 20
@@ -179,6 +182,36 @@ const commentAuthorMap = computed(() => {
   return m
 })
 
+/** 编辑框随内容自动变高（上限 96px，微信式） */
+function autoResize(el: HTMLTextAreaElement) {
+  el.style.height = 'auto'
+  el.style.height = Math.min(el.scrollHeight, 96) + 'px'
+}
+
+function onCommentInput(e: Event) {
+  autoResize(e.target as HTMLTextAreaElement)
+}
+
+function onReplyInput(e: Event) {
+  autoResize(e.target as HTMLTextAreaElement)
+}
+
+function onCommentKeydown(e: KeyboardEvent) {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault()
+    submit()
+  }
+}
+
+function onReplyKeydown(parentId: number) {
+  return (e: KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault()
+      submitReply(parentId)
+    }
+  }
+}
+
 async function submit() {
   const content = draft.value.trim()
   if (!content) {
@@ -198,6 +231,7 @@ async function submit() {
     submitting.value = true
     const { data } = await createComment(props.postId, { content })
     draft.value = ''
+    if (commentInputRef.value) commentInputRef.value.style.height = 'auto'
     await load()
     emit('count-updated', data.data.post_comment_count)
   } catch (error) {
@@ -247,6 +281,7 @@ async function submitReply(parentId: number) {
     const { data } = await createComment(props.postId, { content, parent_id: parentId })
     replyDraft.value = ''
     replyTo.value = null
+    if (replyInputRef.value) replyInputRef.value.style.height = 'auto'
     await load()
     emit('count-updated', data.data.post_comment_count)
   } catch (error) {
@@ -328,13 +363,15 @@ function switchSort(mode: 'latest' | 'hot') {
         />
         <!-- 行内回复输入框：对当前楼层内任意评论回复时显示 -->
         <div v-if="replyTo !== null && isReplyInGroup(group, replyTo)" class="reply-input">
-          <input
+          <textarea
+            ref="replyInputRef"
             v-model="replyDraft"
             class="reply-input-field"
-            type="text"
+            rows="1"
             :placeholder="`回复 @${getReplyTargetName(replyTo)}…`"
-            @keyup.enter="submitReply(replyTo)"
-          />
+            @input="onReplyInput"
+            @keydown="onReplyKeydown(replyTo)"
+          ></textarea>
           <button class="btn btn-primary btn-sm" type="button" @click="submitReply(replyTo)">发送</button>
           <button class="btn btn-ghost btn-sm" type="button" @click="cancelReply">取消</button>
         </div>
@@ -378,14 +415,16 @@ function switchSort(mode: 'latest' | 'hot') {
         登录后参与评论
       </button>
       <template v-else>
-        <input
+        <textarea
+          ref="commentInputRef"
           v-model="draft"
           class="comment-input-field"
-          type="text"
-          placeholder="写评论…"
+          rows="1"
+          placeholder="写评论…（Shift+Enter 换行）"
           :disabled="submitting"
-          @keyup.enter="submit"
-        />
+          @input="onCommentInput"
+          @keydown="onCommentKeydown"
+        ></textarea>
         <button class="btn btn-primary btn-sm" type="button" :disabled="submitting" @click="submit">
           {{ submitting ? '发送中…' : '发送' }}
         </button>
@@ -495,7 +534,7 @@ function switchSort(mode: 'latest' | 'hot') {
 }
 .reply-input {
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   gap: 6px;
   margin: 4px 0 8px 38px;
 }
@@ -512,6 +551,11 @@ function switchSort(mode: 'latest' | 'hot') {
   outline: none;
   font-family: inherit;
   transition: border-color 0.15s var(--ease-apple), box-shadow 0.15s var(--ease-apple);
+  /* 多行：随内容自动变高，上限 96px */
+  resize: none;
+  overflow-y: auto;
+  max-height: 96px;
+  line-height: 1.5;
 }
 .reply-input-field:focus,
 .comment-input-field:focus {
@@ -561,7 +605,7 @@ function switchSort(mode: 'latest' | 'hot') {
   bottom: calc(70px + env(safe-area-inset-bottom));
   z-index: 50;
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   gap: 6px;
   max-width: 900px;
   margin: 0 auto;

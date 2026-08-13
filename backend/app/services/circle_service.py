@@ -101,7 +101,7 @@ def list_circle_posts(
             - all: 全部
             - essence: 精华（like_count >= 10）
             - image: 有图片的帖子
-            - video: 暂用同 image 逻辑（占位，未来扩展 video_urls 字段）
+            - video: 有视频的帖子（video_urls 非空）
         page: 页码
         page_size: 每页条数
     """
@@ -124,8 +124,7 @@ def list_circle_posts(
     elif post_type == "image":
         query = query.where(Post.image_urls.like("%http%").or_(Post.image_urls.like("%/uploads/%")))
     elif post_type == "video":
-        # 视频字段未独立，暂用同 image 兜底
-        query = query.where(Post.image_urls.like("%http%").or_(Post.image_urls.like("%/uploads/%")))
+        query = query.where(Post.video_urls.like("%http%").or_(Post.video_urls.like("%/uploads/%")))
 
     total = db.scalar(select(func.count()).select_from(query.subquery())) or 0
 

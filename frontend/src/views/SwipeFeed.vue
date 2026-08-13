@@ -53,6 +53,60 @@ const scrollEl = ref<HTMLElement | null>(null)
 const activeIndex = ref(0)
 const viewReported = ref<Set<number>>(new Set())
 
+// 刷一刷视频（抖音式）：当前卡片自动静音循环播放，点一下开声音/暂停
+const videoEls = ref<Record<number, HTMLVideoElement>>({})
+const unmutedIds = ref<Set<number>>(new Set())
+const pausedIds = ref<Set<number>>(new Set())
+
+function setVideoEl(id: number, el: HTMLVideoElement | null) {
+  if (el) videoEls.value[id] = el
+  else delete videoEls.value[id]
+}
+
+function videoMuted(post: Post): boolean {
+  return !unmutedIds.value.has(post.id)
+}
+
+function videoPaused(post: Post): boolean {
+  return pausedIds.value.has(post.id)
+}
+
+function onVideoPlaying(post: Post) {
+  pausedIds.value.delete(post.id)
+}
+
+function toggleVideo(post: Post) {
+  const v = videoEls.value[post.id]
+  if (!v) return
+  if (v.paused) {
+    pausedIds.value.delete(post.id)
+    if (v.muted || !unmutedIds.value.has(post.id)) {
+      unmutedIds.value.add(post.id)
+      v.muted = false
+    }
+    v.play().catch(() => {})
+  } else if (v.muted || !unmutedIds.value.has(post.id)) {
+    // 静音播放中 -> 开声音
+    unmutedIds.value.add(post.id)
+    v.muted = false
+  } else {
+    // 有声播放中 -> 暂停
+    v.pause()
+    pausedIds.value.add(post.id)
+  }
+}
+
+// 滑到别的卡片时，停掉非当前卡片的视频
+watch(activeIndex, () => {
+  const curId = posts.value[activeIndex.value]?.id
+  for (const [id, v] of Object.entries(videoEls.value)) {
+    if (Number(id) !== curId) {
+      v.pause()
+      pausedIds.value.add(Number(id))
+    }
+  }
+})
+
 const hasMore = computed(() => page.value * PAGE_SIZE < total.value)
 const currentPost = computed(() => posts.value[activeIndex.value] || null)
 
@@ -359,19 +413,33 @@ watch(
         @scroll="onScroll"
       >
         <article
-          v-for="post in posts"
+          v-for="(post, pi) in posts"
           :key="post.id"
           class="swipe-card"
-          :class="post.image_urls.length ? 'swipe-card--img' : 'swipe-card--text'"
+          :class="post.image_urls.length || post.video_urls?.length ? 'swipe-card--img' : 'swipe-card--text'"
         >
-          <!-- 背景：图片 / 圈子主题色 -->
+          <!-- 背景：图片 / 视频 / 圈子主题色（视频帖不显示封面，直接进视频分支） -->
           <img
-            v-if="post.image_urls.length"
+            v-if="post.image_urls.length && !post.video_urls?.length"
             class="card-bg"
             :src="post.image_urls[0]"
             :alt="post.title || post.content.slice(0, 30)"
             draggable="false"
           />
+          <!-- 视频：当前卡片自动静音循环播放，点视频开声音/暂停 -->
+          <video
+            v-else-if="post.video_urls?.length"
+            :ref="(el) => setVideoEl(post.id, el as HTMLVideoElement | null)"
+            class="card-bg card-bg--video"
+            :src="post.video_urls[0]"
+            :autoplay="pi === activeIndex"
+            :muted="videoMuted(post)"
+            :preload="pi === activeIndex ? 'auto' : 'metadata'"
+            loop
+            playsinline
+            @click.stop="toggleVideo(post)"
+            @playing="onVideoPlaying(post)"
+          ></video>
           <div
             v-else
             class="card-bg card-bg--text"
@@ -390,8 +458,26 @@ watch(
             </span>
           </div>
 
-          <!-- 图片渐变遮罩 -->
-          <div v-if="post.image_urls.length" class="card-shade" />
+          <!-- 图片/视频渐变遮罩 -->
+          <div v-if="post.image_urls.length || post.video_urls?.length" class="card-shade" />
+
+          <!-- 视频控制：暂停时显示播放键；播放中右下角显示声音开关 -->
+          <button
+            v-if="post.video_urls?.length && pi === activeIndex && videoPaused(post)"
+            type="button"
+            class="video-play-overlay"
+            @click.stop="toggleVideo(post)"
+          >
+            <span class="video-play-icon">▶</span>
+          </button>
+          <button
+            v-if="post.video_urls?.length && pi === activeIndex && !videoPaused(post)"
+            type="button"
+            class="video-sound-btn"
+            @click.stop="toggleVideo(post)"
+          >
+            {{ videoMuted(post) ? '🔇' : '🔊' }}
+          </button>
 
           <!-- 顶部角标 -->
           <span v-if="post.image_urls.length > 1" class="chip chip--count">
@@ -656,6 +742,54 @@ watch(
 }
 .card-bg--text {
   position: relative;
+}
+/* 视频背景：可点击（开声音/暂停），不拦截卡片其他操作 */
+.card-bg--video {
+  pointer-events: auto;
+  cursor: pointer;
+  object-fit: contain;
+  background: #000;
+}
+/* 暂停时中央播放键 */
+.video-play-overlay {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(0, 0, 0, 0.45);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  z-index: 5;
+}
+.video-play-icon {
+  color: #fff;
+  font-size: 26px;
+  margin-left: 4px;
+}
+/* 播放中声音开关（右上角，避开右侧操作栏与底部信息） */
+.video-sound-btn {
+  position: absolute;
+  top: calc(env(safe-area-inset-top) + 108px);
+  right: 14px;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(0, 0, 0, 0.45);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+  font-size: 17px;
+  cursor: pointer;
+  z-index: 5;
+  display: grid;
+  place-items: center;
 }
 .text-bg-avatar {
   position: absolute;

@@ -15,6 +15,7 @@ const AuthDialog = defineAsyncComponent(() => import('./components/auth/AuthDial
 const InviteCodeDialog = defineAsyncComponent(() => import('./components/auth/InviteCodeDialog.vue'))
 const AnnouncementPopup = defineAsyncComponent(() => import('./components/AnnouncementPopup.vue'))
 const CaptchaGate = defineAsyncComponent(() => import('./components/CaptchaGate.vue'))
+const OnboardingTour = defineAsyncComponent(() => import('./components/OnboardingTour.vue'))
 
 /**
  * 全局根组件（P1-10 改造后）。
@@ -173,6 +174,7 @@ onUnmounted(() => {
   />
   <AnnouncementPopup />
   <CaptchaGate />
+  <OnboardingTour />
   <Transition name="global-loading">
     <!-- skeleton 页面（首页/圈子/消息）不显示全屏遮罩，让组件内骨架屏可见 -->
     <div v-if="uiStore.globalLoadingVisible && route.meta.skeleton !== true" class="global-loading-overlay" aria-live="polite" aria-busy="true">

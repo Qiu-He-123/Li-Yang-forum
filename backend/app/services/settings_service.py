@@ -23,7 +23,7 @@ _DEFAULTS: dict[str, str] = {
     "deepseek_base_url": "https://api.deepseek.com/v1",
     "deepseek_model": "deepseek-chat",
     "audit_auto_delete_days": "0",
-    # 需要审核的内容范围：post 帖子 / comment 评论 / bottle 漂流瓶 / image 含图帖子转人工
+    # 需要审核的内容范围：post 帖子 / comment 评论 / bottle 漂流瓶 / image 含图片/视频帖子转人工
     "audit_scope": "post,comment,bottle,image",
     # 转人工复核的触发条件：ai_unavailable / violation / high_severity / sensitive_category
     "manual_review_triggers": "ai_unavailable",
@@ -39,6 +39,14 @@ _DEFAULTS: dict[str, str] = {
     "feed_mmr_max_per_category": "6",
     "comment_explore_enabled": "true",
     "comment_explore_rate": "0.15",
+    # 绑定微信时展示的社区微信号（后台可改）
+    "wechat_bind_account": "",
+    # 微信同步客户端设备令牌（客户端启动时展示，后台可改）
+    "wechat_device_token": "",
+    # 微信朋友圈自动同步：多久检查一次朋友圈是否刷新（秒，最小 5）
+    "wechat_sync_interval_seconds": "10",
+    # 抖音/快手视频直链：多久检测一次失效并自动恢复（分钟）
+    "video_link_refresh_interval": "30",
     # ============ 首页滚动字幕 ============
     "home_marquee": "",
 }
@@ -49,7 +57,7 @@ _DESC: dict[str, str] = {
     "deepseek_base_url": "DeepSeek API 基础 URL",
     "deepseek_model": "DeepSeek 模型名",
     "audit_auto_delete_days": "审核失败内容自动删除天数（0=不自动删除）",
-    "audit_scope": "需要 AI 审核的内容范围（逗号分隔：post 帖子 / comment 评论 / bottle 漂流瓶 / image 含图帖子转人工审核）",
+    "audit_scope": "需要 AI 审核的内容范围（逗号分隔：post 帖子 / comment 评论 / bottle 漂流瓶 / image 含图片/视频帖子转人工审核）",
     "manual_review_triggers": "转人工复核的触发条件（逗号分隔：ai_unavailable AI不可用 / violation AI判违规 / high_severity 中高严重度 / sensitive_category 敏感类别）",
     "default_friend_user_id": "默认好友（官方账号）用户 ID（旧配置，建议改用 default_friend_user_ids 支持多人）",
     "default_friend_user_ids": "默认好友（官方账号）用户 ID 列表（逗号分隔，可配置多人，留空关闭）",
@@ -63,6 +71,10 @@ _DESC: dict[str, str] = {
     "comment_explore_enabled": "是否启用评论探索：帖子「最热」评论页按比例插入低赞新评论",
     "comment_explore_rate": "评论探索比例 ε（0-0.5，默认 0.15）",
     "home_marquee": "首页顶部滚动字幕内容（每行一条，留空关闭）",
+    "wechat_bind_account": "用户绑定微信时需要添加的社区微信号（展示在绑定引导页）",
+    "wechat_device_token": "微信同步客户端的设备令牌（客户端与后端鉴权用）",
+    "wechat_sync_interval_seconds": "微信朋友圈自动同步检查间隔（秒，最小 5）：朋友圈刷新后自动扫描发布",
+    "video_link_refresh_interval": "抖音/快手视频直链失效检测间隔（分钟）：后台自动重解析恢复失效直链",
 }
 
 

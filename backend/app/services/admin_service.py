@@ -40,6 +40,8 @@ from app.models import (
     UserBadge,
     VisitLog,
     AppDownloadLog,
+    WechatBinding,
+    WechatMoment,
 )
 from app.schemas.interactions import AnnouncementCreate
 from app.services.audit_log import log_admin_action
@@ -1125,6 +1127,118 @@ def admin_list_settings(db: Session) -> list[dict]:
     """列出所有系统设置项。"""
     from app.services import settings_service
     return settings_service.list_settings(db)
+
+
+# ============ 微信朋友圈管理 ============
+
+def admin_wechat_bindings(
+    db: Session,
+    page: int = 1,
+    page_size: int = 20,
+    keyword: str | None = None,
+) -> dict:
+    """微信绑定列表：用户 + 微信号 + 同步开关 + 状态，支持按昵称/账号/微信号搜索。"""
+    base = select(WechatBinding)
+    if keyword:
+        base = base.join(User, User.id == WechatBinding.user_id).where(
+            (User.nickname.contains(keyword.strip()))
+            | (User.username.contains(keyword.strip()))
+            | (WechatBinding.wechat_id.contains(keyword.strip()))
+            | (WechatBinding.wxid.contains(keyword.strip()))
+            | (WechatBinding.nickname.contains(keyword.strip()))
+        )
+    total = db.scalar(select(func.count()).select_from(base.subquery())) or 0
+    rows = db.scalars(
+        base.order_by(WechatBinding.id.desc())
+        .offset((page - 1) * page_size)
+        .limit(page_size)
+    ).all()
+    items = []
+    for b in rows:
+        user = db.scalar(select(User).where(User.id == b.user_id))
+        items.append(
+            {
+                "id": b.id,
+                "user_id": b.user_id,
+                "username": user.username if user else "",
+                "nickname": user.nickname if user else "",
+                "wxid": b.wxid,
+                "wechat_id": b.wechat_id,
+                "wechat_nickname": b.nickname,
+                "sync_enabled": bool(b.sync_enabled),
+                "status": b.status,
+                "bound_at": to_iso_zh(b.bound_at) if b.bound_at else None,
+                "sync_enabled_at": to_iso_zh(b.sync_enabled_at) if b.sync_enabled_at else None,
+            }
+        )
+    return {"items": items, "total": total, "page": page, "page_size": page_size}
+
+
+def admin_wechat_moments(
+    db: Session,
+    page: int = 1,
+    page_size: int = 20,
+    keyword: str | None = None,
+) -> dict:
+    """已同步的朋友圈动态列表：作者 / 内容 / 时间，支持按作者名或内容搜索。"""
+    base = select(WechatMoment)
+    if keyword:
+        base = base.where(
+            (WechatMoment.author_name.contains(keyword.strip()))
+            | (WechatMoment.content.contains(keyword.strip()))
+            | (WechatMoment.wxid.contains(keyword.strip()))
+        )
+    total = db.scalar(select(func.count()).select_from(base.subquery())) or 0
+    rows = db.scalars(
+        base.order_by(WechatMoment.create_time.desc(), WechatMoment.id.desc())
+        .offset((page - 1) * page_size)
+        .limit(page_size)
+    ).all()
+    items = []
+    for m in rows:
+        media_count = 0
+        try:
+            media_count = len(json.loads(m.media_json or "[]"))
+        except Exception:
+            media_count = 0
+        items.append(
+            {
+                "id": m.id,
+                "tid": m.tid,
+                "wxid": m.wxid,
+                "author_name": m.author_name,
+                "content": m.content,
+                "media_count": media_count,
+                "create_time": to_iso_zh(m.create_time) if m.create_time else None,
+                "fetched_at": to_iso_zh(m.fetched_at) if m.fetched_at else None,
+            }
+        )
+    return {"items": items, "total": total, "page": page, "page_size": page_size}
+
+
+def admin_wechat_unbind(binding_id: int, request: Request, db: Session, admin: Admin) -> None:
+    """管理员解绑：解除用户与微信号的绑定关系（不可自改，仅后台可解）。"""
+    binding = db.get(WechatBinding, binding_id)
+    if not binding:
+        raise HTTPException(status_code=404, detail="绑定记录不存在")
+    # 释放 wxid 的唯一约束：解绑后该微信号允许被其他人重新绑定
+    binding.wxid = f"__unbound_{binding.id}_{binding.wxid[:24]}"
+    binding.status = "unbound"
+    binding.unbound_at = now_utc()
+    binding.unbound_by_admin_id = admin.id
+    binding.sync_enabled = False
+    db.commit()
+    log_admin_action(
+        db,
+        admin.id,
+        "wechat_unbind",
+        json.dumps(
+            {"binding_id": binding.id, "user_id": binding.user_id, "wxid": binding.wxid},
+            ensure_ascii=False,
+        ),
+        _extract_ip(request),
+    )
+    db.commit()
 
 
 def admin_update_settings(payload: dict, request: Request, db: Session, admin: Admin) -> dict:

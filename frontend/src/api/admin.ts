@@ -146,6 +146,53 @@ export function adminUpdateSettings(settings: Record<string, string>) {
   return http.put('/admin/settings', { settings })
 }
 
+// ============ 微信朋友圈管理 ============
+
+export interface AdminWechatBinding {
+  id: number
+  user_id: number
+  username: string
+  nickname: string
+  wxid: string
+  wechat_id: string | null
+  wechat_nickname: string
+  sync_enabled: boolean
+  status: string
+  bound_at: string | null
+  sync_enabled_at: string | null
+}
+
+export interface AdminWechatMoment {
+  id: number
+  tid: string
+  wxid: string
+  author_name: string
+  content: string
+  media_count: number
+  create_time: string | null
+  fetched_at: string | null
+}
+
+export function adminWechatBindings(params: { page: number; page_size: number; keyword?: string }) {
+  return http.get<unknown, { data: { code: number; msg: string; data: PageResp<AdminWechatBinding> } }>(
+    '/admin/wechat/bindings',
+    { params },
+  )
+}
+
+export function adminWechatMoments(params: { page: number; page_size: number; keyword?: string }) {
+  return http.get<unknown, { data: { code: number; msg: string; data: PageResp<AdminWechatMoment> } }>(
+    '/admin/wechat/moments',
+    { params },
+  )
+}
+
+export function adminWechatUnbind(bindingId: number) {
+  return http.post<unknown, { data: { code: number; msg: string } }>(
+    `/admin/wechat/bindings/${bindingId}/unbind`,
+  )
+}
+
 // ============ 推荐探索 ============
 
 export interface ExploreSummary {
@@ -460,7 +507,7 @@ export interface DeepSeekConfig {
   base_url: string
   model: string
   auto_delete_days: number
-  /** 需要审核的内容范围：post 帖子 / comment 评论 / bottle 漂流瓶 / image 含图帖子转人工 */
+  /** 需要审核的内容范围：post 帖子 / comment 评论 / bottle 漂流瓶 / image 含图片/视频帖子转人工 */
   audit_scope: string[]
   /** 转人工复核的触发条件：ai_unavailable / violation / high_severity / sensitive_category */
   manual_review_triggers: string[]

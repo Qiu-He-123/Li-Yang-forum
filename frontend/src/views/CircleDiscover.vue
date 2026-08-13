@@ -731,9 +731,9 @@ onUnmounted(() => stopAuditPolling())
             v-for="post in displayedPosts"
             :key="post.id"
             class="card"
-            :class="post.image_urls?.length ? 'card--image' : 'card--text'"
+            :class="post.image_urls?.length || post.video_urls?.length ? 'card--image' : 'card--text'"
             :style="
-              !post.image_urls?.length && post.category
+              !post.image_urls?.length && !post.video_urls?.length && post.category
                 ? { background: getCircleMeta(resolveCircleSlug(post)).cardBg }
                 : {}
             "
@@ -746,6 +746,15 @@ onUnmounted(() => stopAuditPolling())
               :alt="post.title || post.content.slice(0, 30)"
               loading="lazy"
             />
+            <!-- 视频帖：封面帧展示，点击进详情播放 -->
+            <video
+              v-else-if="post.video_urls?.length"
+              class="card-img card-video"
+              :src="post.video_urls[0]"
+              preload="metadata"
+              muted
+              playsinline
+            ></video>
             <div class="card-body">
               <div class="card-top">
                 <span
@@ -1633,6 +1642,11 @@ onUnmounted(() => stopAuditPolling())
   height: auto;
   display: block;
   object-fit: cover;
+}
+/* 视频帖封面帧：不拦截点击（点卡片进详情播放） */
+.card-video {
+  background: #000;
+  pointer-events: none;
 }
 
 .card-body {
