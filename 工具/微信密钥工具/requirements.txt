@@ -1,0 +1,7 @@
+# 微信数据库密钥工具依赖（其他机器首次使用前安装）
+# pip install -r requirements.txt
+# 注意：key_grabber_ui.py 由 启动服务器.py 用「系统 Python」作为子进程启动，
+# 所以依赖需要装到系统 Python（或运行 启动服务器.py 的那个 Python）里。
+frida>=16
+psutil>=5.9
+pycryptodome>=3.20
