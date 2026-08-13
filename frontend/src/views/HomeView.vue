@@ -1089,13 +1089,10 @@ onUnmounted(() => {
   color: var(--text-500, #777);
 }
 .moments-guide-bar {
-  position: sticky;
-  bottom: 0;
-  z-index: 5;
   display: flex;
   align-items: center;
   gap: 12px;
-  margin: 8px -12px -24px;
+  margin: 8px -12px 0;
   padding: 12px 14px calc(12px + env(safe-area-inset-bottom, 0px));
   background: var(--bg-app, #f6f7f9);
   border-top: 1px solid rgba(0, 0, 0, 0.06);
