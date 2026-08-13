@@ -147,6 +147,15 @@ def run(cmd: list[str], cwd: Path | None = None) -> bool:
         return False
 
 
+def _reqs_fresh(marker: Path, req_files: list[Path]) -> bool:
+    """依赖清单自上次成功安装后没变过 → 跳过 pip/npm 检查，大幅加速重启自检。
+    （git pull 更新了 requirements/package.json 后，清单 mtime 变新 → 自动重装）"""
+    if not marker.is_file():
+        return False
+    marker_t = marker.stat().st_mtime
+    return all(r.is_file() and r.stat().st_mtime <= marker_t for r in req_files)
+
+
 def main() -> int:
     line("环境自检与自动修复")
     problems = 0
@@ -213,18 +222,34 @@ def main() -> int:
     else:
         print("[OK] 虚拟环境已存在")
 
-    # ---------- 3) 后端依赖（缺啥装啥，版本低了自动升级） ----------
+    # ---------- 3) 后端依赖（缺啥装啥，版本低了自动升级；没变化就跳过） ----------
     if VENV_PY.is_file():
         line("后端依赖（pip 自动安装/升级）")
         req_files = [BACKEND / "requirements.txt", ROOT / "工具" / "微信密钥工具" / "requirements.txt"]
-        for req in req_files:
-            if not req.is_file():
-                continue
-            print(f"[修复] 安装/升级依赖：{req.relative_to(ROOT)} …")
-            if not run([str(VENV_PY), "-m", "pip", "install", "-r", str(req), "--disable-pip-version-check"]):
-                print("      默认源失败，改用清华镜像重试…")
-                run([str(VENV_PY), "-m", "pip", "install", "-r", str(req), "-i", PIP_MIRROR, "--disable-pip-version-check"])
-        print("[OK] 后端依赖就绪")
+        deps_marker = BACKEND / ".venv" / ".deps_ok"
+        if _reqs_fresh(deps_marker, req_files):
+            print("[OK] 后端依赖已就绪（requirements 无变化，跳过安装检查）")
+        else:
+            ok_all = True
+            for req in req_files:
+                if not req.is_file():
+                    continue
+                print(f"[修复] 安装/升级依赖：{req.relative_to(ROOT)} …")
+                ok1 = run([str(VENV_PY), "-m", "pip", "install", "-r", str(req), "--disable-pip-version-check"])
+                if not ok1:
+                    print("      默认源失败，改用清华镜像重试…")
+                    ok1 = run([str(VENV_PY), "-m", "pip", "install", "-r", str(req), "-i", PIP_MIRROR, "--disable-pip-version-check"])
+                if not ok1:
+                    ok_all = False
+                    print(f"[失败] 依赖安装失败：{req.relative_to(ROOT)}（网络或镜像问题，可重试）")
+            if ok_all:
+                try:
+                    deps_marker.write_text("ok\n", encoding="utf-8")
+                except OSError:
+                    pass
+                print("[OK] 后端依赖就绪")
+            else:
+                problems += 1
 
     # ---------- 4) .env ----------
     if not (BACKEND / ".env").is_file():
@@ -244,23 +269,34 @@ def main() -> int:
         problems += 1
     else:
         print("[OK] npm 可用")
-        if not (FRONTEND / "node_modules").is_dir():
-            print("[修复] 正在安装前端依赖（npm install）…")
-            if not run(["cmd", "/c", f"cd /d {FRONTEND} && npm install --registry=https://registry.npmjs.org"]):
+        npm_marker = FRONTEND / "node_modules" / ".npm_ok"
+        npm_manifests = [FRONTEND / "package.json", FRONTEND / "package-lock.json"]
+        npm_installed = False
+        if (FRONTEND / "node_modules").is_dir() and _reqs_fresh(npm_marker, npm_manifests):
+            print("[OK] 前端依赖已就绪（package.json 无变化，跳过安装检查）")
+        else:
+            print("[修复] 正在安装/更新前端依赖（npm install）…")
+            ok_npm = run(["cmd", "/c", f"cd /d {FRONTEND} && npm install --registry=https://registry.npmjs.org"])
+            if not ok_npm:
                 print("      默认源失败，改用国内镜像 npmmirror 重试…")
-                run(["cmd", "/c", f"cd /d {FRONTEND} && npm install --registry=https://registry.npmmirror.com"])
-            if not (FRONTEND / "node_modules").is_dir():
+                ok_npm = run(["cmd", "/c", f"cd /d {FRONTEND} && npm install --registry=https://registry.npmmirror.com"])
+            if ok_npm and (FRONTEND / "node_modules").is_dir():
+                try:
+                    npm_marker.parent.mkdir(parents=True, exist_ok=True)
+                    npm_marker.write_text("ok\n", encoding="utf-8")
+                except OSError:
+                    pass
+                npm_installed = True
+            else:
                 print("[失败] 前端依赖安装失败，请检查网络后重试")
                 problems += 1
-        else:
-            print("[OK] 前端依赖已存在")
 
-        # ---------- 6) 前端构建（缺失/源码更新自动构建） ----------
+        # ---------- 6) 前端构建（缺失/源码更新/依赖更新自动构建） ----------
         line("前端构建（生产模式产物）")
         dist_html = FRONTEND / "dist" / "index.html"
         newest = max((p.stat().st_mtime for p in (FRONTEND / "src").rglob("*") if p.is_file()), default=0)
         stale = bool(dist_html.is_file() and newest and dist_html.stat().st_mtime < newest)
-        if not dist_html.is_file() or stale:
+        if not dist_html.is_file() or stale or npm_installed:
             print("[修复] 正在构建前端（npm run build，首次约需几分钟）…")
             if not run(["cmd", "/c", f"cd /d {FRONTEND} && npm run build"]):
                 print("[失败] 前端构建失败，请查看上方报错（常见：TypeScript 类型错误）")

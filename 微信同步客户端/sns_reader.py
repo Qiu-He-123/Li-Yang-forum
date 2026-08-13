@@ -293,11 +293,13 @@ def image_key_matches_account(image_key, account_path) -> tuple[bool, str]:
 
 
 def find_v2_cache_images(data_root, limit=20):
-    """找朋友圈缓存里的 V2/V1 加密图片（带魔数头），按缓存时间倒序取最近 limit 个。
-    只有这类图片才真正依赖 AES 密钥，能验证密钥是否有效；旧 XOR 单字节格式无法验证 AES。
+    """找朋友圈缓存里的 V2 加密图片（带魔数头），按缓存时间倒序取最近 limit 个。
+
+    只收 V2：V2 图片才真正依赖传入的 AES 密钥，能验证密钥是否有效；
+    V1 格式用全局硬编码密钥解密（任何账号密钥都能"解出"图片），
+    旧 XOR 单字节格式同理——两者一律不作为密钥校验样本，避免假通过。
     """
     v2_magic = b"\x07\x08V2\x08\x07"
-    v1_magic = b"\x07\x08V1\x08\x07"
     candidates = []
     if not data_root or not os.path.isdir(data_root):
         return candidates
@@ -314,12 +316,39 @@ def find_v2_cache_images(data_root, limit=20):
                     continue
                 with open(p, "rb") as f:
                     head = f.read(6)
-                if head in (v2_magic, v1_magic):
+                if head == v2_magic:
                     candidates.append((os.path.getmtime(p), p))
             except OSError:
                 continue
     candidates.sort(key=lambda e: e[0], reverse=True)
     return [p for _m, p in candidates[:limit]]
+
+
+def _decrypt_and_decode(sample, aes_key, xor_key, mod):
+    """解密单个 V2 缓存并做真实解码校验。
+
+    两层把关，缺一不可：
+    1) 格式魔数头 + 完整结尾（JPEG FF D9 / PNG IEND 等）——粗筛；
+    2) PIL 真实解码（img.load()）——强校验：错误密钥解出的乱码几乎不可能
+       通过 JPEG 熵编码/PNG CRC 校验被解码成合法图片。
+    返回 (图片bytes, 格式) 或 (None, None)。
+    """
+    try:
+        import io as _io
+        from PIL import Image as _PILImage
+        with open(sample, "rb") as f:
+            if f.read(6) != b"\x07\x08V2\x08\x07":
+                return None, None  # V1/其他格式不参与密钥校验
+        result, fmt = mod.decrypt_dat_file(sample, aes_key, xor_key)
+        if not (result and fmt):
+            return None, None
+        if not mod.is_complete_image(result, fmt):
+            return None, None
+        img = _PILImage.open(_io.BytesIO(result))
+        img.load()  # 完整解码：乱码数据会被 JPEG/PNG 内部校验拒绝
+        return result, fmt
+    except Exception:
+        return None, None
 
 
 def verify_image_key(data_root, image_key, expect_wxid=None):
@@ -330,8 +359,11 @@ def verify_image_key(data_root, image_key, expect_wxid=None):
       aes_key = MD5(code + wxid)[:16]，与微信是否重启无关，密钥稳定
     - 前提：必须先在该账号微信里打开「朋友圈」，点开浏览 2-3 张图片，
       让 V2 加密缓存写入本地，验证才有样本可用
-    - 校验只认 V2/V1 加密图（带魔数头，真正依赖 AES），并优先最新缓存；
-      旧 XOR 单字节格式无法验证 AES，不再作为通过依据
+    - 校验只认 V2 加密图（真正依赖传入的 aes_key）：
+      1) 必须真实解码成完整图片（PIL 解码，错误密钥的乱码几乎不可能通过）；
+      2) 缓存里有多张 V2 图时，至少 2 张独立样本交叉验证通过（杜绝单张侥幸）；
+      3) V1 / 旧 XOR 格式一律不作为通过依据（V1 用全局硬编码密钥，
+         任何账号密钥都能"解出"图片，无法验证密钥是否正确）
     """
     if not image_key:
         return False, "缺少图片密钥"
@@ -353,13 +385,11 @@ def verify_image_key(data_root, image_key, expect_wxid=None):
     samples = find_v2_cache_images(data_root)
     if not samples:
         return False, "该账号还没有 V2 图片缓存，请打开朋友圈点开浏览 2-3 张图片后再试"
+    ok_count = 0
     for sample in samples:
-        try:
-            result, fmt = mod.decrypt_dat_file(sample, aes_key, xor_key)
-        except Exception:
-            continue
-        # 严格校验：必须是完整图片（JPEG 以 FF D9 结尾 / PNG 以 IEND 结尾），
-        # 避免 XOR/AES 错误时把花图当成功
-        if result and fmt and mod.is_complete_image(result, fmt):
-            return True, f"图片解密验证通过（{fmt}，完整图片）"
+        result, fmt = _decrypt_and_decode(sample, aes_key, xor_key, mod)
+        if result and fmt:
+            ok_count += 1
+            if ok_count >= 2 or (ok_count == 1 and len(samples) == 1):
+                return True, f"图片解密验证通过（{fmt}，{ok_count} 张完整图片交叉验证）"
     return False, "图片解密验证失败（V2 图片解不开），密钥与账号不匹配或需要重新抓取"
