@@ -20,12 +20,14 @@ import tempfile
 import time
 from pathlib import Path
 
-EXPORTER_PATH = Path(
-    r"D:\Users\Downloads\立洋社区\获取微信朋友圈\导出朋友圈.py"
-)
-IMAGE_KEY_DEFAULT = Path(
-    r"D:\Users\Downloads\立洋社区\获取微信朋友圈\图片密钥.json"
-)
+# 仓库根目录（本文件在 微信同步客户端/ 下，向上两级）
+_REPO_ROOT = Path(__file__).resolve().parent.parent
+EXPORTER_PATH = _REPO_ROOT / "获取微信朋友圈" / "导出朋友圈.py"
+IMAGE_KEY_DEFAULT = _REPO_ROOT / "获取微信朋友圈" / "图片密钥.json"
+# 聊天记录导出工具来自独立的 ai群聊 项目：换电脑后按相对位置探测，找不到则跳过该能力
+_CHAT_EXPORT_CANDIDATES = [
+    _REPO_ROOT.parent / "ai群聊" / "取聊天记录_自研" / "聊天记录导出工具" / "export_chat.py",
+]
 
 
 def _load_exporter():
@@ -145,9 +147,12 @@ def read_recent_incoming_messages(account_dir, key_hex):
         return {}
     exp = _load_exporter()
     chat_mod = None
-    mod_path = Path(
-        r"D:\Users\Downloads\ai群聊\取聊天记录_自研\聊天记录导出工具\export_chat.py"
-    )
+    for cand in _CHAT_EXPORT_CANDIDATES:
+        if cand.is_file():
+            mod_path = cand
+            break
+    else:
+        mod_path = _CHAT_EXPORT_CANDIDATES[0]
     if mod_path.is_file():
         spec = importlib.util.spec_from_file_location("chat_exporter", mod_path)
         chat_mod = importlib.util.module_from_spec(spec)
@@ -239,7 +244,7 @@ def data_root_of(account_path) -> str:
 
 def _load_key_tool_module():
     """加载 获取微信朋友圈/获取图片密钥.py（新算法：kvcomm 推导）。"""
-    mod_path = Path(r"D:\Users\Downloads\立洋社区\获取微信朋友圈\获取图片密钥.py")
+    mod_path = _REPO_ROOT / "获取微信朋友圈" / "获取图片密钥.py"
     spec = importlib.util.spec_from_file_location("image_key_tool", mod_path)
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
@@ -337,9 +342,7 @@ def verify_image_key(data_root, image_key, expect_wxid=None):
         ok, msg = image_key_matches_account(image_key, expect_wxid)
         if not ok:
             return False, msg
-    mod_path = Path(
-        r"D:\Users\Downloads\立洋社区\获取微信朋友圈\下载朋友圈图片.py"
-    )
+    mod_path = _REPO_ROOT / "获取微信朋友圈" / "下载朋友圈图片.py"
     spec = importlib.util.spec_from_file_location("sns_media", mod_path)
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)

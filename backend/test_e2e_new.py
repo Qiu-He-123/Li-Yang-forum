@@ -4,10 +4,11 @@ import sqlite3
 import sys
 import urllib.request
 import urllib.error
+from pathlib import Path
 
 
 BASE = "http://127.0.0.1:8765"
-DB = r"d:\Users\Downloads\立洋社区\backend\ly_community.sqlite3"
+DB = str(Path(__file__).resolve().parent / "ly_community.sqlite3")
 
 cookie = ""
 

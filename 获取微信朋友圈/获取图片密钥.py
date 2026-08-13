@@ -559,7 +559,6 @@ def scan_via_memory(data_root, files, log):
 # ════════════════════════════════════════════════════════════
 
 DATA_ROOTS = [
-    r"D:\Users\Documents\xwechat_files",
     os.path.expandvars(r"%USERPROFILE%\Documents\xwechat_files"),
 ]
 

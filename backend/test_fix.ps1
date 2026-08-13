@@ -64,7 +64,7 @@ Send-Req -method "PATCH" -path "/notifications/read-all" -desc "PATCH read-all"
 # Verify follow notification was sent to user 1 by querying DB directly
 Write-Host ""
 Write-Host "========== DB Verification: notifications for user 1 =========="
-$dbPath = "d:\Users\Downloads\立洋社区\backend\ly_community.sqlite3"
+$dbPath = Join-Path $PSScriptRoot "ly_community.sqlite3"
 $connStr = "Data Source=$dbPath;Version=3;"
 $conn = New-Object System.Data.SQLite.SQLiteConnection
 # Fall back: just check via SQL via python

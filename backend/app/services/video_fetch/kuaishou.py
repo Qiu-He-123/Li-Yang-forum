@@ -2,7 +2,7 @@
 """
 快手分享链接 -> 视频直链（后端集成封装）。
 
-来源：D:/Users/Downloads/立洋社区/获取快手视频/通过分享链接看视频/快手分享链接解析.py
+来源：仓库内 获取快手视频/通过分享链接看视频/快手分享链接解析.py
 在原解析函数（normalize_input / fetch_page / parse_photo / collect_urls /
 verify_url）基础上，新增统一的 parse_share(text) 入口，供 video_service 调用。
 
