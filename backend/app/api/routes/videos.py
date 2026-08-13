@@ -29,6 +29,8 @@ ALLOWED_VIDEO_HOSTS = (
     "ndcimgs.com",
     "kuaishou.com",
     "gifshow.com",
+    "oskwai.com",   # 快手新版直链 CDN（v4.oskwai.com）
+    "kwaicdn.com",  # 快手直链 CDN（v23-x.kwaicdn.com）
     "bilivideo.com",
     "bilibili.com",
     "hdslb.com",
