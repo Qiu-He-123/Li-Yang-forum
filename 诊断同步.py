@@ -38,7 +38,7 @@ def main() -> int:
         print("    ❌ 没有任何账号！")
         print("       原因：微信同步客户端/账号配置 下没有带 db_key.txt 的账号目录，")
         print("       且常见微信数据目录里也没扫到 wxid_* 账号。")
-        print("       解决：运行 启动服务器.py 向导，完成 选账号/数据库密钥/图片密钥 三步。")
+        print("       解决：双击 重启服务器.bat（向导会自动完成 选账号/数据库密钥/图片密钥 三步）。")
         return 1
     for acc in accounts:
         print(f"    - {acc['account_id']}")

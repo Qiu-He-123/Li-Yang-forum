@@ -1,6 +1,6 @@
 @echo off
 setlocal
-cd /d "%~dp0backend"
+cd /d "%~dp0..\backend"
 
 if not exist .venv\Scripts\python.exe (
     echo [ERROR] backend\.venv not found. Please run "启动立洋社区.bat" once first.

@@ -16,7 +16,21 @@ backend/            FastAPI 后端（app/ 业务代码、alembic/ 迁移、scrip
 frontend/           Vue3 前端
 deploy/             Docker Compose 与 Nginx 配置
 tests/ → backend/tests  回归测试（pytest）
+微信同步客户端/     朋友圈同步客户端（config.json 本机私有，不入库）
+获取微信朋友圈/     朋友圈图片/密钥工具
+获取抖音视频/       抖音视频分享解析（登录态本机私有，不入库）
+获取快手视频/       快手视频分享解析
+工具/               微信密钥工具（db 密钥抓取、解密等）
+方便bat/            日常运维脚本（git 同步、数据库备份、启动服务器入口）
+docs/               文档与设计稿（反爬说明、项目索引、UI 设计 mockup）
+启动立洋社区.bat    首次安装/启动（自动装环境）
+重启服务器.bat      日常重启（自动自检修复）
+server_config.json  服务器访问配置（bind_host 对外开放开关 / 端口，本机私有）
+更新指南.md         更新流程与常见问题
 ```
+
+> 根目录只保留核心入口；工具类脚本集中在 `方便bat/`，文档在 `docs/`。
+> 本机私有文件（`.env`、`微信同步客户端/config.json`、`账号配置/`、`server_config.json` 等）已被 `.gitignore` 排除，不会上传。
 
 ## 本地开发
 
@@ -223,7 +237,7 @@ cd backend
 .venv\Scripts\python scripts\backup_db.py        # Windows
 ```
 
-Windows 也可以直接双击根目录的 `备份数据库.bat`。备份完成后到 https://github.com/Qiu-He-123/liyang-backups/releases 查看。
+Windows 也可以直接双击 `方便bat\备份数据库.bat`。备份完成后到 https://github.com/Qiu-He-123/liyang-backups/releases 查看。
 
 ### 定时自动备份
 
@@ -235,13 +249,13 @@ crontab -e
 0 3 * * * cd /opt/liyang/backend && .venv/bin/python scripts/backup_db.py >> logs/backup.log 2>&1
 ```
 
-Windows（推荐）：右键 `安装定时备份.bat` → 以管理员身份运行，一次即可，之后每天 03:00 自动备份。
+Windows（推荐）：右键 `方便bat\安装定时备份.bat` → 以管理员身份运行，一次即可，之后每天 03:00 自动备份。
 
 Windows（手动，等价操作）：
 
 ```bat
 :: 把 <仓库绝对路径> 换成你自己电脑上仓库的实际路径
-schtasks /Create /SC DAILY /ST 03:00 /TN "LY Community DB Backup" /TR "<仓库绝对路径>\定时备份数据库.bat"
+schtasks /Create /SC DAILY /ST 03:00 /TN "LY Community DB Backup" /TR "<仓库绝对路径>\方便bat\定时备份数据库.bat"
 ```
 
 ### 恢复数据

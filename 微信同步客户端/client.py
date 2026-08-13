@@ -36,7 +36,7 @@ def load_config() -> dict:
 
 
 def _load_click_moments():
-    click_path = Path(__file__).resolve().parent.parent / "click_moments.py"
+    click_path = Path(__file__).resolve().parent.parent / "方便bat" / "click_moments.py"
     spec = importlib.util.spec_from_file_location("click_moments", click_path)
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)

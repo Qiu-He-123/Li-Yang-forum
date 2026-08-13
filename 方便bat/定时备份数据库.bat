@@ -1,6 +1,6 @@
 @echo off
 setlocal
-cd /d "%~dp0backend"
+cd /d "%~dp0..\backend"
 
 if not exist .venv\Scripts\python.exe (
     echo [%date% %time%] ERROR: backend\.venv not found >> logs\backup.log 2>&1
