@@ -709,7 +709,7 @@ onUnmounted(() => {
             </div>
             <button type="button" class="moments-guide-btn" @click="router.push('/wechat')">去绑定</button>
           </div>
-          <MomentsTimeline :items="momentsItems" :loading="momentsLoading" />
+          <MomentsTimeline :items="momentsItems" :loading="momentsLoading" :locked="!momentsStatus?.bound" />
         </template>
 
         <!-- 底部状态：放在瀑布流容器之外，避免多列布局把它排到帖子右边 -->

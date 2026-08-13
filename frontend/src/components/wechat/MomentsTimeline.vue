@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { onMounted, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
 
 import { createComment, listComments } from '../../api/comment'
 import { likeTarget, unlikeTarget } from '../../api/interaction'
@@ -11,10 +12,23 @@ import { toast } from '../native/Toast'
 interface Props {
   items: WechatFeedItem[]
   loading?: boolean
+  /** 未绑定微信：只展示前 5 条，第 6 条起打马赛克并提示绑定 */
+  locked?: boolean
 }
 
 const props = defineProps<Props>()
 const store = useInteractionStore()
+const router = useRouter()
+
+const LOCK_AFTER = 5
+
+function isLocked(idx: number): boolean {
+  return !!props.locked && idx >= LOCK_AFTER
+}
+
+function goBind() {
+  router.push('/wechat')
+}
 
 // 点赞态：用全局 interaction store（登录时从 /users/me/likes/posts 回填），
 // 刷新/翻页后仍保持"已点赞"；后端点赞幂等，一人一帖只能赞一次
@@ -87,7 +101,9 @@ async function loadComments(post: WechatFeedItem, page: number) {
 }
 
 function loadAllComments() {
-  for (const post of props.items) {
+  for (let i = 0; i < props.items.length; i++) {
+    const post = props.items[i]
+    if (isLocked(i)) continue // 锁定（未绑定可见范围外）的动态不加载评论
     if (commentsMap.value[post.id] === undefined && !commentsLoading.value.has(post.id)) {
       loadComments(post, 1)
     }
@@ -133,11 +149,12 @@ watch(
       还没有同步的朋友圈，大家绑定微信并开启自动同步后，这里会展示所有人的朋友圈
     </div>
     <article
-      v-for="post in items"
+      v-for="(post, idx) in items"
       :key="post.id"
       class="moment-item"
-      :class="{ 'moment-item--pinned': post.is_pinned }"
+      :class="{ 'moment-item--pinned': post.is_pinned, 'moment-item--locked': isLocked(idx) }"
     >
+      <div class="moment-body" :class="{ 'moment-lock-blur': isLocked(idx) }">
       <div class="moment-avatar">
         <img v-if="post.author_avatar_url" :src="post.author_avatar_url" :alt="post.author" class="avatar-img" />
         <span v-else class="avatar-letter">{{ avatarLetter(post) }}</span>
@@ -225,6 +242,13 @@ watch(
           </template>
         </div>
       </div>
+      </div>
+      <!-- 未绑定时第 6 条起的马赛克遮罩：跟评论区一致，模糊内容 + 提示去绑定 -->
+      <div v-if="isLocked(idx)" class="moment-lock-mask" @click="goBind">
+        <span class="moment-lock-icon">🔒</span>
+        <span class="moment-lock-text">绑定微信才能查看全部朋友圈</span>
+        <button type="button" class="moment-lock-btn">去绑定</button>
+      </div>
     </article>
   </div>
 </template>
@@ -241,13 +265,54 @@ watch(
   line-height: 1.7;
 }
 .moment-item {
-  display: flex;
-  gap: 10px;
+  position: relative;
   padding: 14px 0;
   border-bottom: 1px solid rgba(0, 0, 0, 0.05);
 }
 .moment-item--pinned {
   background: linear-gradient(90deg, rgba(255, 193, 7, 0.08), transparent);
+}
+.moment-item--locked {
+  overflow: hidden;
+}
+.moment-body {
+  display: flex;
+  gap: 10px;
+}
+/* 未绑定微信：第 6 条起内容打马赛克（跟评论区锁定样式一致） */
+.moment-lock-blur {
+  filter: blur(8px);
+  pointer-events: none;
+  user-select: none;
+}
+.moment-lock-mask {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background: rgba(255, 255, 255, 0.55);
+  cursor: pointer;
+}
+.moment-lock-icon {
+  font-size: 26px;
+}
+.moment-lock-text {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-600, #555);
+}
+.moment-lock-btn {
+  border: none;
+  background: #4f9cff;
+  color: #fff;
+  border-radius: 999px;
+  padding: 6px 18px;
+  font-size: 13px;
+  cursor: pointer;
 }
 .moment-avatar {
   flex: 0 0 40px;
