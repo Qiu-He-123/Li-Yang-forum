@@ -1,51 +1,50 @@
 @echo off
+chcp 65001 >nul
 setlocal
+set PYTHONUTF8=1
+set PYTHONIOENCODING=utf-8
 cd /d "%~dp0"
+title LY 立洋社区（自动安装并启动）
 
-REM ============================================================
-REM LY Community Startup Script (T9-3)
-REM - Auto install backend/frontend deps on first run
-REM - Run Alembic migrations before backend starts (T3-1)
-REM - Open browser after services are up
-REM ============================================================
+echo ============================================================
+echo   LY Community - 首次安装 / 启动（自动装依赖 + 构建 + 启动）
+echo ============================================================
+echo.
 
-if not exist backend\.env copy backend\.env.example backend\.env >nul
-
-REM --- Backend dependencies ---
-if not exist backend\.venv (
-  echo Creating Python virtual environment...
-  cd /d "%~dp0backend"
-  python -m venv .venv
-  call .venv\Scripts\activate.bat
-  echo Installing backend dependencies, this may take a few minutes on first run...
-  pip install -r requirements.txt
-  cd /d "%~dp0"
-) else (
-  call backend\.venv\Scripts\activate.bat
-)
-
-REM --- Frontend dependencies ---
-if not exist frontend\node_modules (
-  echo Installing frontend dependencies, this may take a few minutes on first run...
-  cd /d "%~dp0frontend"
-  call npm install --registry=https://registry.npmjs.org
-  cd /d "%~dp0"
-)
-
-REM --- Database migration (T3-1, must run before backend starts) ---
-echo Running Alembic migrations...
-cd /d "%~dp0backend"
-alembic upgrade head
+:: 找 Python（python 或 py -3），缺失时给出下载指引
+where python >nul 2>&1
 if errorlevel 1 (
-  echo [ERROR] Alembic migration failed. Please check backend/.env DATABASE_URL.
-  pause
-  exit /b 1
+    where py >nul 2>&1
+    if errorlevel 1 (
+        echo [错误] 未检测到 Python！
+        echo 请到 https://www.python.org/downloads/ 下载 3.10+ 版本
+        echo 安装时勾选「Add python.exe to PATH」，然后重新运行本脚本。
+        pause
+        exit /b 1
+    )
+    set "PY=py -3"
+) else (
+    set "PY=python"
 )
-cd /d "%~dp0"
 
-REM --- Start backend and frontend ---
-start "LY Community Backend" cmd /k "cd /d %~dp0backend && call .venv\Scripts\activate.bat && python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --no-server-header"
-start "LY Community Frontend" cmd /k "cd /d %~dp0frontend && npm run dev -- --host 127.0.0.1 --port 5173"
+echo [1/3] 环境自检与自动安装（缺啥补啥，版本低自动升级）...
+%PY% "%~dp0backend\scripts\bootstrap.py"
+if errorlevel 1 (
+    echo.
+    echo [错误] 环境自检未通过，请按上方提示处理后重新运行。
+    pause
+    exit /b 1
+)
 
-timeout /t 5 /nobreak >nul
-start http://127.0.0.1:5173/
+echo.
+echo [2/3] 停止旧服务器进程...
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0kill_old_servers.ps1"
+timeout /t 1 /nobreak >nul
+
+echo.
+echo [3/3] 启动服务器向导（选账号 / 密钥 / 生产模式）...
+"%~dp0backend\.venv\Scripts\python.exe" "%~dp0start_server.py"
+
+echo.
+echo 服务器已退出。按任意键关闭窗口。
+pause >nul
