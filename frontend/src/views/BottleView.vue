@@ -484,7 +484,7 @@ onMounted(async () => {
   await Promise.all([loadStats(), loadTags(), loadPickStatus(), loadMine(), minDelay])
   pageLoading.value = false
   // 统计数据每 30 秒刷新一次
-  statsTimer = setInterval(loadStats, 30_000)
+  statsTimer = setInterval(loadStats, 60_000)
 })
 
 onUnmounted(() => {

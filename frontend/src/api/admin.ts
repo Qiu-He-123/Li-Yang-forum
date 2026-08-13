@@ -8,6 +8,8 @@ import type { Badge } from '../types/api'
 export interface AdminLoginPayload {
   username: string
   password: string
+  captcha_id: string
+  captcha_text: string
 }
 
 export interface AdminInfo {

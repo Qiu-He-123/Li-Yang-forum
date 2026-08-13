@@ -1,4 +1,5 @@
 import ipaddress
+from functools import lru_cache
 
 from fastapi import Cookie, Depends, HTTPException, Request
 import jwt
@@ -6,30 +7,64 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.errors import ErrorCode
-from app.core.security import decode_token
+from app.core.security import TOKEN_TYPE_ACCESS, TOKEN_TYPE_ADMIN, decode_token
 from app.core.time_utils import now_utc
+from app.core.config import get_settings
 from app.models import Admin, User
 
 
-def extract_ip(request: Request | None = None) -> str | None:
-    """从 Request 中提取客户端 IP（T7-13：校验 XFF 格式防伪造）。
+@lru_cache(maxsize=1)
+def _trusted_proxy_networks() -> list:
+    """解析可信反代白名单（IP/CIDR）。"""
+    raw = get_settings().trusted_proxies or ""
+    networks = []
+    for item in raw.split(","):
+        item = item.strip()
+        if not item:
+            continue
+        try:
+            networks.append(ipaddress.ip_network(item, strict=False))
+        except ValueError:
+            continue
+    return networks
 
-    1. 取 x-forwarded-for 第一段
-    2. 用 ipaddress.ip_address 校验，非法格式 fallback 到 request.client.host
-    3. 仍无效返回 None
+
+def _is_trusted_proxy(peer_ip: str | None) -> bool:
+    """当前直连来源是否为可信反代（Nginx）。"""
+    if not peer_ip:
+        return False
+    try:
+        ip = ipaddress.ip_address(peer_ip)
+    except ValueError:
+        return False
+    return any(ip in net for net in _trusted_proxy_networks())
+
+
+def extract_ip(request: Request | None = None) -> str | None:
+    """从 Request 中提取客户端真实 IP。
+
+    安全设计（防 X-Forwarded-For 伪造绕过限流）：
+    - 仅当直连来源是可信反代（trusted_proxies 白名单，默认 docker/本机网段）
+      且生产模式时才信任 X-Real-IP；后端端口被直接暴露时伪造头无效
+    - dev 直跑 uvicorn 时一律用 TCP 对端 IP（request.client.host），
+      客户端伪造 X-Real-IP / X-Forwarded-For 均无效
+    - 仍无效返回 None
     """
     if request is None:
         return None
-    forwarded = request.headers.get("x-forwarded-for")
-    if forwarded:
-        ip = forwarded.split(",")[0].strip()
-        try:
-            ipaddress.ip_address(ip)
-            return ip
-        except ValueError:
-            # XFF 伪造或格式非法，fallback 到 client.host
-            pass
-    return request.client.host if request.client else None
+    settings = get_settings()
+    peer = request.client.host if request.client else None
+    if settings.env != "dev" and _is_trusted_proxy(peer):
+        real_ip = request.headers.get("x-real-ip")
+        if real_ip:
+            ip = real_ip.strip()
+            try:
+                ipaddress.ip_address(ip)
+                return ip
+            except ValueError:
+                # X-Real-IP 非法（理论上只有我们自己的 Nginx 会设置），fallback
+                pass
+    return peer
 
 
 def _resolve_user(access_token: str | None, refresh_token: str | None, db: Session) -> User:
@@ -39,7 +74,7 @@ def _resolve_user(access_token: str | None, refresh_token: str | None, db: Sessi
             raise HTTPException(status_code=401, detail=ErrorCode.TOKEN_INVALID)
         raise HTTPException(status_code=401, detail=ErrorCode.NOT_LOGGED_IN)
     try:
-        user_id = int(decode_token(access_token))
+        user_id = int(decode_token(access_token, TOKEN_TYPE_ACCESS))
     except (jwt.InvalidTokenError, ValueError):
         raise HTTPException(status_code=401, detail=ErrorCode.TOKEN_INVALID) from None
     user = db.get(User, user_id)
@@ -72,7 +107,7 @@ def current_user(
             raise HTTPException(status_code=401, detail=ErrorCode.TOKEN_INVALID)
         raise HTTPException(status_code=401, detail=ErrorCode.NOT_LOGGED_IN)
     try:
-        user_id = int(decode_token(access_token))
+        user_id = int(decode_token(access_token, TOKEN_TYPE_ACCESS))
     except (jwt.InvalidTokenError, ValueError):
         raise HTTPException(status_code=401, detail=ErrorCode.TOKEN_INVALID) from None
     user = db.get(User, user_id)
@@ -101,7 +136,7 @@ def current_user_allow_banned(
             raise HTTPException(status_code=401, detail=ErrorCode.TOKEN_INVALID)
         raise HTTPException(status_code=401, detail=ErrorCode.NOT_LOGGED_IN)
     try:
-        user_id = int(decode_token(access_token))
+        user_id = int(decode_token(access_token, TOKEN_TYPE_ACCESS))
     except (jwt.InvalidTokenError, ValueError):
         raise HTTPException(status_code=401, detail=ErrorCode.TOKEN_INVALID) from None
     user = db.get(User, user_id)
@@ -114,14 +149,23 @@ def current_user_optional(
     access_token: str | None = Cookie(default=None),
     db: Session = Depends(get_db),
 ) -> User | None:
-    """可选登录：未登录返回 None，登录后返回用户（封号用户也返回，仅用于附加展示状态）。"""
+    """可选登录：未登录返回 None，登录后返回用户。
+
+    与 optional_user 行为一致：封号用户一律拦截（403），防止封号用户
+    通过内容浏览接口继续访问。
+    """
     if not access_token:
         return None
     try:
-        user_id = int(decode_token(access_token))
+        user_id = int(decode_token(access_token, TOKEN_TYPE_ACCESS))
     except (jwt.InvalidTokenError, ValueError):
         return None
-    return db.get(User, user_id)
+    user = db.get(User, user_id)
+    if not user:
+        return None
+    if _is_user_banned(user):
+        raise HTTPException(status_code=403, detail=ErrorCode.USER_BANNED)
+    return user
 
 
 def optional_user(access_token: str | None = Cookie(default=None), db: Session = Depends(get_db)) -> User | None:
@@ -134,7 +178,7 @@ def optional_user(access_token: str | None = Cookie(default=None), db: Session =
     if not access_token:
         return None
     try:
-        user_id = int(decode_token(access_token))
+        user_id = int(decode_token(access_token, TOKEN_TYPE_ACCESS))
     except (jwt.InvalidTokenError, ValueError):
         return None
     user = db.get(User, user_id)
@@ -155,7 +199,7 @@ def admin_user(admin_token: str | None = Cookie(default=None, alias="admin_token
     if not admin_token:
         raise HTTPException(status_code=401, detail=ErrorCode.NOT_LOGGED_IN)
     try:
-        admin_id = int(decode_token(admin_token))
+        admin_id = int(decode_token(admin_token, TOKEN_TYPE_ADMIN))
     except (jwt.InvalidTokenError, ValueError):
         raise HTTPException(status_code=401, detail=ErrorCode.TOKEN_INVALID) from None
     admin = db.get(Admin, admin_id)

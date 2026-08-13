@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import current_user
 from app.core.database import get_db
-from app.core.security import decode_token
+from app.core.security import TOKEN_TYPE_ACCESS, TOKEN_TYPE_ADMIN, decode_token
 from app.core.time_utils import to_iso_zh
 from app.models import Admin, Image, User
 from app.schemas.common import ok
@@ -69,7 +69,7 @@ def _is_admin_request(db: Session, request: Request) -> bool:
     if not token:
         return False
     try:
-        admin_id = int(decode_token(token))
+        admin_id = int(decode_token(token, TOKEN_TYPE_ADMIN))
     except (jwt.InvalidTokenError, ValueError):
         return False
     return db.get(Admin, admin_id) is not None
@@ -88,6 +88,31 @@ def _detect_image_type(content: bytes) -> str | None:
     # WEBP: RIFF....WEBP
     if content.startswith(b"RIFF") and content[8:12] == b"WEBP":
         return "image/webp"
+    return None
+
+
+def _detect_audio_type(content: bytes) -> str | None:
+    """根据 magic bytes 检测真实音频类型，返回 mime_type 或 None。"""
+    if len(content) < 8:
+        return None
+    # WebM/EBML
+    if content.startswith(b"\x1aE\xdf\xa3"):
+        return "audio/webm"
+    # Ogg
+    if content.startswith(b"OggS"):
+        return "audio/ogg"
+    # AMR
+    if content.startswith(b"#!AMR"):
+        return "audio/amr"
+    # MP3：ID3 标签或 0xFF 帧同步字
+    if content.startswith(b"ID3") or (content[0] == 0xFF and (content[1] & 0xE0) == 0xE0):
+        return "audio/mpeg"
+    # MP4/M4A：ftyp box
+    if content[4:8] == b"ftyp":
+        return "audio/mp4"
+    # AAC ADTS：0xFFF 同步字
+    if content[0] == 0xFF and (content[1] & 0xF0) == 0xF0:
+        return "audio/aac"
     return None
 
 
@@ -112,7 +137,7 @@ def _make_thumbnail(content: bytes, mime_type: str) -> bytes | None:
         elif img.mode != "RGB":
             img = img.convert("RGB")
         buf = io.BytesIO()
-        img.save(buf, format="JPEG", quality=THUMB_QUALITY, optimize=True)
+        img.save(buf, format="WEBP", quality=THUMB_QUALITY, method=4)
         return buf.getvalue()
     except Exception:
         return None
@@ -136,7 +161,7 @@ def _compress_image(
         elif img.mode != "RGB":
             img = img.convert("RGB")
         buf = io.BytesIO()
-        img.save(buf, format="JPEG", quality=quality, optimize=True)
+        img.save(buf, format="WEBP", quality=quality, method=4)
         return buf.getvalue()
     except Exception:
         return None
@@ -175,7 +200,7 @@ async def upload_image(
         )
         if compressed:
             content = compressed
-            content_type = "image/jpeg"
+            content_type = "image/webp"
 
     ext = ALLOWED_TYPES[content_type]
     filename = f"{uuid4().hex}{ext}"
@@ -189,8 +214,8 @@ async def upload_image(
     thumb_url: str | None = None
     thumb_task = None
     if thumb_content:
-        thumb_filename = f"{uuid4().hex}_thumb.jpg"
-        thumb_task = storage_service.upload_image_async(thumb_filename, thumb_content, "image/jpeg")
+        thumb_filename = f"{uuid4().hex}_thumb.webp"
+        thumb_task = storage_service.upload_image_async(thumb_filename, thumb_content, "image/webp")
 
     # 等待上传完成
     try:
@@ -253,6 +278,12 @@ async def upload_audio(
     content = await _read_limited(file, max_bytes=AUDIO_MAX_BYTES)
     if not content:
         raise HTTPException(status_code=400, detail="音频文件为空")
+    # 安全修复：音频同样用 magic bytes 校验真实类型，防止伪装 content_type 上传任意文件
+    real_audio_type = _detect_audio_type(content)
+    if not real_audio_type:
+        raise HTTPException(status_code=400, detail="无法识别的音频格式，请重新录制")
+    if real_audio_type != content_type:
+        raise HTTPException(status_code=400, detail="音频内容与声明格式不符，疑似伪装文件")
     ext = ALLOWED_AUDIO_TYPES[content_type]
     filename = f"{uuid4().hex}{ext}"
     url = await storage_service.upload_image_async(filename, content, content_type)
@@ -334,7 +365,7 @@ async def get_private_image(
     token = request.cookies.get("access_token")
     if token:
         try:
-            user_id = int(decode_token(token))
+            user_id = int(decode_token(token, TOKEN_TYPE_ACCESS))
         except (jwt.InvalidTokenError, ValueError):
             user_id = None
 

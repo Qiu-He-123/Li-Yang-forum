@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from app.api.deps import admin_user, current_user
 from app.core.database import get_db
 from app.core.errors import ErrorCode
-from app.core.security import decode_token
+from app.core.security import TOKEN_TYPE_ADMIN, decode_token
 from app.models import Admin, Feedback, User
 from app.schemas.common import ok
 from app.schemas.feedback import FeedbackCreate, FeedbackReplyCreate
@@ -21,7 +21,7 @@ def _is_admin_request(db: Session, request: Request) -> bool:
     if not admin_token:
         return False
     try:
-        admin_id = int(decode_token(admin_token))
+        admin_id = int(decode_token(admin_token, TOKEN_TYPE_ADMIN))
     except (jwt.InvalidTokenError, ValueError):
         return False
     return db.get(Admin, admin_id) is not None

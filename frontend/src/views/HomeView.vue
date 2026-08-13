@@ -175,7 +175,7 @@ onMounted(async () => {
     loadMarquee(),
   ])
   // 在线人数定时刷新（30s），让首页统计实时反映在线状态
-  homeStatsTimer = setInterval(loadHomeStats, 30_000)
+  homeStatsTimer = setInterval(loadHomeStats, 60_000)
   postStore.setView(feedView.value)
   // 用 localStorage 的 userId 立即判断（validateSession 结果回填到 store）
   const hasUserId = !!session.userId

@@ -11,11 +11,21 @@ export interface RegisterPayload {
   agreed: boolean
   qq?: string | null
   invite_code?: string | null
+  captcha_id: string
+  captcha_text: string
 }
 
 export interface LoginPayload {
   username: string
   password: string
+  captcha_id: string
+  captcha_text: string
+}
+
+export interface CaptchaResult {
+  captcha_id: string
+  image: string
+  expires_in: number
 }
 
 export function register(payload: RegisterPayload) {
@@ -24,6 +34,24 @@ export function register(payload: RegisterPayload) {
 
 export function login(payload: LoginPayload) {
   return http.post<unknown, { data: { code: number; msg: string; data: AuthResult } }>('/auth/login', payload)
+}
+
+// ============ 图形验证码（防刷注册 / 防刷登录 / 高频访问 / 下载放行） ============
+
+export function fetchCaptcha(config: LoadingAxiosRequestConfig = {}) {
+  const requestConfig: LoadingAxiosRequestConfig = {
+    ...config,
+    showGlobalLoading: false,
+    showGlobalError: false,
+  }
+  return http.get<unknown, { data: { code: number; msg: string; data: CaptchaResult } }>('/captcha', requestConfig)
+}
+
+export function verifyCaptcha(payload: { captcha_id: string; captcha_text: string }) {
+  return http.post<
+    unknown,
+    { data: { code: number; msg: string; data: { verified: boolean } } }
+  >('/captcha/verify', payload)
 }
 
 export function logout() {

@@ -175,7 +175,7 @@ function goBack() {
 }
 
 function downloadApp() {
-  window.location.href = '/api/app-download'
+  void import('../utils/platform').then(({ downloadApp: platformDownload }) => platformDownload())
 }
 </script>
 

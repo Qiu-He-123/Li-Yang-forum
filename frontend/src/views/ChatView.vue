@@ -718,7 +718,7 @@ function onVisibilityChange() {
     pollMessages()
     if (!pollTimer) {
       // 轮询兜底：30 秒间隔（WebSocket 实时推送为主，轮询为辅）
-      pollTimer = setInterval(pollMessages, 30_000)
+      pollTimer = setInterval(pollMessages, 60_000)
     }
   }
 }
@@ -732,7 +732,7 @@ onMounted(async () => {
   await loadFriendInfo()
   await loadMessagesInitial()
   // 轮询兜底：30 秒间隔（WebSocket 实时推送为主，轮询为辅，减少闪烁）
-  pollTimer = setInterval(pollMessages, 30_000)
+  pollTimer = setInterval(pollMessages, 60_000)
   // WebSocket 实时推送监听
   setupWsListener()
   // 监听滚动：判断用户是否在底部附近（决定收到新消息时是否自动滚动）

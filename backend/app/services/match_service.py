@@ -439,7 +439,10 @@ def _message_dict(m: MatchMessage) -> dict:
 
 
 async def handle_match_chat(user_id: int, session_id: int, content: str) -> None:
-    """WebSocket 处理临时会话消息发送。"""
+    """WebSocket 处理临时会话消息发送（限长 2000 字符，防 WS 消息洪泛撑爆数据库）。"""
+    content = (content or "").strip()[:2000]
+    if not content:
+        return
     with SessionLocal_ctx() as db:
         session = db.get(MatchSession, session_id)
         if not session or session.status != "active":

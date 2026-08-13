@@ -60,6 +60,7 @@ from app.models.entities import (
     WarningLog,
 )
 from app.models.rate_limit import LoginFailure, RateLimit
+from app.models.captcha import CaptchaTicket, DownloadToken
 
 __all__ = [
     "Activity",
@@ -78,9 +79,11 @@ __all__ = [
     "BrowseHistory",
     "Category",
     "CategoryAdmin",
+    "CaptchaTicket",
     "CheckIn",
     "CircleView",
     "Comment",
+    "DownloadToken",
     "Favorite",
     "Feedback",
     "FeedbackReply",

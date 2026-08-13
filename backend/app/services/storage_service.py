@@ -155,8 +155,10 @@ class StorageService:
             except Exception as exc:
                 logger.warning("MinIO private read failed, fallback to local: {}", type(exc).__name__)
 
-        path = Path(PRIVATE_DIR) / filename
-        if not path.exists():
+        private_root = Path(PRIVATE_DIR).resolve()
+        path = (private_root / filename).resolve()
+        # 防路径穿越：必须位于私有目录内
+        if not path.is_relative_to(private_root) or not path.exists():
             return None
         return path.read_bytes()
 

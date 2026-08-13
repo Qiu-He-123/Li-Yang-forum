@@ -14,6 +14,15 @@ from app.services.audit_log import log_user_action
 from app.services.post_service import post_dict
 
 
+def _mask_phone(phone: str | None) -> str | None:
+    """手机号脱敏：非本人查看时返回 138****1234，防 PII 批量枚举。"""
+    if not phone:
+        return None
+    if len(phone) >= 7:
+        return f"{phone[:3]}****{phone[-4:]}"
+    return "****"
+
+
 def profile(user: User, db: Session, viewer: User | None = None) -> dict:
     """组装用户资料响应。
 
@@ -46,7 +55,8 @@ def profile(user: User, db: Session, viewer: User | None = None) -> dict:
         "id": user.id,
         "uid": f"LY{user.id:06d}",
         "nickname": user.nickname,
-        "phone": user.phone,
+        # PII 防护：只有查看本人资料时才返回完整手机号，其余一律脱敏
+        "phone": user.phone if (viewer and viewer.id == user.id) else _mask_phone(user.phone),
         "school": user.school.name,
         "school_id": user.school_id,
         "avatar_url": avatar_url_or_default(user.avatar_url),

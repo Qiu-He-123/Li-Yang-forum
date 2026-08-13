@@ -15,6 +15,9 @@ class Settings(BaseSettings):
     frontend_origin: str = "http://localhost:5173"
     # 额外允许的前端来源（多个用逗号分隔），用于内网穿透/外网域名场景
     extra_origins: str = ""
+    # 可信反代白名单（逗号分隔 IP/CIDR）：只有来自这些直连来源的
+    # X-Real-IP 才被信任，防止后端端口被直连时伪造代理头绕过限流
+    trusted_proxies: str = "127.0.0.1,::1,172.16.0.0/12,192.168.0.0/16,10.0.0.0/8"
     ai_provider: str = "OpenAI"
     minio_endpoint: str = "localhost:9000"
     minio_access_key: str = "minioadmin"

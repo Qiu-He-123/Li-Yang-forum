@@ -15,7 +15,8 @@ from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 from app.core.errors import ErrorCode
-from app.core.security import create_token, verify_password
+from app.core.security import TOKEN_TYPE_ADMIN, create_token, verify_password
+from app.services.captcha_service import verify_captcha
 from app.core.time_utils import beijing_today_start, now_utc, to_beijing, to_iso_zh
 from app.models import (
     Admin,
@@ -55,12 +56,14 @@ def admin_dict(admin: Admin) -> dict:
 
 
 def admin_login(payload, request: Request, response: Response, db: Session) -> dict:
-    """管理员登录（P0-3：IP 限流 + 失败锁定，防暴力破解）。"""
+    """管理员登录（P0-3：IP 限流 + 失败锁定 + 图形验证码，防暴力破解）。"""
     ip = _extract_ip(request)
     lock_key = f"admin:{payload.username}"
     if check_login_locked(db, lock_key):
         raise HTTPException(status_code=429, detail=ErrorCode.LOGIN_LOCKED)
     check_ip_rate_limit(db, ip, "admin_login")
+    # 图形验证码：管理员登录必须通过（防分布式爆破）
+    verify_captcha(db, payload.captcha_id, payload.captcha_text, ip)
 
     admin = db.scalar(select(Admin).where(Admin.username == payload.username))
     if not admin or not verify_password(payload.password, admin.password_hash):
@@ -69,7 +72,7 @@ def admin_login(payload, request: Request, response: Response, db: Session) -> d
     clear_login_failures(db, lock_key)
 
     settings = get_settings()
-    token = create_token(str(admin.id), minutes=480)
+    token = create_token(str(admin.id), minutes=480, token_type=TOKEN_TYPE_ADMIN)
     response.set_cookie(
         "admin_token",
         token,

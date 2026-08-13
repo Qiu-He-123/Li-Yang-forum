@@ -26,7 +26,7 @@ import jwt
 
 from app.core.config import get_settings
 from app.core.database import SessionLocal
-from app.core.security import decode_token
+from app.core.security import TOKEN_TYPE_ACCESS, decode_token
 from app.models import User
 from app.services.connection_manager import manager
 from app.services import match_service
@@ -51,7 +51,7 @@ def _authenticate(token: str | None) -> int | None:
     if not token:
         return None
     try:
-        return int(decode_token(token))
+        return int(decode_token(token, TOKEN_TYPE_ACCESS))
     except (jwt.InvalidTokenError, ValueError):
         return None
 

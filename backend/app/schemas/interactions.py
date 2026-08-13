@@ -1,6 +1,23 @@
 from datetime import date
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+
+
+def _validate_profile_image_url(url: str | None) -> str | None:
+    """头像/背景图 URL 校验（防外链追踪去匿名化 + 防 XSS via URL）。
+
+    只允许站内同源路径：
+    - /uploads/（本地存储）
+    - /minio/（MinIO 同源反代）
+    禁止外部 http(s) 绝对 URL（可被攻击者用于 IP 记录/去匿名化）、
+    以及 javascript:/data:/vbscript:/file: 等危险协议。
+    """
+    if not url:
+        return url
+    url_lower = url.lower().strip()
+    if url_lower.startswith(("/uploads/", "/minio/")):
+        return url
+    raise ValueError("头像/背景图 URL 仅支持站内路径（/uploads/ 或 /minio/）")
 
 
 class CommentCreate(BaseModel):
@@ -26,6 +43,11 @@ class ProfileUpdate(BaseModel):
     birthday: date | None = Field(default=None)
     # 性别：male / female / unknown（用于漂流瓶和实时匹配）
     gender: str | None = Field(default=None, pattern="^(male|female|unknown)$")
+
+    @field_validator("avatar_url", "background_url")
+    @classmethod
+    def validate_profile_image_url(cls, v: str | None) -> str | None:
+        return _validate_profile_image_url(v)
 
 
 class AnnouncementCreate(BaseModel):

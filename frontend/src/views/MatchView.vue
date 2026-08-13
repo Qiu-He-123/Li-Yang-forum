@@ -254,7 +254,7 @@ function startMatchingCountPolling() {
   loadMatchingCount()
   if (matchingCountTimer) clearInterval(matchingCountTimer)
   // 每 5 秒刷新一次匹配中人数
-  matchingCountTimer = setInterval(loadMatchingCount, 5000)
+  matchingCountTimer = setInterval(loadMatchingCount, 10_000)
 }
 function stopMatchingCountPolling() {
   if (matchingCountTimer) {
@@ -683,7 +683,7 @@ async function checkActiveSession() {
 // 每 5 秒轮询一次 /match/active-session，检测会话是否已结束、
 // 同步最新消息和互关状态。
 let sessionPollingTimer: ReturnType<typeof setInterval> | null = null
-const SESSION_POLL_INTERVAL = 5000
+const SESSION_POLL_INTERVAL = 10_000
 
 // ============ waiting 阶段轮询（匹配结果兜底） ============
 // Bug 修复：A 先入队 waiting，B 入队触发匹配成功后端通过 WS 推 match_found 给 A。
@@ -691,7 +691,7 @@ const SESSION_POLL_INTERVAL = 5000
 // 导致 A 卡在 waiting 页面需要刷新。此处主动轮询 getActiveSession 兜底，
 // 即使 WS 推送失败，A 也能在 3 秒内发现自己已被匹配。
 let waitingPollingTimer: ReturnType<typeof setInterval> | null = null
-const WAITING_POLL_INTERVAL = 3000
+const WAITING_POLL_INTERVAL = 6_000
 
 function startWaitingPolling() {
   stopWaitingPolling()

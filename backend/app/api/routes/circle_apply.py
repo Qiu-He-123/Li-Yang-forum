@@ -82,6 +82,11 @@ def add_circle_admin(
     if not target_user_id:
         raise HTTPException(status_code=400, detail="user_id 不能为空")
     role = payload.get("role", "admin")
+    # 安全修复：role 只允许 admin/owner，且不允许吧主任命他人为 owner（防越权提权）
+    if role not in ("admin", "owner"):
+        raise HTTPException(status_code=400, detail="role 仅支持 admin/owner")
+    if role == "owner":
+        raise HTTPException(status_code=400, detail="不能任命他人为圈主（owner）")
     return ok(category_admin_service.add_category_admin(db, c.id, target_user_id, role))
 
 

@@ -9,14 +9,18 @@ import { ref } from 'vue'
 import Icon from './native/Icon.vue'
 import Dialog from './native/Dialog.vue'
 import { toast } from './native/Toast'
+import { openCaptchaGate } from '../composables/useCaptchaGate'
 
 const visible = ref(false)
 
-function choose(platform: 'android' | 'ios') {
+async function choose(platform: 'android' | 'ios') {
   visible.value = false
   if (platform === 'android') {
-    // 直接由服务器下发 APK（/api/app-download 返回最新安装包）
-    window.location.href = '/api/app-download'
+    // 防刷下载：先过图形验证码，换取一次性下载令牌后再跳转
+    const result = await openCaptchaGate('download')
+    if (result.ok && result.downloadToken) {
+      window.location.href = `/api/app-download?token=${result.downloadToken}`
+    }
   } else {
     toast.info('iOS 版暂未开放下载，敬请期待')
   }

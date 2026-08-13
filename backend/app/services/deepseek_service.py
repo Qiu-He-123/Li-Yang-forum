@@ -20,6 +20,7 @@ from loguru import logger
 from sqlalchemy.orm import Session
 
 from app.services import settings_service
+from app.services.url_safety import validate_public_url
 
 # ============ 人设 System Prompt（按内容场景拆分） ============
 # 不同内容类型的语境差异很大，共用一套 prompt 会导致：
@@ -284,6 +285,16 @@ def audit_content(db: Session, content: str, content_type: str = "generic") -> d
         return {"pass": False, "reason": "内容不能为空", "category": "none", "severity": "none"}
 
     url = f"{cfg['base_url'].rstrip('/')}/chat/completions"
+    # SSRF 防护：base_url 指向内网/保留地址时拒绝外呼
+    if not validate_public_url(url):
+        logger.warning("[SSRF] DeepSeek base_url 禁止指向内网地址，已拒绝: {}", cfg["base_url"])
+        return {
+            "pass": True,
+            "reason": "AI base_url 配置非法（禁止指向内网），已放行",
+            "category": "none",
+            "severity": "none",
+            "skipped": True,
+        }
     headers = {
         "Authorization": f"Bearer {cfg['api_key']}",
         "Content-Type": "application/json",
@@ -336,6 +347,8 @@ def test_connection(db: Session) -> dict[str, Any]:
     if not cfg["enabled"]:
         return {"ok": False, "msg": "DeepSeek 未启用"}
     url = f"{cfg['base_url'].rstrip('/')}/chat/completions"
+    if not validate_public_url(url):
+        return {"ok": False, "msg": "base_url 禁止指向内网地址（SSRF 防护）"}
     headers = {
         "Authorization": f"Bearer {cfg['api_key']}",
         "Content-Type": "application/json",

@@ -11,7 +11,7 @@ from sqlalchemy import select
 
 from app.api.routes import (
     activities,
-    admin, announcements, app_download, auth, badges, bottles, browse_history, circle_apply, circles, checkin,
+    admin, announcements, app_download, auth, badges, bottles, browse_history, captcha, circle_apply, circles, checkin,
     comments, deepseek, feedback, follows, images, interactions, match, messages, notifications,
     polls, posts, schools, search, settings as settings_router, stats, topics, users, ws,
 )
@@ -21,11 +21,21 @@ from app.core.database import Base, SessionLocal, engine
 from app.core.errors import ErrorCode, error_response, get_error_message, pydantic_error_to_code
 from app.core.logger import setup_logger
 from app.services.rate_limit_service import check_rate_limit
+from app.services.captcha_service import has_challenge_pass
+from app.models.rate_limit import RateLimit as _RateLimit
+from app.models.captcha import CaptchaTicket as _CaptchaTicket, DownloadToken as _DownloadToken
 from app.models import Announcement, Badge, Category, CategoryAdmin, School, SeedInviteCode, WarningConfig, WarningLog  # noqa: F401  保证模型注册到 Base.metadata
 
 setup_logger()
 settings = get_settings()
-app = FastAPI(title=settings.app_name)
+
+# 生产环境关闭 API 文档（/docs /redoc /openapi.json），避免接口结构泄露给攻击者
+app = FastAPI(
+    title=settings.app_name,
+    docs_url=None if settings.env != "dev" else "/docs",
+    redoc_url=None if settings.env != "dev" else "/redoc",
+    openapi_url=None if settings.env != "dev" else "/openapi.json",
+)
 
 # GZip 压缩：显著减小 JS/CSS/HTML 传输体积（1.1MB 主包压缩后约 300KB）
 app.add_middleware(GZipMiddleware, minimum_size=1024)
@@ -91,6 +101,17 @@ _WRITE_LIMITS: dict[str, tuple[str, int]] = {
     "/images": ("upload", 10),
 }
 
+# 高频访问挑战阈值：每 IP 每分钟超过该值的 GET /api 请求触发验证码（正常用户无感）
+READ_CHALLENGE_LIMIT = 90
+# 不计入挑战的路径（验证码/下载接口自身 + 健康检查），避免鸡生蛋问题
+_CHALLENGE_EXEMPT = {
+    "/api/captcha",
+    "/api/captcha/verify",
+    "/api/app-download",
+    "/api/app-download/token",
+    "/api/health",
+}
+
 
 def _write_limit_for(path: str) -> tuple[str, int]:
     """按路径前缀返回 (动作名, 每分钟上限)，未匹配的写接口默认 30 次/分。"""
@@ -98,6 +119,32 @@ def _write_limit_for(path: str) -> tuple[str, int]:
         if path.startswith(prefix):
             return spec
     return "write", 30
+
+
+@app.middleware("http")
+async def api_read_challenge(request: Request, call_next):
+    """高频访问验证码：脚本/爬虫超阈值后必须先过验证码，正常用户无感。
+
+    验证通过后由 /captcha/verify 签发 10 分钟挑战通行证 Cookie，
+    持有通行证期间不再弹验证码。
+    """
+    if request.method == "GET" and request.url.path.startswith("/api"):
+        path = request.url.path
+        if path not in _CHALLENGE_EXEMPT:
+            ip = extract_ip(request)
+            if ip:
+                with SessionLocal() as db:
+                    allowed = check_rate_limit(db, f"rl:{ip}:read", READ_CHALLENGE_LIMIT)
+                if not allowed and not has_challenge_pass(request, ip):
+                    return JSONResponse(
+                        status_code=200,
+                        content={
+                            "code": ErrorCode.CAPTCHA_REQUIRED,
+                            "msg": "访问过于频繁，请完成验证码验证",
+                            "data": {},
+                        },
+                    )
+    return await call_next(request)
 
 
 @app.middleware("http")
@@ -181,6 +228,20 @@ def startup() -> None:
             "当前仍为默认值 'change-me'，JWT 可被任意伪造。"
         )
 
+    # 生产环境禁止使用默认数据库/MinIO 弱口令（防暴力破解进数据库/对象存储）
+    if settings.env != "dev":
+        db_url_lower = settings.database_url.lower()
+        if "lycommunity" in db_url_lower:
+            raise RuntimeError(
+                "[FATAL] 生产环境禁止使用默认 MySQL 密码（lycommunity），"
+                "请在 .env 设置强密码后重启。"
+            )
+        if settings.minio_access_key == "minioadmin" or settings.minio_secret_key == "minioadmin":
+            raise RuntimeError(
+                "[FATAL] 生产环境禁止使用默认 MinIO 密钥（minioadmin/minioadmin），"
+                "请在 .env 设置强密钥后重启。"
+            )
+
     # T3-1：废弃 Base.metadata.create_all，schema 改由 Alembic 管理。
     # 启动时用应用 engine 执行 alembic upgrade head（in-memory SQLite 也能正确迁移）。
     # 生产环境迁移失败直接 raise；dev 环境兜底用 create_all。
@@ -257,6 +318,38 @@ async def _start_match_cleanup() -> None:
             _ms._expire_session(db, s)
         if expired_queue or expired_sessions:
             db.commit()
+
+    _asyncio.create_task(_loop())
+
+
+@app.on_event("startup")
+async def _start_security_cleanup() -> None:
+    """定期清理限流计数 / 验证码票据 / 下载令牌，防止临时表无限膨胀。"""
+    import asyncio as _asyncio
+    from datetime import timedelta as _timedelta
+
+    from app.core.time_utils import now_utc as _now_utc
+
+    async def _loop() -> None:
+        while True:
+            await _asyncio.sleep(600)
+            try:
+                with SessionLocal() as db:
+                    cutoff = _now_utc() - _timedelta(hours=48)
+                    db.execute(_RateLimit.__table__.delete().where(_RateLimit.window_start < cutoff))
+                    db.execute(
+                        _CaptchaTicket.__table__.delete().where(
+                            _CaptchaTicket.created_at < _now_utc() - _timedelta(minutes=30)
+                        )
+                    )
+                    db.execute(
+                        _DownloadToken.__table__.delete().where(
+                            _DownloadToken.created_at < _now_utc() - _timedelta(minutes=10)
+                        )
+                    )
+                    db.commit()
+            except Exception as exc:
+                logger.warning("[SECURITY_CLEANUP] err={}", exc)
 
     _asyncio.create_task(_loop())
 
@@ -345,6 +438,7 @@ def _init_badges(db) -> None:
 
 
 app.include_router(auth.router)
+app.include_router(captcha.router)
 # FastAPI 0.141 的 include_router 懒加载与 SPA 通配路由 /{full_path:path} 有冲突，
 # 下载接口改为直接注册，保证在通配路由之前命中
 app.add_api_route(
@@ -358,6 +452,19 @@ app.add_api_route(
     "/app-download",
     app_download.app_download,
     methods=["GET"],
+    tags=["app"],
+    include_in_schema=False,
+)
+app.add_api_route(
+    "/api/app-download/token",
+    app_download.issue_download_token,
+    methods=["POST"],
+    tags=["app"],
+)
+app.add_api_route(
+    "/app-download/token",
+    app_download.issue_download_token,
+    methods=["POST"],
     tags=["app"],
     include_in_schema=False,
 )
@@ -393,7 +500,7 @@ app.include_router(ws.router)
 app.mount("/uploads", StaticFiles(directory="uploads", check_dir=False), name="uploads")
 
 # 前端构建产物的绝对路径（避免相对路径在不同工作目录下失效）
-_FRONTEND_DIST = Path(__file__).resolve().parent.parent.parent / "frontend" / "dist"
+_FRONTEND_DIST = (Path(__file__).resolve().parent.parent.parent / "frontend" / "dist").resolve()
 app.mount("/assets", StaticFiles(directory=str(_FRONTEND_DIST / "assets"), check_dir=False), name="assets")
 
 
@@ -409,10 +516,17 @@ _INDEX_HTML = _FRONTEND_DIST / "index.html"
 
 @app.get("/{full_path:path}")
 async def serve_spa(full_path: str):
-    """SPA fallback：未匹配 API/静态文件的 GET 请求返回 index.html，由前端路由处理。"""
-    # 如果请求的是 dist 中存在的具体文件（如 favicon.ico），直接返回
-    candidate = _FRONTEND_DIST / full_path
-    if candidate.is_file():
+    """SPA fallback：未匹配 API/静态文件的 GET 请求返回 index.html，由前端路由处理。
+
+    安全修复：曾被用于任意文件读取——用户输入拼路径时遇到绝对路径会
+    替换掉 dist 目录前缀（如 /C:/Windows/win.ini 直接吐出系统文件）。
+    现在先 resolve() 再校验必须位于 dist 目录内，否则一律返回 index.html。
+    """
+    # 拒绝绝对路径 / 上级目录穿越（双保险，resolve + is_relative_to 兜底）
+    if full_path.startswith(("/", "\\")) or ".." in full_path.replace("\\", "/").split("/"):
+        raise HTTPException(status_code=404, detail="Not Found")
+    candidate = (_FRONTEND_DIST / full_path).resolve()
+    if candidate.is_file() and candidate.is_relative_to(_FRONTEND_DIST):
         return FileResponse(candidate)
     # 其余一律返回 index.html（Vue Router 接管）
     if _INDEX_HTML.exists():

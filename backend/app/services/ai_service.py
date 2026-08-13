@@ -19,6 +19,7 @@ import httpx
 from loguru import logger
 
 from app.core.config import get_settings
+from app.services.url_safety import validate_public_url
 
 # 熔断器状态
 _circuit_open_until: float = 0.0  # 熔断打开的截止时间戳（0 表示未熔断）
@@ -69,6 +70,11 @@ class AIService:
             return ""
 
         url = f"{settings.openai_base_url.rstrip('/')}/chat/completions"
+        # SSRF 防护：base_url 指向内网/保留地址时拒绝外呼
+        if not validate_public_url(url):
+            logger.warning("[SSRF] AI base_url 禁止指向内网地址，已拒绝: {}", settings.openai_base_url)
+            self._trip_circuit("SSRF blocked base_url")
+            return ""
         headers = {"Authorization": f"Bearer {settings.openai_api_key}"}
         payload: dict[str, Any] = {
             "model": settings.ai_model,

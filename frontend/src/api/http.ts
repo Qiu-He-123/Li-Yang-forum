@@ -3,12 +3,14 @@ import axios, { type AxiosError, type AxiosRequestConfig, type InternalAxiosRequ
 import { toast } from '../components/native/Toast'
 import { useUIStore } from '../stores/ui'
 import type { ApiResponse } from '../types/api'
+import { openCaptchaGate } from '../composables/useCaptchaGate'
 
 export interface LoadingAxiosRequestConfig extends AxiosRequestConfig {
   showGlobalLoading?: boolean
   showGlobalError?: boolean
   _globalLoading?: boolean
   _retried?: boolean
+  _captchaRetried?: boolean
 }
 
 export const http = axios.create({
@@ -42,6 +44,7 @@ const SILENT_URL_PATTERNS: string[] = [
   '/schools',                // 校区列表
   '/search/suggest',         // 搜索建议
   '/search/users',
+  '/captcha',                // 验证码图片（静默加载，不遮罩）
   '/users/',                 // 用户主页相关
   '/polls/',                 // 投票详情
   '/match/',                 // 匹配相关
@@ -268,7 +271,7 @@ http.interceptors.request.use((config) => {
 })
 
 http.interceptors.response.use(
-  (response) => {
+  async (response) => {
     endGlobalLoading(response.config)
     const responseUrl = String(response.config.url || '')
     if (responseUrl.includes('/auth/login') || responseUrl.includes('/auth/register')) {
@@ -276,6 +279,21 @@ http.interceptors.response.use(
     }
     const body = response.data as ApiResponse<unknown>
     if (body.code !== 0) {
+      // 图形验证码挑战（-401）：高频访问 GET 触发，完成验证后自动重试原请求
+      if (body.code === -401) {
+        const method = String(response.config.method || 'get').toLowerCase()
+        const retryConfig = response.config as LoadingAxiosRequestConfig
+        if (method === 'get' && !retryConfig._captchaRetried) {
+          const gateResult = await openCaptchaGate('challenge')
+          if (gateResult.ok) {
+            retryConfig._captchaRetried = true
+            return http(retryConfig as AxiosRequestConfig)
+          }
+        }
+        const captchaErr = new Error(body.msg || '请先完成验证码验证') as Error & { code?: number }
+        captchaErr.code = body.code
+        return Promise.reject(captchaErr)
+      }
       if (body.code === -101 || body.code === -100) {
         return retryAuthRequest(response.config as RetriableRequestConfig, body.code)
       }

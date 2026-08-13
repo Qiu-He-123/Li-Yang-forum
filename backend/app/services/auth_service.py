@@ -28,7 +28,14 @@ from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 from app.core.errors import ErrorCode
-from app.core.security import create_token, decode_token, hash_password, verify_password
+from app.core.security import (
+    TOKEN_TYPE_ACCESS,
+    TOKEN_TYPE_REFRESH,
+    create_token,
+    decode_token,
+    hash_password,
+    verify_password,
+)
 from app.core.time_utils import now_utc, to_iso_zh
 from app.models import (
     InviteCodeUsage,
@@ -39,6 +46,7 @@ from app.models import (
     User,
 )
 from app.services.audit_log import log_user_action
+from app.services.captcha_service import verify_captcha
 from app.services.rate_limit_service import (
     check_login_locked,
     check_rate_limit,
@@ -52,6 +60,11 @@ from app.services.rate_limit_service import (
 INVITE_CODE_CHARS = string.ascii_uppercase + string.digits  # 不含易混淆字符 0/O/1/I
 INVITE_CODE_COOLDOWN_DAYS = 3       # 自己的邀请码 3 天只能用 1 次
 INVITE_PRIVILEGE_FREEZE_DAYS = 30   # 连坐冻结 30 天
+REGISTER_DAILY_LIMIT = 5            # 每 IP 每天最多注册 5 个账号（防打码平台换 IP 刷号）
+
+# 登录时间侧信道防护：用户不存在时也用同一把 bcrypt 校验，使响应时间一致，
+# 防止攻击者通过时延差异枚举已注册账号
+_DUMMY_BCRYPT_HASH = "$2b$12$l6QxxnM13ST/Y2gyXfB3Me/hozgyx6OLmqxqjtNTAwH8SjG20NQzW"
 
 
 def _generate_invite_code() -> str:
@@ -77,10 +90,12 @@ def _assign_invite_code(db: Session, user: User) -> None:
 # ============ 鉴权相关 ============
 
 def check_ip_rate_limit(db: Session, ip: str | None, action: str) -> None:
-    """T7-9：IP 限流检查。超限抛 429。"""
-    if not ip:
-        return
-    key = f"ip:{ip}:{action}"
+    """T7-9：IP 限流检查。超限抛 429。
+
+    安全修复：ip 为 None（无客户端地址）时归入 "unknown" 公共桶，
+    不允许跳过限流。
+    """
+    key = f"ip:{ip or 'unknown'}:{action}"
     if not check_rate_limit(db, key):
         raise HTTPException(status_code=429, detail="请求过于频繁，请稍后再试")
 
@@ -88,8 +103,16 @@ def check_ip_rate_limit(db: Session, ip: str | None, action: str) -> None:
 def _issue_tokens(response: Response, db: Session, user: User) -> dict[str, str]:
     """颁发 access_token + refresh_token 并写入 Cookie + 落库。"""
     settings = get_settings()
-    access = create_token(str(user.id), minutes=settings.access_token_expire_minutes)
-    refresh = create_token(str(user.id), days=settings.refresh_token_expire_days)
+    access = create_token(
+        str(user.id),
+        minutes=settings.access_token_expire_minutes,
+        token_type=TOKEN_TYPE_ACCESS,
+    )
+    refresh = create_token(
+        str(user.id),
+        days=settings.refresh_token_expire_days,
+        token_type=TOKEN_TYPE_REFRESH,
+    )
     db.add(Token(user_id=user.id, refresh_token=refresh))
     # 关键：设置 max_age 让 Cookie 跨浏览器会话持久化，否则浏览器关闭即丢失登录态
     access_max_age = settings.access_token_expire_minutes * 60
@@ -100,7 +123,7 @@ def _issue_tokens(response: Response, db: Session, user: User) -> dict[str, str]
 
 
 def register(payload, request, response: Response, db: Session) -> dict[str, Any]:
-    """注册：IP 限流 + 校验 + 创建用户 + 邀请码处理 + 颁发 token + 审计日志。
+    """注册：IP 限流 + 图形验证码 + 每日上限 + 校验 + 创建用户 + 邀请码处理 + 颁发 token + 审计日志。
 
     新方案：用户名 + 密码 + 校区；QQ 与邀请码均选填。
     - 注册时填邀请码 → 直接 verified
@@ -109,6 +132,11 @@ def register(payload, request, response: Response, db: Session) -> dict[str, Any
     """
     ip = _extract_ip(request)
     check_ip_rate_limit(db, ip, "register")
+    # 图形验证码：注册必须通过（一次性、5 分钟过期、绑定 IP）
+    verify_captcha(db, payload.captcha_id, payload.captcha_text, ip)
+    # 每日注册硬上限：每 IP 每天最多 5 个账号（24 小时窗口）
+    if ip and not check_rate_limit(db, f"ip:{ip}:register_day", REGISTER_DAILY_LIMIT, window_seconds=86400):
+        raise HTTPException(status_code=429, detail=ErrorCode.RATE_LIMITED)
 
     if not payload.agreed:
         raise HTTPException(status_code=400, detail=ErrorCode.NOT_AGREED)
@@ -198,12 +226,11 @@ def register(payload, request, response: Response, db: Session) -> dict[str, Any
 
 
 def login(payload, request, response: Response, db: Session) -> dict[str, Any]:
-    """登录：IP 限流 + 失败锁定 + 密码校验 + 颁发 token + 审计日志。
-
-    新方案：用户名 + 密码（不再支持验证码登录）。
-    """
+    """登录：IP 限流 + 图形验证码 + 失败锁定 + 密码校验 + 颁发 token + 审计日志。"""
     ip = _extract_ip(request)
     check_ip_rate_limit(db, ip, "login")
+    # 图形验证码：登录必须通过（防止密码爆破）
+    verify_captcha(db, payload.captcha_id, payload.captcha_text, ip)
 
     # T7-8：检查用户名是否被锁定（持久化），用 phone 字段兼容旧逻辑
     lock_key = payload.username
@@ -212,6 +239,8 @@ def login(payload, request, response: Response, db: Session) -> dict[str, Any]:
 
     user = db.scalar(select(User).where(User.username == payload.username))
     if not user:
+        # 时间侧信道防护：用户不存在也执行一次 bcrypt，避免响应时间泄露账号存在性
+        verify_password(payload.password, _DUMMY_BCRYPT_HASH)
         db.add(LoginLog(phone=payload.username, success=False))
         log_user_action(
             db,
@@ -286,7 +315,7 @@ def refresh_session(refresh_token: str | None, request: Request, response: Respo
         raise HTTPException(status_code=401, detail=ErrorCode.TOKEN_INVALID)
 
     try:
-        user_id = int(decode_token(refresh_token))
+        user_id = int(decode_token(refresh_token, TOKEN_TYPE_REFRESH))
     except Exception:
         raise HTTPException(status_code=401, detail=ErrorCode.TOKEN_INVALID) from None
 
@@ -295,8 +324,16 @@ def refresh_session(refresh_token: str | None, request: Request, response: Respo
         raise HTTPException(status_code=401, detail=ErrorCode.USER_NOT_FOUND)
 
     settings = get_settings()
-    new_access = create_token(str(user.id), minutes=settings.access_token_expire_minutes)
-    new_refresh = create_token(str(user.id), days=settings.refresh_token_expire_days)
+    new_access = create_token(
+        str(user.id),
+        minutes=settings.access_token_expire_minutes,
+        token_type=TOKEN_TYPE_ACCESS,
+    )
+    new_refresh = create_token(
+        str(user.id),
+        days=settings.refresh_token_expire_days,
+        token_type=TOKEN_TYPE_REFRESH,
+    )
     record.revoked = True
     db.add(Token(user_id=user.id, refresh_token=new_refresh))
 

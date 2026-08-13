@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { reactive, ref } from 'vue'
+import { onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
 
 import { useAdminStore } from '../../stores/admin'
+import { fetchCaptcha } from '../../api/auth'
 
 const router = useRouter()
 const route = useRoute()
@@ -14,11 +15,28 @@ const form = reactive({
   username: '',
   password: '',
 })
+const captchaImg = ref('')
+const captchaId = ref('')
+const captchaText = ref('')
 const rules: FormRules = {
   username: [{ required: true, message: '请输入用户名', trigger: 'blur' }],
   password: [{ required: true, message: '请输入密码', trigger: 'blur' }],
 }
 const loading = ref(false)
+
+async function loadCaptcha() {
+  captchaText.value = ''
+  try {
+    const { data } = await fetchCaptcha()
+    captchaId.value = data.data.captcha_id
+    captchaImg.value = data.data.image
+  } catch {
+    captchaId.value = ''
+    captchaImg.value = ''
+  }
+}
+
+onMounted(loadCaptcha)
 
 async function submit() {
   if (!formRef.value) return
@@ -27,14 +45,23 @@ async function submit() {
   } catch {
     return
   }
+  if (!captchaId.value || !captchaText.value.trim()) {
+    ElMessage.error('请输入图形验证码')
+    return
+  }
   loading.value = true
   try {
-    await admin.login({ ...form })
+    await admin.login({
+      ...form,
+      captcha_id: captchaId.value,
+      captcha_text: captchaText.value.trim(),
+    })
     ElMessage.success('登录成功')
     const redirect = (route.query.redirect as string) || '/admin/posts'
     router.push(redirect)
   } catch (error) {
     ElMessage.error((error as Error).message)
+    void loadCaptcha()
   } finally {
     loading.value = false
   }
@@ -52,6 +79,24 @@ async function submit() {
         </el-form-item>
         <el-form-item label="密码" prop="password">
           <el-input v-model="form.password" type="password" show-password placeholder="管理员密码" @keyup.enter="submit" />
+        </el-form-item>
+        <el-form-item label="图形验证码">
+          <div class="flex w-full items-center gap-2">
+            <el-input
+              v-model="captchaText"
+              placeholder="输入图中字符"
+              maxlength="8"
+              @keyup.enter="submit"
+            />
+            <img
+              v-if="captchaImg"
+              :src="captchaImg"
+              alt="验证码"
+              class="h-12 w-[160px] shrink-0 cursor-pointer rounded border border-slate-200 object-cover"
+              title="看不清？点击刷新"
+              @click="loadCaptcha"
+            />
+          </div>
         </el-form-item>
         <el-button class="w-full" type="primary" :loading="loading" @click="submit">登录</el-button>
       </el-form>

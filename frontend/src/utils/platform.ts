@@ -1,3 +1,6 @@
+import { openCaptchaGate } from '../composables/useCaptchaGate'
+import { getDownloadToken } from '../api/appDownload'
+
 /**
  * 平台 / 运行环境判断。
  *
@@ -13,8 +16,11 @@ export function isAppEnv(): boolean {
   )
 }
 
-/** 跳转下载手机端 App（网页端语音等仅 App 支持的功能提示后调用） */
-export function downloadApp(): void {
+/** 跳转下载手机端 App（防刷下载：先过验证码换一次性令牌再跳转） */
+export async function downloadApp(): Promise<void> {
   if (typeof window === 'undefined') return
-  window.location.href = '/api/app-download'
+  const result = await openCaptchaGate('download')
+  if (result.ok && result.downloadToken) {
+    window.location.href = `/api/app-download?token=${result.downloadToken}`
+  }
 }

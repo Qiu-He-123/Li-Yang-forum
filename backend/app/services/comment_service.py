@@ -17,10 +17,39 @@ from app.services.audit_log import log_user_action
 from app.services import explore_service
 from app.services.notification_service import cleanup_notifications_for_deleted_comments, create_notification
 
+# 游客看到的评论占位：明文永不离开服务器，改前端 CSS 也读不到真实内容
+GUEST_MASKED_CONTENT = "🔒 登录后查看"
 
-def comment_dict(comment: Comment, user: User | None, explored: bool = False) -> dict:
-    """序列化评论为前端响应字典（含 user_id 用于权限判断）。"""
+
+def comment_dict(
+    comment: Comment,
+    user: User | None,
+    explored: bool = False,
+    hide_for_guest: bool = False,
+) -> dict:
+    """序列化评论为前端响应字典（含 user_id 用于权限判断）。
+
+    安全：游客（未登录）请求时 hide_for_guest=True，评论内容/昵称/头像/徽章
+    一律用占位符替代——明文根本不返回给浏览器，前端模糊被删也读不到任何真实内容。
+    """
     from app.services.badge_service import badge_dict as _badge_dict
+
+    if hide_for_guest:
+        return {
+            "id": comment.id,
+            "post_id": comment.post_id,
+            "parent_id": comment.parent_id,
+            "content": GUEST_MASKED_CONTENT,
+            "author": "同学",
+            "author_avatar_url": avatar_url_or_default(None),
+            "author_badge": None,
+            "user_id": comment.user_id,
+            "like_count": comment.like_count,
+            "ai_status": comment.ai_status,
+            "reject_reason": comment.reject_reason,
+            "explored": bool(explored),
+            "created_at": to_iso_zh(comment.created_at),
+        }
     return {
         "id": comment.id,
         "post_id": comment.post_id,
@@ -206,6 +235,7 @@ def list_comments(
                 item,
                 users.get(item.user_id),
                 explored=item.id in explored_comment_ids,
+                hide_for_guest=user is None,
             )
             for item in all_comments
         ],

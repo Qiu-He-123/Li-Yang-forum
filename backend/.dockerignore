@@ -1,0 +1,26 @@
+# 依赖与虚拟环境
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# 敏感文件（严禁进入镜像）
+.env
+.env.*
+*.db
+*.sqlite3*
+*.sqlite3-*
+logs/
+backups/
+
+# 内部文档 / 测试文件（不随镜像分发，防源码泄露）
+*.txt
+test_*.py
+_test_*.py
+tests/
+scripts/
+
+# 本地数据
+uploads/
+uploads_private/
+cookies.*

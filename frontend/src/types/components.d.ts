@@ -21,6 +21,7 @@ declare module 'vue' {
     BadgeIcon: typeof import('./../components/common/BadgeIcon.vue')['default']
     BottleSkeleton: typeof import('./../components/common/BottleSkeleton.vue')['default']
     BottomTabBar: typeof import('./../components/BottomTabBar.vue')['default']
+    CaptchaGate: typeof import('./../components/CaptchaGate.vue')['default']
     CircleDetailSkeleton: typeof import('./../components/common/CircleDetailSkeleton.vue')['default']
     CommentItem: typeof import('./../components/comment/CommentItem.vue')['default']
     CommentList: typeof import('./../components/comment/CommentList.vue')['default']

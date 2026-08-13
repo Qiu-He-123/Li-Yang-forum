@@ -16,6 +16,12 @@ uploads/
 uploads_private/
 cookies.txt
 cookies.csv
+*_tmp_login*.json
+*_tmp_*.json
+keystore-password.txt
+*.keystore
+*.key
+*.pem
 logs/
 
 # 本地数据库备份

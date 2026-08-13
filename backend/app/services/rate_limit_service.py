@@ -39,12 +39,18 @@ def _now() -> datetime:
 
 # ============ T7-9 IP 限流 ============
 
-def check_rate_limit(db: Session, key: str, max_requests: int = RATE_LIMIT_MAX_REQUESTS) -> bool:
+def check_rate_limit(
+    db: Session,
+    key: str,
+    max_requests: int = RATE_LIMIT_MAX_REQUESTS,
+    window_seconds: int = RATE_LIMIT_WINDOW_SECONDS,
+) -> bool:
     """检查 key 是否超过限流阈值。
 
     Args:
         key: 限流键，如 "ip:127.0.0.1:login"
         max_requests: 窗口内最大请求数
+        window_seconds: 时间窗口长度（秒），默认 60；传 3600 为小时窗口、86400 为日窗口
 
     Returns:
         True 表示允许请求，False 表示被限流
@@ -58,7 +64,7 @@ def check_rate_limit(db: Session, key: str, max_requests: int = RATE_LIMIT_MAX_R
         return True
 
     # 窗口过期：重置计数
-    if now - record.window_start > timedelta(seconds=RATE_LIMIT_WINDOW_SECONDS):
+    if now - record.window_start > timedelta(seconds=window_seconds):
         record.count = 1
         record.window_start = now
         db.commit()

@@ -64,6 +64,11 @@ class ErrorCode:
 
     # ============ 兜底 ============
     RATE_LIMITED = -400        # 请求过于频繁（反爬限流）
+
+    # ============ 图形验证码 ============
+    CAPTCHA_REQUIRED = -401    # 需要先完成图形验证码（注册/登录/下载/高频访问）
+    CAPTCHA_INVALID = -402     # 验证码错误
+    CAPTCHA_EXPIRED = -403     # 验证码已过期
     PARAM_ERROR = -1000
     UNKNOWN_ERROR = -9999
 
@@ -112,6 +117,9 @@ _ERROR_MESSAGES: dict[int, str] = {
     ErrorCode.INVITE_CODE_COOLDOWN: "邀请码分享冷却中，3 天仅可分享一次",
     ErrorCode.INVITE_PRIVILEGE_FROZEN: "邀请资格已被冻结（被邀请人违规连坐）",
     ErrorCode.USERNAME_EXISTS: "账号已被注册，请换个账号试试",
+    ErrorCode.CAPTCHA_REQUIRED: "请先完成图形验证码",
+    ErrorCode.CAPTCHA_INVALID: "验证码错误，请重新输入",
+    ErrorCode.CAPTCHA_EXPIRED: "验证码已过期，请刷新后重试",
     ErrorCode.PARAM_ERROR: "参数错误",
     ErrorCode.UNKNOWN_ERROR: "未知错误",
 }
@@ -157,6 +165,8 @@ def pydantic_error_to_code(errors: list[dict]) -> int:
         "reason": (ErrorCode.REASON_EMPTY, ErrorCode.REASON_EMPTY, ErrorCode.REASON_EMPTY),
         "target_type": (ErrorCode.TARGET_TYPE_INVALID, ErrorCode.TARGET_TYPE_INVALID, ErrorCode.TARGET_TYPE_INVALID),
         "agreed": (ErrorCode.AGREED_NOT_CHECKED, ErrorCode.AGREED_NOT_CHECKED, ErrorCode.AGREED_NOT_CHECKED),
+        "captcha_id": (ErrorCode.CAPTCHA_REQUIRED, ErrorCode.CAPTCHA_REQUIRED, ErrorCode.CAPTCHA_REQUIRED),
+        "captcha_text": (ErrorCode.CAPTCHA_REQUIRED, ErrorCode.CAPTCHA_REQUIRED, ErrorCode.CAPTCHA_REQUIRED),
     }
 
     # value_error 一般是自定义校验器抛出（如图片 URL 协议非法），统一返回 PARAM_ERROR

@@ -3,6 +3,7 @@ import { reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 
+import { fetchCaptcha } from '../../api/auth'
 import { useSessionStore } from '../../stores/session'
 import { useSchoolStore } from '../../stores/school'
 import { useUserStore } from '../../stores/user'
@@ -38,6 +39,27 @@ const initialForm = {
 const authForm = reactive({ ...initialForm })
 
 const submitting = ref(false)
+const captchaImg = ref('')
+const captchaId = ref('')
+const captchaText = ref('')
+
+async function loadCaptcha() {
+  captchaText.value = ''
+  try {
+    const { data } = await fetchCaptcha()
+    captchaId.value = data.data.captcha_id
+    captchaImg.value = data.data.image
+  } catch {
+    // 验证码加载失败不阻塞登录/注册主流程，提交时后端会再次校验
+    captchaId.value = ''
+    captchaImg.value = ''
+  }
+}
+
+function switchMode() {
+  authMode.value = authMode.value === 'login' ? 'register' : 'login'
+  void loadCaptcha()
+}
 
 // 弹窗关闭时重置表单
 watch(
@@ -45,6 +67,7 @@ watch(
   (visible) => {
     if (visible) {
       schoolStore.loadSchools()
+      void loadCaptcha()
     } else {
       Object.assign(authForm, initialForm)
       authMode.value = 'login'
@@ -77,6 +100,10 @@ async function submit() {
       return
     }
   }
+  if (!captchaId.value || !captchaText.value.trim()) {
+    ElMessage.error('请输入图形验证码')
+    return
+  }
   submitting.value = true
   try {
     if (authMode.value === 'register') {
@@ -89,6 +116,8 @@ async function submit() {
         agreed: authForm.agreed,
         qq: authForm.qq || null,
         invite_code: authForm.invite_code || null,
+        captcha_id: captchaId.value,
+        captcha_text: captchaText.value.trim(),
       })
       // 根据认证状态给出不同提示
       if (session.verificationStatus === 'verified') {
@@ -97,7 +126,12 @@ async function submit() {
         ElMessage.success('注册成功，可浏览内容；发帖/评论需填写邀请码')
       }
     } else {
-      await session.login({ username: authForm.username, password: authForm.password })
+      await session.login({
+        username: authForm.username,
+        password: authForm.password,
+        captcha_id: captchaId.value,
+        captcha_text: captchaText.value.trim(),
+      })
       ElMessage.success('已登录')
     }
     emit('update:modelValue', false)
@@ -112,6 +146,7 @@ async function submit() {
       return
     }
     ElMessage.error((error as Error).message)
+    void loadCaptcha()
   } finally {
     submitting.value = false
   }
@@ -143,6 +178,24 @@ async function submit() {
       <el-form-item label="密码">
         <el-input v-model="authForm.password" type="password" show-password placeholder="至少 8 位" />
       </el-form-item>
+      <el-form-item label="图形验证码">
+        <div class="flex w-full items-center gap-2">
+          <el-input
+            v-model="captchaText"
+            placeholder="输入图中字符"
+            maxlength="8"
+            @keyup.enter="submit"
+          />
+          <img
+            v-if="captchaImg"
+            :src="captchaImg"
+            alt="验证码"
+            class="h-12 w-[160px] shrink-0 cursor-pointer rounded-lg border border-slate-200 object-cover"
+            title="看不清？点击刷新"
+            @click="loadCaptcha"
+          />
+        </div>
+      </el-form-item>
       <el-form-item v-if="authMode === 'register'" label="确认密码">
         <el-input v-model="authForm.confirm_password" type="password" show-password />
       </el-form-item>
@@ -165,7 +218,7 @@ async function submit() {
       </el-checkbox>
     </el-form>
     <template #footer>
-      <el-button text @click="authMode = authMode === 'login' ? 'register' : 'login'">
+      <el-button text @click="switchMode">
         {{ authMode === 'login' ? '去注册' : '去登录' }}
       </el-button>
       <el-button type="primary" :loading="submitting" @click="submit">
