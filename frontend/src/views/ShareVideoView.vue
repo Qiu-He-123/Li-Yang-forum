@@ -45,8 +45,9 @@ async function doParse() {
   try {
     preview.value = (await parseVideoShare(text.value.trim())).data.data
   } catch (e: unknown) {
-    const err = e as { response?: { data?: { msg?: string } } }
-    error.value = err.response?.data?.msg || '解析失败，请确认链接'
+    // 注意：业务错误被 http 拦截器转成普通 Error，真实原因在 e.message
+    const err = e as { response?: { data?: { msg?: string } }; message?: string }
+    error.value = err.response?.data?.msg || err.message || '解析失败，请确认链接'
   } finally {
     parsing.value = false
     if (!publishing.value) stopDots()
@@ -64,8 +65,8 @@ async function doPublish() {
     toast.success(anonymous.value ? '匿名发布成功' : '发布成功')
     router.replace(post.id ? `/post/${post.id}` : '/')
   } catch (e: unknown) {
-    const err = e as { response?: { data?: { msg?: string } } }
-    error.value = err.response?.data?.msg || '发布失败，请重试'
+    const err = e as { response?: { data?: { msg?: string } }; message?: string }
+    error.value = err.response?.data?.msg || err.message || '发布失败，请重试'
   } finally {
     publishing.value = false
     stopDots()
