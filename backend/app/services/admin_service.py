@@ -21,6 +21,7 @@ from app.core.time_utils import beijing_today_start, now_utc, to_beijing, to_iso
 from app.models import (
     Admin,
     Announcement,
+    AnnouncementGuestView,
     AnnouncementRead,
     Appeal,
     AuditLog,
@@ -887,6 +888,10 @@ def admin_delete_announcement(ann_id: int, request: Request, db: Session, admin:
     # 否则 id 被复用后，旧已读会指向新公告，导致新公告"默认已读、不弹窗"
     db.execute(
         delete(AnnouncementRead).where(AnnouncementRead.announcement_id == ann_id)
+    )
+    # 同样清掉游客投递记录：否则 id 复用后新公告会被旧记录误判"该 IP 已投递过"
+    db.execute(
+        delete(AnnouncementGuestView).where(AnnouncementGuestView.announcement_id == ann_id)
     )
     db.delete(a)
     log_admin_action(db, admin.id, "delete_announcement", json.dumps({"ann_id": ann_id}, ensure_ascii=False), _extract_ip(request))
