@@ -515,6 +515,8 @@ class Announcement(Base, TimestampMixin):
     content: Mapped[str] = mapped_column(Text)
     school_id: Mapped[int | None] = mapped_column(ForeignKey("schools.id"), index=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    # 可见范围：all=所有人 / guest=仅游客（同一 IP 只投递一次）/ user=仅登录用户
+    scope: Mapped[str] = mapped_column(String(10), default="all")
 
 
 class Setting(Base, TimestampMixin):
@@ -798,6 +800,16 @@ class AnnouncementRead(Base):
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
     announcement_id: Mapped[int] = mapped_column(ForeignKey("announcement.id"), index=True)
     read_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+
+class AnnouncementGuestView(Base):
+    """游客公告投递记录：(announcement_id, ip) 唯一 —— 同一 IP 对同一"仅游客"公告只投递一次。"""
+    __tablename__ = "announcement_guest_views"
+    __table_args__ = (UniqueConstraint("announcement_id", "ip", name="uq_ann_guest_ann_ip"),)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    announcement_id: Mapped[int] = mapped_column(ForeignKey("announcement.id", ondelete="CASCADE"), index=True)
+    ip: Mapped[str] = mapped_column(String(64))
+    viewed_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
 
 class Bottle(Base):

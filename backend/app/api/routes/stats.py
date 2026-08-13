@@ -85,6 +85,7 @@ def _announcement_dict(item: Announcement, is_read: bool = False) -> dict:
         "content": item.content,
         "school_id": item.school_id,
         "is_active": item.is_active,
+        "scope": item.scope or "all",
         "is_read": is_read,
         "created_at": to_iso_zh(item.created_at),
     }
@@ -101,6 +102,8 @@ def list_unread_announcements(
     按 created_at desc 排序，最多 5 条。
     """
     query = select(Announcement).where(Announcement.is_active.is_(True))
+    # 登录用户看不到"仅游客"公告
+    query = query.where(Announcement.scope != "guest")
     # 校区过滤：用户校区公告 + 全校公告（school_id IS NULL）
     query = query.where(or_(Announcement.school_id == user.school_id, Announcement.school_id.is_(None)))
     items = db.scalars(query.order_by(desc(Announcement.created_at)).limit(20)).all()
@@ -123,6 +126,8 @@ def list_my_announcements(
 ) -> dict:
     """我的-公告页：列出该用户可见的所有公告（带 is_read 状态）。"""
     query = select(Announcement).where(Announcement.is_active.is_(True))
+    # 登录用户看不到"仅游客"公告
+    query = query.where(Announcement.scope != "guest")
     query = query.where(or_(Announcement.school_id == user.school_id, Announcement.school_id.is_(None)))
     items = db.scalars(query.order_by(desc(Announcement.created_at)).limit(50)).all()
     read_ids = set(

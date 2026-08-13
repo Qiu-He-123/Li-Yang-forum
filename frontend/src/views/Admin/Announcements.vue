@@ -29,7 +29,14 @@ const form = reactive({
   content: '',
   school_id: undefined as number | undefined,
   is_active: true,
+  scope: 'all' as 'all' | 'guest' | 'user',
 })
+
+const scopeOptions: { value: 'all' | 'guest' | 'user'; label: string; tip: string }[] = [
+  { value: 'all', label: '所有人', tip: '游客和登录用户都能看到' },
+  { value: 'guest', label: '仅游客', tip: '未登录访客可见；同一 IP 只投递一次，发过就不再发' },
+  { value: 'user', label: '仅登录用户', tip: '只有登录用户能看到（弹窗/我的公告）' },
+]
 const rules: FormRules = {
   title: [{ required: true, message: '请输入标题', trigger: 'blur' }],
   content: [{ required: true, message: '请输入内容', trigger: 'blur' }],
@@ -61,6 +68,7 @@ function openCreate() {
   form.content = ''
   form.school_id = undefined
   form.is_active = true
+  form.scope = 'all'
   dialogVisible.value = true
 }
 
@@ -71,6 +79,7 @@ function openEdit(row: AdminAnnouncement) {
   form.content = row.content
   form.school_id = row.school_id || undefined
   form.is_active = row.is_active
+  form.scope = (row.scope as 'all' | 'guest' | 'user') || 'all'
   dialogVisible.value = true
 }
 
@@ -88,6 +97,7 @@ async function submit() {
         title: form.title,
         content: form.content,
         school_id: form.school_id || null,
+        scope: form.scope,
       })
       ElMessage.success('公告已发布')
     } else if (editing.value) {
@@ -96,6 +106,7 @@ async function submit() {
         content: form.content,
         school_id: form.school_id || null,
         is_active: form.is_active,
+        scope: form.scope,
       })
       ElMessage.success('已保存')
     }
@@ -144,6 +155,14 @@ function fmtContent(s: string): string {
   return s.length > 80 ? s.slice(0, 80) + '…' : s
 }
 
+function scopeLabel(scope?: string): string {
+  return scope === 'guest' ? '仅游客' : scope === 'user' ? '仅登录用户' : '所有人'
+}
+
+function scopeTagType(scope?: string): 'warning' | 'primary' | 'info' {
+  return scope === 'guest' ? 'warning' : scope === 'user' ? 'primary' : 'info'
+}
+
 onMounted(() => load())
 </script>
 
@@ -180,6 +199,13 @@ onMounted(() => load())
           <template #default="{ row }">
             <el-tag :type="row.is_active ? 'success' : 'info'" size="small">
               {{ row.is_active ? '启用' : '停用' }}
+            </el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column label="可见范围" width="110">
+          <template #default="{ row }">
+            <el-tag :type="scopeTagType(row.scope)" size="small">
+              {{ scopeLabel(row.scope) }}
             </el-tag>
           </template>
         </el-table-column>
@@ -227,6 +253,16 @@ onMounted(() => load())
         </el-form-item>
         <el-form-item label="指定校区（可选，留空表示全校）">
           <el-input-number v-model="form.school_id" :min="1" :controls="false" placeholder="留空表示全校" />
+        </el-form-item>
+        <el-form-item label="可见范围">
+          <el-radio-group v-model="form.scope">
+            <el-radio v-for="opt in scopeOptions" :key="opt.value" :value="opt.value">
+              {{ opt.label }}
+            </el-radio>
+          </el-radio-group>
+          <div class="scope-tip">
+            {{ scopeOptions.find((o) => o.value === form.scope)?.tip }}
+          </div>
         </el-form-item>
         <el-form-item v-if="dialogMode === 'edit'" label="状态">
           <el-switch v-model="form.is_active" active-text="启用" inactive-text="停用" />
@@ -292,5 +328,11 @@ onMounted(() => load())
   display: flex;
   justify-content: flex-end;
   padding: 16px 0 0;
+}
+.scope-tip {
+  margin-top: 4px;
+  font-size: 12px;
+  color: #8c8c8c;
+  line-height: 1.5;
 }
 </style>

@@ -351,6 +351,8 @@ export interface AdminAnnouncement {
   content: string
   school_id: number | null
   is_active: boolean
+  /** 可见范围：all=所有人 / guest=仅游客(同IP只投递一次) / user=仅登录用户 */
+  scope: string
   created_at: string | null
 }
 
@@ -358,6 +360,7 @@ export interface AnnouncementCreatePayload {
   title: string
   content: string
   school_id?: number | null
+  scope?: string
 }
 
 export function adminListAnnouncements(params: { page?: number; page_size?: number } = {}) {

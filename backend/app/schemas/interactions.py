@@ -55,3 +55,5 @@ class AnnouncementCreate(BaseModel):
     content: str = Field(min_length=1, max_length=5000)
     school_id: int | None = None
     is_active: bool = True
+    # 可见范围：all=所有人 / guest=仅游客(同一IP只投递一次) / user=仅登录用户
+    scope: str = Field(default="all", pattern="^(all|guest|user)$")

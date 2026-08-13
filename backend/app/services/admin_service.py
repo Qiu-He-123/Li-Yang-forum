@@ -833,6 +833,7 @@ def _ann_dict(a: Announcement) -> dict:
         "content": a.content,
         "school_id": a.school_id,
         "is_active": a.is_active,
+        "scope": a.scope or "all",
         "created_at": to_iso_zh(a.created_at),
     }
 
@@ -857,7 +858,7 @@ def admin_update_announcement(ann_id: int, payload: dict, request: Request, db: 
     if not a:
         raise HTTPException(status_code=404, detail="公告不存在")
     changes = {}
-    for key in ("title", "content", "school_id", "is_active"):
+    for key in ("title", "content", "school_id", "is_active", "scope"):
         if key in payload and getattr(a, key) != payload[key]:
             changes[key] = {"old": getattr(a, key), "new": payload[key]}
             setattr(a, key, payload[key])
