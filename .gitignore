@@ -47,6 +47,9 @@ lsremote.*
 微信同步客户端/client.log
 微信同步客户端/账号配置/
 
+# 服务器访问配置（bind_host/port 按机器不同，各自维护；模板 server_config.example.json 入库）
+server_config.json
+
 # ============ 视频分享：登录态/会话（严禁上传 GitHub） ============
 backend/app/services/video_fetch/cookies.json
 获取快手视频/**/废弃/

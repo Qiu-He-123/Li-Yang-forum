@@ -44,6 +44,10 @@ _DB_KEY_TOOL_CANDIDATES = [
 ]
 DB_KEY_TOOL = next((p for p in _DB_KEY_TOOL_CANDIDATES if p.is_file()), _DB_KEY_TOOL_CANDIDATES[0])
 MONITOR_PY = ROOT / "图片密钥监控.py"
+# 服务器访问配置：bind_host=127.0.0.1 仅本机；0.0.0.0 对外开放（局域网/公网直连机器）
+SERVER_CONFIG = ROOT / "server_config.json"
+SERVER_CONFIG_EXAMPLE = ROOT / "server_config.example.json"
+_SERVER_CONFIG_DEFAULTS = {"bind_host": "127.0.0.1", "port": 8000, "open_browser": True}
 
 
 def load_config() -> dict:
@@ -52,7 +56,7 @@ def load_config() -> dict:
         if example.is_file():
             shutil.copy2(example, CONFIG)
     try:
-        cfg = json.loads(CONFIG.read_text(encoding="utf-8")) if CONFIG.is_file() else {}
+        cfg = json.loads(CONFIG.read_text(encoding="utf-8-sig")) if CONFIG.is_file() else {}
     except (ValueError, OSError):
         cfg = {}
     # 兼容旧配置：补全 data_root
@@ -67,6 +71,57 @@ def load_config() -> dict:
 
 def save_config(cfg: dict) -> None:
     CONFIG.write_text(json.dumps(cfg, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def load_server_config() -> dict:
+    """服务器访问配置：bind_host=127.0.0.1 仅本机；0.0.0.0 对外开放。
+    配置文件不存在时自动从 server_config.example.json 生成；改完保存后重启服务器生效。
+    """
+    if not SERVER_CONFIG.is_file() and SERVER_CONFIG_EXAMPLE.is_file():
+        try:
+            shutil.copy2(SERVER_CONFIG_EXAMPLE, SERVER_CONFIG)
+        except OSError:
+            pass
+    cfg = dict(_SERVER_CONFIG_DEFAULTS)
+    if SERVER_CONFIG.is_file():
+        try:
+            cfg.update(json.loads(SERVER_CONFIG.read_text(encoding="utf-8-sig")))
+        except (ValueError, OSError):
+            print(f"[警告] 读取 {SERVER_CONFIG.name} 失败，使用默认配置")
+    try:
+        cfg["port"] = int(cfg.get("port") or 8000)
+    except (TypeError, ValueError):
+        cfg["port"] = 8000
+    cfg["bind_host"] = str(cfg.get("bind_host") or "127.0.0.1").strip() or "127.0.0.1"
+    cfg["open_browser"] = bool(cfg.get("open_browser", True))
+    return cfg
+
+
+def _lan_ip() -> str:
+    try:
+        import socket
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("223.5.5.5", 80))
+        ip = s.getsockname()[0]
+        s.close()
+        return ip
+    except Exception:
+        return "本机IP"
+
+
+def _print_access_info(server_cfg: dict) -> None:
+    host = server_cfg["bind_host"]
+    port = server_cfg["port"]
+    if host == "0.0.0.0":
+        ip = _lan_ip()
+        print("\n[提示] 对外访问已开放（bind_host=0.0.0.0）")
+        print(f"       本机访问   : http://127.0.0.1:{port}/")
+        print(f"       局域网访问 : http://{ip}:{port}/")
+        print(f"       外网访问   : 需在路由器/云防火墙放行 TCP {port}，或配内网穿透（路由侠等）")
+        print("       手动放行防火墙: netsh advfirewall firewall add rule name=\"LY Community\" dir=in action=allow protocol=TCP localport=%d" % port)
+    else:
+        print(f"\n[提示] 当前仅本机可访问（bind_host={host}）。")
+        print("       需要局域网/公网机器直接访问时，把 根目录/server_config.json 的 bind_host 改为 0.0.0.0 后重启服务器。")
 
 
 def get_key_hex(cfg: dict) -> str:
@@ -258,6 +313,9 @@ def gate_checks(cfg: dict, account_path: str) -> list[tuple[str, bool, str]]:
 
 
 def run_headless(cfg: dict) -> int:
+    sc = load_server_config()
+    print(f"服务器访问配置: bind_host={sc['bind_host']} port={sc['port']}"
+          + ("（对外开放，局域网/公网机器可访问）" if sc["bind_host"] == "0.0.0.0" else "（仅本机，可在 server_config.json 改 0.0.0.0 对外开放）"))
     accounts = scan_accounts(resolve_data_root(cfg), cfg)
     print(f"找到 {len(accounts)} 个微信账号：")
     for i, acc in enumerate(accounts, 1):
@@ -647,7 +705,14 @@ class StartupWindow:
     def _render_start_page(self):
         acc = self._selected_account()
         self._clear(self.p4_body)
-        lines = [f"账号：{acc['label']}", "数据库解密：✓ 通过", "图片解密：✓ 通过"]
+        sc = load_server_config()
+        lines = [
+            f"账号：{acc['label']}",
+            "数据库解密：✓ 通过",
+            "图片解密：✓ 通过",
+            f"访问地址：http://127.0.0.1:{sc['port']}/  绑定：{sc['bind_host']}"
+            + ("（对外开放）" if sc["bind_host"] == "0.0.0.0" else "（仅本机）"),
+        ]
         tk.Label(
             self.p4_body,
             text="\n".join(lines),
@@ -730,10 +795,25 @@ class StartupWindow:
             messagebox.showerror("提示", "前端构建产物缺失：frontend/dist/index.html 不存在")
             return
 
+        server_cfg = load_server_config()
+        bind_host = server_cfg["bind_host"]
+        port = server_cfg["port"]
+        # 对外开放时自动尝试放行防火墙端口（管理员权限才生效，失败不阻塞）
+        if bind_host == "0.0.0.0":
+            try:
+                subprocess.run(
+                    ["netsh", "advfirewall", "firewall", "add", "rule",
+                     "name=LY Community %d" % port, "dir=in", "action=allow",
+                     "protocol=TCP", "localport=%d" % port],
+                    capture_output=True, timeout=30,
+                )
+            except Exception:
+                pass
         subprocess.Popen(
-            ["cmd", "/k", f"cd /d {ROOT}\\backend && call .venv\\Scripts\\activate.bat && python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --no-server-header"],
+            ["cmd", "/k", f"cd /d {ROOT}\\backend && call .venv\\Scripts\\activate.bat && python -m uvicorn app.main:app --host {bind_host} --port {port} --no-server-header"],
             cwd=str(ROOT),
         )
+        _print_access_info(server_cfg)
         if self.client_var.get():
             token_ok = bool(self.cfg.get("device_token")) and "请先运行" not in str(self.cfg.get("device_token"))
             if token_ok:
@@ -747,8 +827,9 @@ class StartupWindow:
         if MONITOR_PY.is_file():
             subprocess.Popen([str(py), str(MONITOR_PY)])
         self.root.destroy()
-        # 生产模式：打开后端托管的页面（8000，含前端构建产物）
-        os.startfile("http://127.0.0.1:8000/")
+        # 生产模式：打开后端托管的页面（含前端构建产物）
+        if server_cfg["open_browser"]:
+            os.startfile(f"http://127.0.0.1:{port}/")
 
 
 if __name__ == "__main__":

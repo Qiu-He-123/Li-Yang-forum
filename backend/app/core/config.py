@@ -1,6 +1,12 @@
 from functools import lru_cache
+from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# 无论从仓库根目录还是 backend 目录启动，都锚定到 backend 目录：
+# 1) .env 固定读 backend/.env（不再依赖当前工作目录）
+# 2) 相对 sqlite 路径固定解析到 backend/xxx.sqlite3（避免在根目录新建空库）
+BACKEND_DIR = Path(__file__).resolve().parents[2]
 
 
 class Settings(BaseSettings):
@@ -38,10 +44,18 @@ class Settings(BaseSettings):
     # （备份脚本等直接读取 .env 的字段，如 github_token/backup_keep），
     # 避免这些字段导致后端启动报 ValidationError
     model_config = SettingsConfigDict(
-        env_file=".env", env_file_encoding="utf-8", extra="ignore"
+        env_file=str(BACKEND_DIR / ".env"), env_file_encoding="utf-8", extra="ignore"
     )
 
 
 @lru_cache
 def get_settings() -> Settings:
-    return Settings()
+    s = Settings()
+    # 相对 sqlite 路径锚定到 backend 目录：无论进程从仓库根还是 backend 下启动，
+    # 都指向同一个库文件，避免"根目录被新建一个空库 -> no such table"这类跨机器坑
+    url = s.database_url
+    if url.startswith("sqlite:///") and not url.startswith("sqlite:////"):
+        rel = url[len("sqlite:///"):]
+        if rel and not rel.startswith(":") and not Path(rel).is_absolute():
+            s.database_url = "sqlite:///" + (BACKEND_DIR / rel).as_posix()
+    return s

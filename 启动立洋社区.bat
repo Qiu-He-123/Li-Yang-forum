@@ -38,7 +38,7 @@ if errorlevel 1 (
 echo.
 echo [2/3] Stopping old server processes...
 powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0kill_old_servers.ps1"
-timeout /t 1 /nobreak >nul
+ping -n 2 127.0.0.1 >nul
 
 echo.
 echo [3/3] Starting server wizard...
