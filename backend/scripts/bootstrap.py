@@ -8,6 +8,7 @@
 避免中文在 GBK 控制台乱码；不使用 ANSI 颜色码（cmd 下会显示成垃圾字符）。
 """
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -26,22 +27,117 @@ FRONTEND = ROOT / "frontend"
 VENV_PY = BACKEND / ".venv" / "Scripts" / "python.exe"
 PIP_MIRROR = "https://pypi.tuna.tsinghua.edu.cn/simple"
 PY_MIN = (3, 10)
+# 自动补装 tcl/tk 用的安装器下载源（python.org 官方 + 华为云国内镜像）
+PY_INSTALL_URLS = (
+    "https://www.python.org/ftp/python/{ver}/python-{ver}-amd64.exe",
+    "https://mirrors.huaweicloud.com/python/{ver}/python-{ver}-amd64.exe",
+)
 
 
 def line(title: str) -> None:
     print(f"\n{'=' * 60}\n  {title}\n{'=' * 60}")
 
 
+def _python_candidates() -> list[list[str]]:
+    """候选 Python 命令：先枚举 py 启动器里的具体版本（-V:3.13 等），
+    再补 py -3 / python / python3。"""
+    cmds: list[list[str]] = []
+    try:
+        r = subprocess.run(["py", "-0p"], capture_output=True, text=True, timeout=15)
+        if r.returncode == 0:
+            for line in r.stdout.splitlines():
+                m = re.match(r"\s*-V:(\d+\.\d+)", line)
+                if m:
+                    cmds.append(["py", "-%s" % m.group(1)])
+    except Exception:
+        pass
+    cmds.append(["py", "-3"])
+    cmds.append(["python"])
+    cmds.append(["python3"])
+    return cmds
+
+
+def _probe_python(cmd: list[str], need_tk: bool) -> bool:
+    code = "import tkinter" if need_tk else "pass"
+    try:
+        r = subprocess.run([*cmd, "-c", code], capture_output=True, text=True, timeout=30)
+        return r.returncode == 0
+    except Exception:
+        return False
+
+
 def _find_python() -> list[str] | None:
-    """找可用的 Python 命令：优先 py -3 启动器（可靠、避开微软商店假 python），其次 python。"""
+    """找可用的 Python：优先带 tkinter 的（图形向导需要），
+    其次任意可用 Python（无界面启动兜底，服务器本身不需要 GUI）。"""
+    seen: set[str] = set()
+    for cmd in _python_candidates():
+        key = " ".join(cmd)
+        if key in seen:
+            continue
+        seen.add(key)
+        if _probe_python(cmd, need_tk=True):
+            return cmd
+    for cmd in _python_candidates():
+        key = " ".join(cmd)
+        if key in seen:
+            continue
+        seen.add(key)
+        if _probe_python(cmd, need_tk=False):
+            return cmd
+    return None
+
+
+def _best_python_version() -> str:
+    """取现有可运行 Python 的版本号（如 3.13.12），用于下载同版本安装器补装 tcl/tk。"""
     for cmd in (["py", "-3"], ["python"]):
         try:
-            r = subprocess.run([*cmd, "--version"], capture_output=True, text=True, timeout=15)
-            if r.returncode == 0 and "Python" in (r.stdout + r.stderr):
-                return cmd
+            r = subprocess.run(
+                [*cmd, "-c", "import sys;print('%d.%d.%d' % sys.version_info[:3])"],
+                capture_output=True, text=True, timeout=20,
+            )
+            if r.returncode == 0 and r.stdout.strip():
+                return r.stdout.strip()
         except Exception:
             continue
-    return None
+    return ""
+
+
+def _install_python_with_tk(ver: str) -> bool:
+    """下载 python.org 同版本安装器，静默补装 tcl/tk 组件（用户级，无需管理员）。
+    已有同版本安装时相当于修复/补装组件；返回安装命令是否成功。"""
+    import tempfile
+    import urllib.request
+
+    tmp = Path(tempfile.gettempdir()) / f"python-{ver}-amd64.exe"
+    for url_tpl in PY_INSTALL_URLS:
+        url = url_tpl.format(ver=ver)
+        print(f"      下载 {url} …")
+        try:
+            urllib.request.urlretrieve(url, tmp)
+            break
+        except Exception as exc:  # noqa: BLE001
+            print(f"      下载失败：{exc}，换下一个源")
+            continue
+    else:
+        print("      所有下载源都失败（可能无网络）")
+        return False
+    print("      静默安装（补装 tcl/tk，用户级，无需管理员）…")
+    try:
+        r = subprocess.run(
+            [str(tmp), "/quiet", "InstallAllUsers=0", "PrependPath=0",
+             "Include_test=0", "Include_tcltk=1", "Include_launcher=1",
+             "Include_pip=1", "Shortcuts=0", "AssociateFiles=0"],
+            capture_output=True, text=True, timeout=600,
+        )
+        return r.returncode == 0
+    except Exception as exc:  # noqa: BLE001
+        print(f"      安装失败：{exc}")
+        return False
+    finally:
+        try:
+            tmp.unlink(missing_ok=True)
+        except OSError:
+            pass
 
 
 def run(cmd: list[str], cwd: Path | None = None) -> bool:
@@ -75,6 +171,23 @@ def main() -> int:
                 problems += 1
             else:
                 print(f"[OK] Python {ver}")
+                if _probe_python(py, need_tk=True):
+                    print("      （含 tkinter，图形向导可用）")
+                else:
+                    print("      [修复] 当前 Python 缺少 tkinter（图形向导需要），尝试自动补装…")
+                    pv = _best_python_version()
+                    if pv and _install_python_with_tk(pv):
+                        py2 = _find_python()
+                        if py2 and _probe_python(py2, need_tk=True):
+                            py = py2
+                            print(f"      [OK] Python {pv} 的 tcl/tk 已补装（图形向导可用）")
+                        else:
+                            print("      [警告] 补装后仍未检测到 tkinter，将用无界面方式启动服务器")
+                    else:
+                        print("      [警告] 自动补装 tcl/tk 失败（可能无网络/非官方安装），将用无界面方式启动服务器")
+                        print("      服务器本身不需要 GUI；密钥配置可命令行完成：")
+                        print("        数据库密钥: backend\\.venv\\Scripts\\python.exe 工具\\微信密钥工具\\capture_key_hwbp.py")
+                        print("        图片密钥  : backend\\.venv\\Scripts\\python.exe 获取微信朋友圈\\获取图片密钥.py --datadir <微信数据根目录> --account-dir <账号名>")
         except ValueError:
             print(f"[异常] 无法解析 Python 版本：{ver!r}")
             problems += 1
@@ -87,6 +200,15 @@ def main() -> int:
             print("[完成] 虚拟环境已创建")
         else:
             print("[失败] 创建虚拟环境失败，请确认 Python 安装完整（含 venv 组件）")
+            problems += 1
+    elif not _probe_python([str(VENV_PY)], need_tk=True) and py and _probe_python(py, need_tk=True):
+        # 现有 venv 用的 Python 没装 tcl/tk，而系统里有带 tkinter 的 Python → 自动重建
+        print("[修复] 虚拟环境的 Python 缺少 tkinter，改用带 tkinter 的 Python 重建虚拟环境…")
+        shutil.rmtree(BACKEND / ".venv", ignore_errors=True)
+        if run([*py, "-m", "venv", str(BACKEND / ".venv")]):
+            print("[完成] 虚拟环境已重建")
+        else:
+            print("[失败] 重建虚拟环境失败")
             problems += 1
     else:
         print("[OK] 虚拟环境已存在")

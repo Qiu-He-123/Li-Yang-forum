@@ -16,10 +16,18 @@ import os
 import shutil
 import subprocess
 import sys
-import tkinter as tk
-import tkinter.filedialog as filedialog
-import tkinter.messagebox as messagebox
 from pathlib import Path
+
+# tkinter 可选：Python 缺 tcl/tk 组件（精简版/商店版安装）时，不崩，
+# 改用无界面模式直接启动服务器（见 run_headless_server）
+try:
+    import tkinter as tk
+    import tkinter.filedialog as filedialog
+    import tkinter.messagebox as messagebox
+    HAVE_TK = True
+except Exception:  # noqa: BLE001 - 缺 tcl/tk 组件
+    tk = filedialog = messagebox = None
+    HAVE_TK = False
 
 # 控制台统一 UTF-8，避免中文/符号在 GBK 控制台报编码错误
 for _stream in (sys.stdout, sys.stderr):
@@ -736,104 +744,167 @@ class StartupWindow:
         acc = self._selected_account()
         if not acc:
             return
-        acc_cfg = _account_cfg(self.cfg, acc)
-        if not db_decrypt_ok(acc_cfg, acc["path"]):
-            messagebox.showerror("门禁未通过", "数据库解密未通过，请先完成第 2 步")
-            self.show_page(1)
-            return
-        ok, msg = ensure_image_key_usable(acc_cfg, acc)
-        if not ok:
-            messagebox.showerror("门禁未通过", f"图片解密未通过：{msg}\n请先完成第 3 步")
-            self.show_page(2)
-            return
+        if launch_server(acc, self.cfg, use_gui=True):
+            self.root.destroy()
 
-        backend = ROOT / "backend"
-        py = backend / ".venv" / "Scripts" / "python.exe"
-        if not py.is_file():
-            messagebox.showerror("提示", "缺少 backend/.venv，请先运行 启动立洋社区.bat 完成安装")
-            return
-        mig = subprocess.run(
-            [str(py), "-m", "alembic", "upgrade", "head"],
-            cwd=str(backend),
+
+def launch_server(acc: dict, cfg: dict, use_gui: bool = True) -> bool:
+    """第 4 步（GUI 向导与无界面共用）：迁移 + 前端构建检查 + 启动服务器/
+    同步客户端/图片密钥监控 + 打开浏览器。失败返回 False。
+    """
+
+    def notify(title: str, msg: str, kind: str = "info") -> None:
+        if use_gui and HAVE_TK:
+            if kind == "error":
+                messagebox.showerror(title, msg)
+            else:
+                messagebox.showinfo(title, msg)
+        else:
+            print(f"[{'错误' if kind == 'error' else '提示'}] {title}: {msg}")
+
+    acc_cfg = _account_cfg(cfg, acc)
+    if not db_decrypt_ok(acc_cfg, acc["path"]):
+        notify("门禁未通过", "数据库解密未通过，请先完成密钥配置（运行密钥工具抓 db_key）", "error")
+        return False
+    ok, msg = ensure_image_key_usable(acc_cfg, acc)
+    if not ok:
+        notify(
+            "门禁未通过",
+            f"图片解密未通过：{msg}\n请先在微信朋友圈点开两三张图片，再运行 解密图片 工具",
+            "error",
+        )
+        return False
+
+    backend = ROOT / "backend"
+    py = backend / ".venv" / "Scripts" / "python.exe"
+    if not py.is_file():
+        notify("提示", "缺少 backend/.venv，请先运行 启动立洋社区.bat 完成安装", "error")
+        return False
+    mig = subprocess.run(
+        [str(py), "-m", "alembic", "upgrade", "head"],
+        cwd=str(backend),
+        capture_output=True,
+        text=True,
+        timeout=120,
+    )
+    if mig.returncode != 0:
+        notify("数据库迁移失败", mig.stderr[-2000:] or mig.stdout[-2000:], "error")
+        return False
+
+    # 设备令牌：缺失/占位时自动生成并写入配置，无需手动填
+    token = str(cfg.get("device_token") or "")
+    if not token or "请先运行" in token:
+        token = _fetch_device_token(backend)
+        if token:
+            cfg["device_token"] = token
+            save_config(cfg)
+
+    # 前端生产构建：后端在 server_config 端口直接托管 frontend/dist（不再启动 vite）
+    _dist_html = ROOT / "frontend" / "dist" / "index.html"
+    _src_newest = max(
+        (p.stat().st_mtime for p in (ROOT / "frontend" / "src").rglob("*") if p.is_file()),
+        default=0,
+    )
+    if not _dist_html.is_file() or (_src_newest and _dist_html.stat().st_mtime < _src_newest):
+        notify("提示", "前端未构建或源码有更新，正在构建（首次约需几分钟）…")
+        _build = subprocess.run(
+            ["cmd", "/c", f"cd /d {ROOT}\\frontend && npm run build"],
+            cwd=str(ROOT),
             capture_output=True,
             text=True,
-            timeout=120,
+            timeout=1800,
         )
-        if mig.returncode != 0:
-            messagebox.showerror("数据库迁移失败", mig.stderr[-2000:] or mig.stdout[-2000:])
-            return
-
-        # 设备令牌：缺失/占位时自动生成并写入配置，无需手动填
-        token = str(self.cfg.get("device_token") or "")
-        if not token or "请先运行" in token:
-            token = _fetch_device_token(backend)
-            if token:
-                self.cfg["device_token"] = token
-                save_config(self.cfg)
-
-        # 前端生产构建：后端在 8000 端口直接托管 frontend/dist（不再启动 vite 开发服务器）
-        # dist 缺失或比源码旧时自动重新构建
+        if _build.returncode != 0:
+            notify("前端构建失败", _build.stderr[-2000:] or _build.stdout[-2000:], "error")
+            return False
         _dist_html = ROOT / "frontend" / "dist" / "index.html"
-        _src_newest = max(
-            (p.stat().st_mtime for p in (ROOT / "frontend" / "src").rglob("*") if p.is_file()),
-            default=0,
-        )
-        if not _dist_html.is_file() or (_src_newest and _dist_html.stat().st_mtime < _src_newest):
-            messagebox.showinfo("提示", "前端未构建或源码有更新，正在构建（首次约需几分钟）…")
-            _build = subprocess.run(
-                ["cmd", "/c", f"cd /d {ROOT}\\frontend && npm run build"],
-                cwd=str(ROOT),
-                capture_output=True,
-                text=True,
-                timeout=1800,
-            )
-            if _build.returncode != 0:
-                messagebox.showerror("前端构建失败", _build.stderr[-2000:] or _build.stdout[-2000:])
-                return
-            _dist_html = ROOT / "frontend" / "dist" / "index.html"
-        if not _dist_html.is_file():
-            messagebox.showerror("提示", "前端构建产物缺失：frontend/dist/index.html 不存在")
-            return
+    if not _dist_html.is_file():
+        notify("提示", "前端构建产物缺失：frontend/dist/index.html 不存在", "error")
+        return False
 
-        server_cfg = load_server_config()
-        bind_host = server_cfg["bind_host"]
-        port = server_cfg["port"]
-        # 对外开放时自动尝试放行防火墙端口（管理员权限才生效，失败不阻塞）
-        if bind_host == "0.0.0.0":
+    server_cfg = load_server_config()
+    bind_host = server_cfg["bind_host"]
+    port = server_cfg["port"]
+    # 对外开放时自动尝试放行防火墙端口（管理员权限才生效，失败不阻塞）
+    if bind_host == "0.0.0.0":
+        try:
+            subprocess.run(
+                ["netsh", "advfirewall", "firewall", "add", "rule",
+                 "name=LY Community %d" % port, "dir=in", "action=allow",
+                 "protocol=TCP", "localport=%d" % port],
+                capture_output=True, timeout=30,
+            )
+        except Exception:
+            pass
+    subprocess.Popen(
+        ["cmd", "/k", f"cd /d {ROOT}\\backend && call .venv\\Scripts\\activate.bat && python -m uvicorn app.main:app --host {bind_host} --port {port} --no-server-header"],
+        cwd=str(ROOT),
+    )
+    _print_access_info(server_cfg)
+
+    # 同步客户端 + 图片密钥后台监控
+    if cfg.get("start_client", True):
+        token_ok = bool(cfg.get("device_token")) and "请先运行" not in str(cfg.get("device_token"))
+        if token_ok:
             try:
-                subprocess.run(
-                    ["netsh", "advfirewall", "firewall", "add", "rule",
-                     "name=LY Community %d" % port, "dir=in", "action=allow",
-                     "protocol=TCP", "localport=%d" % port],
-                    capture_output=True, timeout=30,
-                )
+                subprocess.Popen([str(py), "client.py"], cwd=str(CLIENT_DIR))
             except Exception:
                 pass
-        subprocess.Popen(
-            ["cmd", "/k", f"cd /d {ROOT}\\backend && call .venv\\Scripts\\activate.bat && python -m uvicorn app.main:app --host {bind_host} --port {port} --no-server-header"],
-            cwd=str(ROOT),
-        )
-        _print_access_info(server_cfg)
-        if self.client_var.get():
-            token_ok = bool(self.cfg.get("device_token")) and "请先运行" not in str(self.cfg.get("device_token"))
-            if token_ok:
-                subprocess.Popen([str(py), "client.py"], cwd=str(CLIENT_DIR))
-            else:
-                messagebox.showwarning(
-                    "提示",
-                    "同步客户端未启动：设备令牌自动生成失败，请手动运行 backend/scripts/init_wechat_sync.py 查看并填入 config.json",
-                )
-        # 图片密钥后台监控（独立进程，不随服务器重启而中断）
-        if MONITOR_PY.is_file():
+        else:
+            notify(
+                "提示",
+                "同步客户端未启动：设备令牌自动生成失败，请手动运行 backend/scripts/init_wechat_sync.py 查看并填入 config.json",
+            )
+    if MONITOR_PY.is_file():
+        try:
             subprocess.Popen([str(py), str(MONITOR_PY)])
-        self.root.destroy()
-        # 生产模式：打开后端托管的页面（含前端构建产物）
-        if server_cfg["open_browser"]:
+        except Exception:
+            pass
+    if server_cfg["open_browser"]:
+        try:
             os.startfile(f"http://127.0.0.1:{port}/")
+        except Exception:
+            pass
+    return True
+
+
+def run_headless_server(cfg: dict) -> int:
+    """无 tkinter（或 LY_HEADLESS=1）：跳过图形向导，用已保存配置直接启动服务器。"""
+    print("=" * 62)
+    print("  无界面启动模式（Python 缺少 tkinter 组件，或设置了 LY_HEADLESS=1）")
+    print("  使用已保存的账号配置直接启动服务器")
+    print("=" * 62)
+    accounts = scan_accounts(resolve_data_root(cfg), cfg)
+    acc = None
+    cur = cfg.get("current_account")
+    if cur:
+        acc = next((a for a in accounts if a["name"] == cur), None)
+    if not acc:
+        acc = next((a for a in accounts if a["key_ok"]), None)
+    if not acc:
+        print("\n[错误] 找不到可用的账号配置（没有密钥匹配的账号）！")
+        print("       处理办法（任选其一）：")
+        print("       1) 让向导恢复可用：到 https://www.python.org/downloads/ 重装 Python 并勾选「tcl/tk and IDLE」，")
+        print("          再双击 启动立洋社区.bat 打开图形向导完成密钥配置（本脚本也会自动尝试补装 tcl/tk）；")
+        print("       2) 保持无界面，用命令行配置密钥后重试：")
+        print("          数据库密钥: backend\\.venv\\Scripts\\python.exe 工具\\微信密钥工具\\capture_key_hwbp.py")
+        print("          图片密钥  : backend\\.venv\\Scripts\\python.exe 获取微信朋友圈\\获取图片密钥.py --datadir <微信数据根目录> --account-dir <账号名>")
+        print("          然后确认 微信同步客户端/config.json 的 current_account 已填成该账号名。")
+        return 1
+    print(f"\n使用账号：{acc['label']}")
+    ok = launch_server(acc, cfg, use_gui=False)
+    if not ok:
+        print("\n[提示] 无界面模式下可手动配置密钥后重试：")
+        print("       数据库密钥: backend\\.venv\\Scripts\\python.exe 工具\\微信密钥工具\\capture_key_hwbp.py")
+        print("       图片密钥  : backend\\.venv\\Scripts\\python.exe 获取微信朋友圈\\获取图片密钥.py --datadir <微信数据根目录> --account-dir <账号名>")
+        return 1
+    return 0
 
 
 if __name__ == "__main__":
     cfg = load_config()
     if "--check" in sys.argv or os.environ.get("LY_CHECK") == "1":
         sys.exit(run_headless(cfg))
+    if not HAVE_TK or os.environ.get("LY_HEADLESS") == "1":
+        sys.exit(run_headless_server(cfg))
     StartupWindow(cfg)
