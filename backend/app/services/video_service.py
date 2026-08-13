@@ -188,7 +188,9 @@ def _save_media(raw: bytes, subdir: str, ext: str) -> str:
     return f"/uploads/{rel_dir}/{md5}{ext}"
 
 
-async def publish_shared_video(db: Session, user: User, text: str, request: Request) -> dict:
+async def publish_shared_video(
+    db: Session, user: User, text: str, request: Request, is_anonymous: bool = False
+) -> dict:
     """解析分享链接 -> 直链播放模式发布（不下载、不转码、不存视频文件）。
 
     视频直接存抖音/快手 CDN 直链，前端 <video> 从 CDN 播放：
@@ -214,7 +216,7 @@ async def publish_shared_video(db: Session, user: User, text: str, request: Requ
         image_urls=image_urls,
         video_urls=[video_url],
         source="video_share",
-        is_anonymous=False,
+        is_anonymous=is_anonymous,
         is_public=True,
         school_id=user.school_id,
         category=VIDEO_CATEGORY,

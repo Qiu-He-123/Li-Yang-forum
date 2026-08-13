@@ -19,10 +19,10 @@ export function parseVideoShare(text: string) {
 }
 
 /** 解析并发布视频帖（category=视频，直链播放模式）；静默请求，不弹全屏加载遮罩 */
-export function publishVideoShare(text: string) {
+export function publishVideoShare(text: string, isAnonymous = false) {
   return http.post<unknown, { data: { code: number; msg: string; data: { post: unknown; record: VideoParseResult } } }>(
     '/videos/publish',
-    { text },
+    { text, is_anonymous: isAnonymous },
     silentConfig,
   )
 }

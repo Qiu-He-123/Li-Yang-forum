@@ -11,6 +11,7 @@ const router = useRouter()
 const text = ref('')
 const parsing = ref(false)
 const publishing = ref(false)
+const anonymous = ref(false)
 const preview = ref<VideoParseResult | null>(null)
 const error = ref('')
 
@@ -58,9 +59,9 @@ async function doPublish() {
   error.value = ''
   startDots()
   try {
-    const data = (await publishVideoShare(text.value.trim())).data.data
+    const data = (await publishVideoShare(text.value.trim(), anonymous.value)).data.data
     const post = data.post as { id?: number }
-    toast.success('发布成功')
+    toast.success(anonymous.value ? '匿名发布成功' : '发布成功')
     router.replace(post.id ? `/post/${post.id}` : '/')
   } catch (e: unknown) {
     const err = e as { response?: { data?: { msg?: string } } }
@@ -104,6 +105,13 @@ async function doPublish() {
           <p v-if="preview.author" class="preview-author">作者：{{ preview.author }}</p>
         </div>
       </div>
+
+      <!-- 匿名发布开关 -->
+      <label v-if="preview" class="anon-toggle">
+        <input v-model="anonymous" type="checkbox" class="anon-checkbox" />
+        <span class="anon-label">匿名发布</span>
+        <span class="anon-hint">发布后不显示昵称和头像，展示为"匿名同学"</span>
+      </label>
 
       <button
         v-if="preview"
@@ -246,6 +254,33 @@ async function doPublish() {
   color: var(--text-400, #999);
   margin: 10px 0 0;
   line-height: 1.6;
+}
+.anon-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 10px 12px;
+  background: #f7f8fa;
+  border-radius: 10px;
+  cursor: pointer;
+}
+.anon-checkbox {
+  width: 17px;
+  height: 17px;
+  accent-color: #4f9cff;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.anon-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-800, #222);
+}
+.anon-hint {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--text-400, #999);
 }
 /* 底部"解析中..."：小胶囊，不遮全屏 */
 .parsing-bar {

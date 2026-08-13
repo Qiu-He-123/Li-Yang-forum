@@ -71,7 +71,8 @@ async def publish_video_share(
 ) -> dict:
     """解析分享链接并发布为视频帖（category=视频，直链播放模式）。"""
     result = await video_service.publish_shared_video(
-        db, user, payload.get("text") or "", request
+        db, user, payload.get("text") or "", request,
+        is_anonymous=bool(payload.get("is_anonymous")),
     )
     return ok(result)
 
