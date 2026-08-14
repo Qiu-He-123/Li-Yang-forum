@@ -111,6 +111,12 @@ def _parse_douyin(text: str) -> dict:
         reason = getattr(douyin_share, "_last_api_fail", "") or ""
         if reason:
             raise HTTPException(status_code=400, detail=f"抖音解析失败：{reason}")
+        # 解析到了详情但没有视频直链：多半是图文/图集作品
+        if record and record.get("type") == "图集":
+            raise HTTPException(
+                status_code=400,
+                detail="该抖音作品是图文/图集，暂不支持解析为视频",
+            )
         raise HTTPException(
             status_code=400,
             detail="抖音解析失败（视频可能已删除/私密，或需要重新抓取抖音登录 cookies）",
