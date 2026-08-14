@@ -595,7 +595,14 @@ watch(
           <span class="load-more-spinner" aria-hidden="true"></span>
           加载更多…
         </div>
-        <div v-else-if="!hasMore" class="load-more-hint">已经刷到底啦</div>
+        <!-- 刷完了：引导发布，让社区有更多新内容（解决「看不到新帖子就退」的痛点） -->
+        <div v-else-if="!hasMore" class="feed-end">
+          <p class="feed-end-text">没有新内容了，去发布第一条动态吧</p>
+          <button class="feed-end-btn" type="button" @click="router.push('/publish')">
+            立即发布
+            <Icon name="arrow-right" :size="14" />
+          </button>
+        </div>
       </div>
     </div>
   </main>
@@ -1171,6 +1178,40 @@ watch(
 }
 @keyframes spin {
   to { transform: rotate(360deg); }
+}
+
+/* ====== 刷到底：引导发布 ====== */
+.feed-end {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 18px 16px 26px;
+  background: #0e0e10;
+}
+.feed-end-text {
+  margin: 0;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.55);
+}
+.feed-end-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 20px;
+  border: none;
+  border-radius: 999px;
+  background: var(--brand-500);
+  color: #fff;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 150ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+.feed-end-btn:hover {
+  background: var(--brand-600);
 }
 
 /* 空状态在深色页面上换浅色文字 */

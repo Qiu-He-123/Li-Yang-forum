@@ -39,6 +39,9 @@ _DEFAULTS: dict[str, str] = {
     "feed_mmr_max_per_category": "6",
     "comment_explore_enabled": "true",
     "comment_explore_rate": "0.15",
+    # 个性化去重（大厂做法「推过的不再推」）：推荐流已推给该用户的帖子不再重复推荐
+    "feed_dedupe_enabled": "true",
+    "feed_dedupe_days": "0",
     # 绑定微信时展示的社区微信号（后台可改）
     "wechat_bind_account": "",
     # 微信同步客户端设备令牌（客户端启动时展示，后台可改）
@@ -70,6 +73,8 @@ _DESC: dict[str, str] = {
     "feed_mmr_max_per_category": "热门页单圈子最多展示条数（默认 6，防止热门页被单一圈子刷屏）",
     "comment_explore_enabled": "是否启用评论探索：帖子「最热」评论页按比例插入低赞新评论",
     "comment_explore_rate": "评论探索比例 ε（0-0.5，默认 0.15）",
+    "feed_dedupe_enabled": "推荐去重开关（默认开）：推荐流已推给该用户的帖子不再重复推荐，未看过的优先曝光（大厂做法）",
+    "feed_dedupe_days": "推荐去重窗口（天，0=全部历史）：只对最近 N 天内已推过的帖子去重，超过窗口后可再次推荐",
     "home_marquee": "首页顶部滚动字幕内容（每行一条，留空关闭）",
     "wechat_bind_account": "用户绑定微信时需要添加的社区微信号（展示在绑定引导页）",
     "wechat_device_token": "微信同步客户端的设备令牌（客户端与后端鉴权用）",

@@ -33,7 +33,22 @@ const config = ref({
   feed_mmr_max_per_category: 6,
   comment_explore_enabled: true,
   comment_explore_rate: 0.15,
+  feed_dedupe_enabled: true,
+  feed_dedupe_days: 0,
 })
+
+// 曝光场景标签（feed_push = 推荐流去重用曝光，不计入探索统计）
+const sceneMeta: Record<string, { label: string; type: 'primary' | 'success' | 'warning' | 'info' }> = {
+  post_feed: { label: '探索位曝光', type: 'primary' },
+  feed_push: { label: '推荐流曝光', type: 'warning' },
+  comment: { label: '评论最热', type: 'success' },
+}
+function sceneLabel(scene: string): string {
+  return sceneMeta[scene]?.label ?? scene
+}
+function sceneTagType(scene: string): 'primary' | 'success' | 'warning' | 'info' {
+  return sceneMeta[scene]?.type ?? 'info'
+}
 
 const modeOptions = [
   { label: 'Thompson 采样（推荐）', value: 'thompson', hint: 'Beta 分布建模帖子质量：曝光无互动自动降温，互动好自动升权' },
@@ -57,6 +72,8 @@ async function load() {
       feed_mmr_max_per_category: Number(get('feed_mmr_max_per_category', '6')) || 6,
       comment_explore_enabled: get('comment_explore_enabled', 'true') !== 'false',
       comment_explore_rate: Number(get('comment_explore_rate', '0.15')) || 0.15,
+      feed_dedupe_enabled: get('feed_dedupe_enabled', 'true') !== 'false',
+      feed_dedupe_days: Math.max(0, Number(get('feed_dedupe_days', '0')) || 0),
     }
     stats.value = statsResp.data.data
   } catch (error) {
@@ -79,6 +96,8 @@ async function save() {
       feed_mmr_max_per_category: String(Math.max(1, Math.floor(config.value.feed_mmr_max_per_category))),
       comment_explore_enabled: config.value.comment_explore_enabled ? 'true' : 'false',
       comment_explore_rate: String(Math.min(0.5, Math.max(0, config.value.comment_explore_rate))),
+      feed_dedupe_enabled: config.value.feed_dedupe_enabled ? 'true' : 'false',
+      feed_dedupe_days: String(Math.max(0, Math.floor(config.value.feed_dedupe_days))),
     })
     ElMessage.success('已保存，探索策略即时生效')
     await load()
@@ -176,6 +195,28 @@ onMounted(load)
           </div>
           <el-input-number v-model="config.comment_explore_rate" :min="0" :max="0.5" :step="0.05" :precision="2" size="small" />
         </div>
+
+        <div class="flex items-center justify-between rounded border border-ly-line px-3 py-2">
+          <div>
+            <div class="text-sm font-medium">推荐去重（推过的不再推）</div>
+            <div class="text-xs text-slate-400">推荐流已推给该用户的帖子不再重复推荐，未看过的优先曝光（大厂做法）</div>
+          </div>
+          <el-switch v-model="config.feed_dedupe_enabled" />
+        </div>
+
+        <div class="flex items-center justify-between rounded border border-ly-line px-3 py-2">
+          <div>
+            <div class="text-sm font-medium">推荐去重窗口（天）</div>
+            <div class="text-xs text-slate-400">0=全部历史；N=最近 N 天推过的不再推，超窗可再次推荐</div>
+          </div>
+          <el-input-number
+            v-model="config.feed_dedupe_days"
+            :min="0"
+            :max="365"
+            size="small"
+            :disabled="!config.feed_dedupe_enabled"
+          />
+        </div>
       </div>
 
       <div class="mt-4">
@@ -247,10 +288,10 @@ onMounted(load)
         <el-table-column label="曝光对象" width="120">
           <template #default="{ row }">{{ row.nickname || (row.user_id ? `#${row.user_id}` : '匿名') }}</template>
         </el-table-column>
-        <el-table-column label="场景" width="100">
+        <el-table-column label="场景" width="120">
           <template #default="{ row }">
-            <el-tag :type="row.scene === 'post_feed' ? 'primary' : 'success'" size="small">
-              {{ row.scene === 'post_feed' ? '帖子热门流' : '评论最热' }}
+            <el-tag :type="sceneTagType(row.scene)" size="small">
+              {{ sceneLabel(row.scene) }}
             </el-tag>
           </template>
         </el-table-column>

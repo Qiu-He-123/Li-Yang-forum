@@ -17,7 +17,11 @@ from app.schemas.interactions import ReportCreate
 from app.services.ai_service import ai_service
 from app.services.audit_log import log_user_action
 from app.services import explore_service
-from app.services.notification_service import create_notification
+from app.services.notification_service import (
+    cleanup_notifications_for_deleted_favorites,
+    cleanup_notifications_for_deleted_likes,
+    create_notification,
+)
 
 
 def like_target(target_type: str, target_id: int, request: Request, db: Session, user: User) -> dict:
@@ -73,7 +77,11 @@ def like_target(target_type: str, target_id: int, request: Request, db: Session,
 
 
 def unlike_target(target_type: str, target_id: int, request: Request, db: Session, user: User) -> dict:
-    """取消点赞。"""
+    """取消点赞。
+
+    消息列表状态同步（大厂做法「有什么显示什么」）：取消点赞后，
+    对应的「收到点赞」通知立即删除（不论已读未读）；再次点赞会重新生成一条。
+    """
     target = db.get(Post if target_type == "post" else Comment, target_id) if target_type in {"post", "comment"} else None
     if not target:
         raise HTTPException(status_code=404, detail=ErrorCode.TARGET_NOT_FOUND)
@@ -82,6 +90,11 @@ def unlike_target(target_type: str, target_id: int, request: Request, db: Sessio
     )
     if result.rowcount and target.like_count > 0:
         target.like_count -= 1
+    if result.rowcount:
+        # 取消点赞 → 「收到点赞」通知同步消失
+        recipient_id = target.author_id if target_type == "post" else target.user_id
+        if recipient_id and recipient_id != user.id:
+            cleanup_notifications_for_deleted_likes(db, recipient_id, user.id, target_type, target_id)
     log_user_action(db, user.id, "unlike", json.dumps({"target_type": target_type, "target_id": target_id}, ensure_ascii=False), _extract_ip(request))
     db.commit()
     return {"like_count": target.like_count}
@@ -112,8 +125,15 @@ def favorite_post(post_id: int, request: Request, db: Session, user: User) -> No
 
 
 def unfavorite_post(post_id: int, request: Request, db: Session, user: User) -> None:
-    """取消收藏。"""
+    """取消收藏。
+
+    消息列表状态同步（大厂做法「有什么显示什么」）：取消收藏后，
+    对应的「收到收藏」通知立即删除。
+    """
     db.execute(delete(Favorite).where(Favorite.user_id == user.id, Favorite.post_id == post_id))
+    post = db.get(Post, post_id)
+    if post and post.author_id and post.author_id != user.id:
+        cleanup_notifications_for_deleted_favorites(db, post.author_id, user.id, post_id)
     log_user_action(db, user.id, "unfavorite", json.dumps({"post_id": post_id}, ensure_ascii=False), _extract_ip(request))
     db.commit()
 

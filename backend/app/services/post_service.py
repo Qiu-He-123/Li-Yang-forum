@@ -1,6 +1,7 @@
 """帖子业务逻辑层。"""
 import asyncio
 import json
+from datetime import datetime
 
 from fastapi import HTTPException, Request
 from sqlalchemy import desc, func, select
@@ -151,6 +152,28 @@ def list_posts(
         query = query.where(Post.tags.like(f'%"{tag}"%'))
     # 总数（在排序/分页前计算）
     total = db.scalar(select(func.count()).select_from(query.subquery())) or 0
+
+    # ============ 个性化去重（大厂做法：推荐流「推过的不再推」） ============
+    # 热门流按该用户已看过的帖子（推荐流/探索位曝光日志）过滤，未看过的优先展示；
+    # 未看过的不够一页时用「最近最少看过」的旧帖补位（LRU），页面永不稀疏/空窗。
+    seen_ids: set[int] = set()
+    seen_since: dict[int, datetime] = {}
+    hot_deduped = False
+    if view == "hot" and not q and user is not None:
+        try:
+            cfg = explore_service.get_explore_config(db)
+            if cfg["feed_dedupe_enabled"]:
+                seen_ids = explore_service.get_seen_post_ids(db, user.id, cfg["feed_dedupe_days"])
+                seen_since = explore_service.get_seen_since_map(db, user.id, cfg["feed_dedupe_days"])
+                hot_deduped = bool(seen_ids)
+        except Exception as exc:  # noqa: BLE001
+            from loguru import logger
+            logger.warning("[EXPLORE] list_posts dedupe failed: {}", exc)
+            try:
+                db.rollback()
+            except Exception:
+                pass
+
     # 排序
     if view == "hot":
         query = query.order_by(desc(Post.like_count), desc(Post.comment_count), desc(Post.created_at))
@@ -159,7 +182,23 @@ def list_posts(
     # 分页
     page = max(1, page)
     page_size = max(1, min(100, page_size))
-    posts = db.scalars(query.offset((page - 1) * page_size).limit(page_size)).all()
+    if view == "hot" and not q and user is not None and hot_deduped:
+        # 未看过的优先；不足一页时用「最近最少看过」的旧帖补位（LRU）
+        unseen_q = query.where(Post.id.not_in(seen_ids))
+        posts = list(db.scalars(unseen_q.offset((page - 1) * page_size).limit(page_size)).all())
+        if page == 1 and len(posts) < page_size:
+            seen_q = query.where(Post.id.in_(seen_ids))
+            seen_posts = db.scalars(seen_q.limit(500)).all()
+            in_page = {p.id for p in posts}
+            candidates = [p for p in seen_posts if p.id not in in_page]
+            # LRU：最后曝光时间最早的优先补位，其次热门度
+            candidates.sort(key=lambda p: (
+                (seen_since.get(p.id) or datetime(2000, 1, 1)).timestamp(),
+                -(p.like_count or 0),
+            ))
+            posts = posts + candidates[: page_size - len(posts)]
+    else:
+        posts = db.scalars(query.offset((page - 1) * page_size).limit(page_size)).all()
 
     # ============ 推荐探索（Explore-Exploit）：热门流插入冷启动帖子 ============
     explored_ids: set[int] = set()
@@ -186,6 +225,9 @@ def list_posts(
                         slots,
                         cfg,
                         exclude_ids=hot_ids,
+                        # 个性化去重：未看过的冷启动内容优先曝光（推过的不再推）
+                        seen_post_ids=seen_ids,
+                        seen_since=seen_since,
                     )
                     if not pool:
                         # 帖子总量不足一页时，探索池内容已在页面内：
@@ -215,6 +257,26 @@ def list_posts(
         except Exception as exc:  # noqa: BLE001
             from loguru import logger
             logger.warning("[EXPLORE] list_posts explore failed: {}", exc)
+            try:
+                db.rollback()
+            except Exception:
+                pass
+
+    # 记录推荐流曝光（个性化去重数据来源）：推给该用户的帖子记入 feed_push 场景，
+    # 后续请求不再重复推荐（大厂做法：曝光去重）。track_stats=False 不计入探索统计。
+    if view == "hot" and not q and user is not None and posts:
+        try:
+            explore_service.record_feed_impressions(
+                db,
+                [p.id for p in posts],
+                user.id,
+                explore_service.SCENE_FEED_PUSH,
+                page,
+                track_stats=False,
+            )
+        except Exception as exc:  # noqa: BLE001
+            from loguru import logger
+            logger.warning("[EXPLORE] record feed_push impressions failed: {}", exc)
             try:
                 db.rollback()
             except Exception:

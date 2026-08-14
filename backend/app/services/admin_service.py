@@ -564,6 +564,9 @@ def admin_delete_comment(comment_id: int, request: Request, db: Session, admin: 
     c = db.get(Comment, comment_id)
     if not c:
         raise HTTPException(status_code=404, detail="评论不存在")
+    # 同步清理该评论的关联通知，避免消息列表展示已删除评论
+    from app.services.notification_service import cleanup_notifications_for_deleted_comments
+    cleanup_notifications_for_deleted_comments(db, [comment_id])
     db.delete(c)
     log_admin_action(db, admin.id, "delete_comment", json.dumps({"comment_id": comment_id}, ensure_ascii=False), _extract_ip(request))
     db.commit()
@@ -1321,6 +1324,23 @@ def admin_cleanup_expired_audit(db: Session, request: Request | None = None, adm
 
     deleted_posts = len(old_posts)
     deleted_comments = len(old_comments)
+
+    # 同步清理关联通知：避免消息列表展示已删除的帖子/评论
+    if deleted_comments or deleted_posts:
+        from app.services.notification_service import (
+            cleanup_notifications_for_deleted_comments,
+            cleanup_notifications_for_deleted_posts,
+        )
+        if deleted_comments:
+            cleanup_notifications_for_deleted_comments(db, [c.id for c in old_comments])
+        if deleted_posts:
+            for p in old_posts:
+                cleanup_notifications_for_deleted_posts(db, p.id)
+            # 被删帖子下的评论（可能成孤儿行）相关通知一并清理
+            comment_ids = db.scalars(
+                select(Comment.id).where(Comment.post_id.in_([p.id for p in old_posts]))
+            ).all()
+            cleanup_notifications_for_deleted_comments(db, list(comment_ids))
 
     if admin is not None and request is not None:
         log_admin_action(

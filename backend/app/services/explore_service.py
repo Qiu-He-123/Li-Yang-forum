@@ -23,7 +23,7 @@
 """
 import math
 import random
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 from loguru import logger
 from sqlalchemy import desc, func, or_, select
@@ -51,6 +51,12 @@ _REPORT_BLOCK_DAYS = 30
 # 探索场景常量
 SCENE_POST_FEED = "post_feed"
 SCENE_COMMENT = "comment"
+# 推荐流（热门页常规内容）曝光：作为「推过的不再推」个性化去重的数据来源。
+# 与 SCENE_POST_FEED（探索位曝光）分开，避免把推荐流常规曝光计入探索统计。
+SCENE_FEED_PUSH = "feed_push"
+
+# 去重统计涉及的曝光场景（帖子场景）
+_DEDUPE_SCENES = (SCENE_POST_FEED, SCENE_FEED_PUSH)
 
 
 def _clamp_rate(raw: str, default: float = 0.15) -> float:
@@ -79,6 +85,11 @@ def get_explore_config(db: Session) -> dict:
         "feed_mmr_max_per_category": max(1, settings_service.get_int(db, "feed_mmr_max_per_category", 6)),
         "comment_explore_enabled": settings_service.get_bool(db, "comment_explore_enabled", True),
         "comment_explore_rate": _clamp_rate(settings_service.get_setting(db, "comment_explore_rate", "0.15")),
+        # 个性化去重（大厂做法「推过的不再推」）：
+        # - feed_dedupe_enabled: 推荐流已推给该用户的帖子不再重复推荐，未看过的优先曝光
+        # - feed_dedupe_days: 去重窗口（天，0=全部历史）；超过窗口后可再次推荐
+        "feed_dedupe_enabled": settings_service.get_bool(db, "feed_dedupe_enabled", True),
+        "feed_dedupe_days": max(0, settings_service.get_int(db, "feed_dedupe_days", 0)),
     }
 
 
@@ -186,6 +197,84 @@ def _weighted_sample(
     return [item for _, item in scored[:k]]
 
 
+def get_seen_post_ids(db: Session, user_id: int, days: int = 0) -> set[int]:
+    """该用户在推荐流中已经看过的帖子 id 集合（「推过的不再推」去重依据）。
+
+    - 覆盖 post_feed（探索位曝光）与 feed_push（推荐流常规曝光）两个场景
+    - days=0 表示全部历史；days>0 只统计最近 N 天内的曝光（超窗可再次推荐）
+    """
+    query = (
+        select(FeedImpressionLog.post_id)
+        .where(
+            FeedImpressionLog.user_id == user_id,
+            FeedImpressionLog.post_id.is_not(None),
+            FeedImpressionLog.scene.in_(_DEDUPE_SCENES),
+        )
+        .distinct()
+    )
+    if days and days > 0:
+        cutoff = now_utc() - timedelta(days=days)
+        query = query.where(FeedImpressionLog.created_at >= cutoff)
+    return set(db.scalars(query).all())
+
+
+def get_seen_since_map(db: Session, user_id: int, days: int = 0) -> dict[int, datetime]:
+    """每个已看帖子最近一次曝光时间（用于看过内容补位时的 LRU 排序）。"""
+    query = (
+        select(FeedImpressionLog.post_id, func.max(FeedImpressionLog.created_at))
+        .where(
+            FeedImpressionLog.user_id == user_id,
+            FeedImpressionLog.post_id.is_not(None),
+            FeedImpressionLog.scene.in_(_DEDUPE_SCENES),
+        )
+        .group_by(FeedImpressionLog.post_id)
+    )
+    if days and days > 0:
+        cutoff = now_utc() - timedelta(days=days)
+        query = query.where(FeedImpressionLog.created_at >= cutoff)
+    return {pid: ts for pid, ts in db.execute(query).all()}
+
+
+def _sample_from_pool(
+    pool: list[Post],
+    k: int,
+    mode: str,
+    config: dict,
+    stats: dict[int, PostExploreStat],
+    rng: random.Random,
+) -> list[Post]:
+    """从候选池按指定采样算法抽取 k 条。"""
+    if k <= 0 or not pool:
+        return []
+    if len(pool) <= k:
+        return pool
+
+    if mode == "uniform":
+        return rng.sample(pool, k)
+
+    if mode == "weighted":
+        # 权重 = 低互动红利 + 新鲜度红利：点赞越少、越新，越容易被抽中
+        now = now_utc()
+        since = now - timedelta(hours=config["feed_explore_hours"])
+        total_hours = max(1, (now - since).total_seconds() / 3600)
+        weights = []
+        for p in pool:
+            freshness = max(0.0, 1.0 - (now - p.created_at).total_seconds() / 3600 / total_hours)
+            weights.append(1.0 / (1.0 + (p.like_count or 0)) + 0.5 * freshness)
+        return _weighted_sample(pool, weights, k, rng)
+
+    # thompson：Beta 采样后取 Top-N
+    scored = []
+    for p in pool:
+        stat = stats.get(p.id)
+        alpha = ((stat.like_count or 0) + (stat.comment_count or 0)) if stat else 0
+        impressions = (stat.impressions or 0) if stat else 0
+        beta = max(0, impressions - alpha)
+        scored.append((_thompson_sample(alpha, beta, rng), p))
+    scored.sort(reverse=True, key=lambda x: x[0])
+    return [p for _, p in scored[:k]]
+
+
 def pick_explore_posts(
     db: Session,
     user: User | None,
@@ -193,8 +282,16 @@ def pick_explore_posts(
     config: dict,
     exclude_ids: set[int] | None = None,
     rng: random.Random | None = None,
+    seen_post_ids: set[int] | None = None,
+    seen_since: dict[int, datetime] | None = None,
 ) -> list[Post]:
-    """从探索池中挑选 limit 条帖子（支持三种采样算法）。"""
+    """从探索池中挑选 limit 条帖子（支持三种采样算法）。
+
+    个性化去重（大厂做法「推过的不再推」）：
+    - seen_post_ids: 该用户已看过的帖子 id 集合，未看过的候选优先被抽中
+    - seen_since: 已看帖子最近曝光时间，未看过候选不足时用「最久没看过」的补位，
+      避免探索位空窗，同时保证不立刻重复刚看过的内容
+    """
     limit = max(0, int(limit))
     if limit <= 0:
         return []
@@ -212,37 +309,28 @@ def pick_explore_posts(
 
     rng = rng or random.Random()
     mode = config["feed_explore_mode"]
+    stats: dict[int, PostExploreStat] = {}
+    if mode == "thompson":
+        stats = {
+            s.post_id: s
+            for s in db.scalars(
+                select(PostExploreStat).where(PostExploreStat.post_id.in_([p.id for p in candidates]))
+            ).all()
+        }
 
-    if mode == "uniform":
-        return rng.sample(candidates, limit)
+    if seen_post_ids:
+        unseen = [p for p in candidates if p.id not in seen_post_ids]
+        seen = [p for p in candidates if p.id in seen_post_ids]
+        if len(unseen) >= limit:
+            return _sample_from_pool(unseen, limit, mode, config, stats, rng)
+        if seen:
+            # 未看过的全部保留；缺口用「看过」里最久没看过的补足
+            if seen_since:
+                seen = sorted(seen, key=lambda p: seen_since.get(p.id) or datetime.min)
+            remaining = limit - len(unseen)
+            return unseen + _sample_from_pool(seen, remaining, mode, config, stats, rng)
 
-    if mode == "weighted":
-        # 权重 = 低互动红利 + 新鲜度红利：点赞越少、越新，越容易被抽中
-        now = now_utc()
-        since = now - timedelta(hours=config["feed_explore_hours"])
-        total_hours = max(1, (now - since).total_seconds() / 3600)
-        weights = []
-        for p in candidates:
-            freshness = max(0.0, 1.0 - (now - p.created_at).total_seconds() / 3600 / total_hours)
-            weights.append(1.0 / (1.0 + (p.like_count or 0)) + 0.5 * freshness)
-        return _weighted_sample(candidates, weights, limit, rng)
-
-    # thompson：Beta 采样后取 Top-N
-    stats = {
-        s.post_id: s
-        for s in db.scalars(
-            select(PostExploreStat).where(PostExploreStat.post_id.in_([p.id for p in candidates]))
-        ).all()
-    }
-    scored = []
-    for p in candidates:
-        stat = stats.get(p.id)
-        alpha = ((stat.like_count or 0) + (stat.comment_count or 0)) if stat else 0
-        impressions = (stat.impressions or 0) if stat else 0
-        beta = max(0, impressions - alpha)
-        scored.append((_thompson_sample(alpha, beta, rng), p))
-    scored.sort(reverse=True, key=lambda x: x[0])
-    return [p for _, p in scored[:limit]]
+    return _sample_from_pool(candidates, limit, mode, config, stats, rng)
 
 
 def merge_explore(

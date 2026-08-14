@@ -22,6 +22,10 @@ from app.core.time_utils import now_utc, to_iso_zh
 from app.models import Notification, User
 from app.services.avatar import avatar_url_or_default
 
+# 历史遗留：早期"合并去重"方案使用的类型集合（_dedupe_duplicate_notifications 仍引用）
+# 当前方案改为"状态镜像"（取消点赞/收藏即删通知），本常量仅保证旧清理函数可运行
+_CONSOLIDATABLE_TYPES = ("like", "interaction", "mention", "comment")
+
 
 def create_notification(
     db: Session,
@@ -44,6 +48,12 @@ def create_notification(
         sender_id: 触发通知的用户 id（系统通知为 None）
         reference_type: 关联对象类型（post/comment/user）
         reference_id: 关联对象 id
+
+    状态同步约定（消息列表「有什么显示什么」）：
+    - 点赞/评论等互动通知是「当前互动状态」的真实镜像：互动存在 → 有通知；
+      互动消失（取消点赞、评论被删、帖子被删）→ 通知同步删除，
+      由调用方负责清理（见 cleanup_notifications_for_deleted_likes /
+      cleanup_notifications_for_deleted_comments / _cleanup_stale_notifications）。
     """
     if user_id <= 0:
         return
@@ -90,10 +100,103 @@ def cleanup_notifications_for_deleted_posts(db: Session, post_id: int) -> None:
     )
 
 
+def cleanup_notifications_for_deleted_likes(
+    db: Session,
+    recipient_id: int,
+    sender_id: int,
+    target_type: str,
+    target_id: int,
+) -> None:
+    """取消点赞后同步删除对应的「收到点赞」通知（消息列表「有什么显示什么」）。
+
+    点赞是当前状态：对方取消点赞 → 这条点赞通知立即消失（不论已读未读）；
+    再次点赞 → 重新生成一条新通知。
+    """
+    if recipient_id <= 0:
+        return
+    db.execute(
+        delete(Notification).where(
+            Notification.user_id == recipient_id,
+            Notification.sender_id == sender_id,
+            Notification.type == "like",
+            Notification.reference_type == target_type,
+            Notification.reference_id == target_id,
+        )
+    )
+
+
+def cleanup_notifications_for_deleted_favorites(
+    db: Session,
+    recipient_id: int,
+    sender_id: int,
+    post_id: int,
+) -> None:
+    """取消收藏后同步删除对应的「收到收藏」通知（消息列表「有什么显示什么」）。"""
+    if recipient_id <= 0:
+        return
+    db.execute(
+        delete(Notification).where(
+            Notification.user_id == recipient_id,
+            Notification.sender_id == sender_id,
+            Notification.type == "interaction",
+            Notification.reference_type == "post",
+            Notification.reference_id == post_id,
+        )
+    )
+
+
+def _dedupe_duplicate_notifications(db: Session, user_id: int) -> None:
+    """懒清理：同一互动状态只保留一条通知（消息列表「有什么显示什么」）。
+
+    修复历史遗留脏数据：老版本「取消点赞不删通知」导致同一条点赞残留多条
+    「收到点赞」通知。按 (sender_id, type, reference_type, reference_id) 分组，
+    每组保留 id 最大（最新）的一条，删除其余。
+    """
+    groups = db.execute(
+        select(
+            Notification.sender_id,
+            Notification.type,
+            Notification.reference_type,
+            Notification.reference_id,
+            func.max(Notification.id).label("keep_id"),
+        )
+        .where(
+            Notification.user_id == user_id,
+            Notification.is_read.is_(False),
+            Notification.sender_id.is_not(None),
+            Notification.reference_type.is_not(None),
+            Notification.reference_id.is_not(None),
+            Notification.type.in_(_CONSOLIDATABLE_TYPES),
+        )
+        .group_by(
+            Notification.sender_id,
+            Notification.type,
+            Notification.reference_type,
+            Notification.reference_id,
+        )
+        .having(func.count(Notification.id) > 1)
+    ).all()
+    if not groups:
+        return
+    for g in groups:
+        db.execute(
+            delete(Notification).where(
+                Notification.user_id == user_id,
+                Notification.is_read.is_(False),
+                Notification.sender_id == g.sender_id,
+                Notification.type == g.type,
+                Notification.reference_type == g.reference_type,
+                Notification.reference_id == g.reference_id,
+                Notification.id != g.keep_id,
+            )
+        )
+
+
 def _cleanup_stale_notifications(db: Session, user_id: int) -> None:
     """懒清理：删除当前用户指向已删除帖子/评论的互动通知（保留 system 通知）。
 
     修复历史遗留脏数据：帖子/评论被删除后，旧通知仍展示在消息列表。
+    评论通知除评论本身被删外，评论所属帖子被删（评论成为孤儿行）也会清理。
     """
     from app.models import Comment, Post
 
@@ -106,14 +209,29 @@ def _cleanup_stale_notifications(db: Session, user_id: int) -> None:
             ~Notification.reference_id.in_(select(Post.id)),
         )
     )
+    # 评论通知：评论已删除，或评论所属帖子已删除（孤儿评论）→ 清理
+    alive_comment_ids = select(Comment.id).join(Post, Post.id == Comment.post_id)
     db.execute(
         delete(Notification).where(
             Notification.user_id == user_id,
+            Notification.type != "system",
             Notification.reference_type == "comment",
+            Notification.reference_id.is_not(None),
+            ~Notification.reference_id.in_(alive_comment_ids),
+        )
+    )
+    # 历史脏数据：早期版本曾把评论通知的 reference_type 误存为 post（reference_id 是评论 id），
+    # 按 reference_type 抓不到。type='comment' 的通知一律校验 reference_id 必须是存在的评论。
+    db.execute(
+        delete(Notification).where(
+            Notification.user_id == user_id,
+            Notification.type == "comment",
             Notification.reference_id.is_not(None),
             ~Notification.reference_id.in_(select(Comment.id)),
         )
     )
+    # 重复未读互动通知合并（大厂做法：反复点赞只保留一条）
+    _dedupe_duplicate_notifications(db, user_id)
     db.commit()
 
 
