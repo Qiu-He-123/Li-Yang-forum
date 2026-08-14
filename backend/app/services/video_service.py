@@ -7,6 +7,7 @@ video_urls + 封面图。前端 feed 直接 <video> 播放，点进详情是视�
 解析复用 获取抖音视频 / 获取快手视频 的实现（backend/app/services/video_fetch/）。
 """
 
+import asyncio
 import hashlib
 import json
 import logging
@@ -207,12 +208,12 @@ async def publish_shared_video(
     服务器零视频存储/带宽/转码 CPU，画质原样（不糊），发布秒完成。
     直链会过期，帖子保存原始分享文本，失效时前端调 /videos/refresh-link 换新直链。
     """
-    record = parse_share(text)
-    video_url = playable_url(record)
+    record = await asyncio.to_thread(parse_share, text)
+    video_url = await asyncio.to_thread(playable_url, record)
 
     # 封面（小图）下载到本地并压缩，作为帖子图片
     image_urls: list[str] = []
-    cover_local = local_cover(record.get("cover"))
+    cover_local = await asyncio.to_thread(local_cover, record.get("cover"))
     if cover_local:
         image_urls.append(cover_local)
 

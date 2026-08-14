@@ -416,13 +416,22 @@ async def _start_wechat_auto_sync() -> None:
     from app.services.settings_service import get_int as _get_int
 
     _lock = _asyncio.Lock()
-    _last_mtimes: dict = {}
+    _state: dict = {"mt": {}}
 
-    with SessionLocal() as _db:
-        _last_mtimes = _wss.sns_mtimes()
+    def _cycle() -> tuple[dict, int]:
+        """一轮检查 + 同步（在线程池执行：微信库解密/扫描很慢，绝不能阻塞事件循环）。"""
+        with SessionLocal() as db:
+            if not _wss.has_auto_sync_binding(db):
+                return {}, 0
+            now = _wss.sns_mtimes()
+            if not any(v is not None for v in now.values()):
+                return now, -1  # -1 = 找不到 sns.db
+            if now == _state["mt"]:
+                return now, 0  # 朋友圈没有刷新
+            added = _wss.sync_moments_from_local(db)
+            return now, added
 
     async def _loop() -> None:
-        nonlocal _last_mtimes
         while True:
             with SessionLocal() as _db:
                 interval = max(5, _get_int(_db, "wechat_sync_interval_seconds", 10))
@@ -431,28 +440,19 @@ async def _start_wechat_auto_sync() -> None:
                 continue
             async with _lock:
                 try:
-                    with SessionLocal() as db:
-                        if not _wss.has_auto_sync_binding(db):
-                            logger.info(
-                                "[WECHAT_AUTO_SYNC] 没有开启自动同步的绑定，跳过（请在微信同步页开启自动同步）"
-                            )
-                            continue
-                        now = _wss.sns_mtimes()
-                        if not any(v is not None for v in now.values()):
-                            logger.warning(
-                                "[WECHAT_AUTO_SYNC] 找不到任何 sns.db（微信数据目录/账号配置问题），"
-                                "不会同步；请用 诊断同步.py 排查"
-                            )
-                            _last_mtimes = now
-                            continue
-                        if now == _last_mtimes:
-                            continue  # 朋友圈没有刷新，不扫描
-                        _last_mtimes = now
-                        added = _wss.sync_moments_from_local(db)
-                        if added:
-                            logger.info(
-                                "[WECHAT_AUTO_SYNC] 朋友圈已刷新，新增入库 {} 条", added
-                            )
+                    now, added = await _asyncio.to_thread(_cycle)
+                    if added == -1:
+                        logger.warning(
+                            "[WECHAT_AUTO_SYNC] 找不到任何 sns.db（微信数据目录/账号配置问题），"
+                            "不会同步；请用 诊断同步.py 排查"
+                        )
+                        _state["mt"] = now
+                        continue
+                    if added:
+                        logger.info(
+                            "[WECHAT_AUTO_SYNC] 朋友圈已刷新，新增入库 {} 条", added
+                        )
+                    _state["mt"] = now
                 except Exception as exc:
                     logger.warning("[WECHAT_AUTO_SYNC] err={}", exc)
 
@@ -473,6 +473,11 @@ async def _start_video_link_guard() -> None:
 
     _lock = _asyncio.Lock()
 
+    def _cycle() -> int:
+        # 在线程池执行：直链探测是同步网络请求，不能阻塞事件循环
+        with SessionLocal() as db:
+            return _vs.check_and_restore_video_links(db)
+
     async def _loop() -> None:
         while True:
             with SessionLocal() as _db:
@@ -482,10 +487,9 @@ async def _start_video_link_guard() -> None:
                 continue
             async with _lock:
                 try:
-                    with SessionLocal() as db:
-                        fixed = _vs.check_and_restore_video_links(db)
-                        if fixed:
-                            logger.info("[VIDEO_LINK_GUARD] 自动恢复 {} 条失效直链", fixed)
+                    fixed = await _asyncio.to_thread(_cycle)
+                    if fixed:
+                        logger.info("[VIDEO_LINK_GUARD] 自动恢复 {} 条失效直链", fixed)
                 except Exception as exc:
                     logger.warning("[VIDEO_LINK_GUARD] err={}", exc)
 

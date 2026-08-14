@@ -92,11 +92,12 @@ async def verify_bind_code(
 ) -> dict:
     """分步绑定第 2 步：校验用户是否真的把验证码发给了社区微信号。"""
     code = payload.get("code") or ""
-    result = wechat_sync_service.verify_bind_code(db, user, code)
+    # 实时校验要做微信数据库解密（同步、较慢），丢线程池避免阻塞事件循环
+    result = await asyncio.to_thread(wechat_sync_service.verify_bind_code, db, user, code)
     if not result.get("matched"):
         # 客户端上报消息有延迟，等 1 秒再看一次
         await asyncio.sleep(1)
-        result = wechat_sync_service.verify_bind_code(db, user, code)
+        result = await asyncio.to_thread(wechat_sync_service.verify_bind_code, db, user, code)
     return ok(result)
 
 
