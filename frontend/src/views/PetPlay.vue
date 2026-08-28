@@ -651,8 +651,6 @@ function stopMole() {
 
 /** 停止所有本地小游戏（退出/卸载页面时调用） */
 function stopAll() {
-  stopCatch()
-  stopBubble()
   stopMemory()
   stopRps()
   stopMole()
