@@ -21,6 +21,7 @@ import { useGuessStore } from '../../stores/guess'
 import { useSessionStore } from '../../stores/session'
 import { useUIStore } from '../../stores/ui'
 import { useCoinStore } from '../../stores/coin'
+import { toast } from '../../components/native/Toast'
 
 const guessStore = useGuessStore()
 const sessionStore = useSessionStore()
@@ -143,6 +144,7 @@ async function confirmBet() {
     await coinStore.loadBalance()
     submitting.value = false
     close()
+    toast.success(`押注成功！已押 ${amount.value.toLocaleString()} 积分`)
   } catch (err) {
     submitting.value = false
     errMsg.value = (err as Error).message || '押注失败'

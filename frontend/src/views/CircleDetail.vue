@@ -192,6 +192,14 @@ function openPost(p: Post) {
   router.push({ name: 'post-detail', params: { id: p.id } })
 }
 
+function openCreatePost() {
+  if (!session.userId) {
+    uiStore.openAuthDialog()
+    return
+  }
+  router.push({ name: 'post-create', query: { circle_slug: slug.value } })
+}
+
 // ============ 阶段四：吧主管理面板逻辑 ============
 async function openManagePanel() {
   manageVisible.value = true
@@ -504,6 +512,11 @@ watch(slug, () => {
         <EmptyState v-else text="这个圈子还没人发帖，来做第一个吧" />
       </section>
     </div>
+
+    <!-- 右下角：发布相机 FAB -->
+    <button class="plaza-fab" type="button" aria-label="发布动态" @click="openCreatePost">
+      <Icon name="camera" :size="24" color="#fff" />
+    </button>
 
     <!-- ====== 吧主管理面板 ====== -->
     <Dialog v-model="manageVisible" title="吧主管理" width="480px">
@@ -1416,5 +1429,39 @@ watch(slug, () => {
 .admin-remove-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+/* 右下角发布 FAB（同广场） */
+.plaza-fab {
+  position: fixed;
+  right: max(16px, calc((100vw - 720px) / 2 + 16px));
+  bottom: calc(80px + env(safe-area-inset-bottom));
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  cursor: pointer;
+  background: linear-gradient(135deg, #2e6bff 0%, #1e4fe0 60%, #1942c2 100%);
+  box-shadow: 0 8px 18px rgba(30, 79, 224, 0.24), 0 2px 4px rgba(0, 0, 0, 0.08);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 60;
+  transition: transform 150ms ease, box-shadow 150ms ease, filter 150ms ease;
+}
+.plaza-fab:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 24px rgba(30, 79, 224, 0.32), 0 3px 6px rgba(0, 0, 0, 0.1);
+}
+.plaza-fab:active {
+  transform: translateY(0) scale(0.96);
+}
+@media (max-width: 768px) {
+  .plaza-fab {
+    right: 14px;
+    bottom: calc(68px + env(safe-area-inset-bottom));
+    width: 48px;
+    height: 48px;
+  }
 }
 </style>

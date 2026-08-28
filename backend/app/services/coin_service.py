@@ -94,4 +94,5 @@ def grant_daily_task(
     ) or 0
     if cnt >= cap:
         return 0
-    return record_transaction(db, user, amount, "daily_task", key, description or f"每日任务：{key}")
+    record_transaction(db, user, amount, "daily_task", key, description or f"每日任务：{key}")
+    return amount

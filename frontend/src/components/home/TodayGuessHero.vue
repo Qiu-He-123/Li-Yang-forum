@@ -184,7 +184,11 @@ function openGuessPanel() {
         <span v-if="guessStore.myBet && guessStore.myBet.skipped" class="hint">今天已跳过 · 明天再来</span>
         <span v-else-if="guessStore.myBet && guessStore.myBet.amount > 0" class="hint">已押 {{ guessStore.myBet.amount }} 积分</span>
         <span v-else class="hint">登录押注 · 冠军瓜分奖池</span>
-        <span class="cta">
+        <span v-if="guessStore.myBet && (guessStore.myBet.amount > 0 || guessStore.myBet.skipped)" class="cta done">
+          <Icon :size="14" name="check" />
+          已押注
+        </span>
+        <span v-else class="cta">
           立即押注
           <Icon :size="14" name="chevron-right" />
         </span>
@@ -536,5 +540,18 @@ function openGuessPanel() {
 }
 .hero-footer .cta:active {
   transform: translateY(0) scale(0.97);
+}
+.hero-footer .cta.done {
+  background: rgba(255, 255, 255, 0.18);
+  color: #ffffff;
+  box-shadow: none;
+  cursor: default;
+}
+.hero-footer .cta.done:hover {
+  transform: none;
+  box-shadow: none;
+}
+.hero-footer .cta.done:active {
+  transform: none;
 }
 </style>

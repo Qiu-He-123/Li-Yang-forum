@@ -23,7 +23,7 @@ from app.services.badge_service import badge_dict
 router = APIRouter(prefix="/rankings", tags=["rankings"])
 
 # 前端 PetPlay 的小游戏 key 白名单（防越权写入任意 key）
-GAME_KEYS = {"catch", "bubble", "memory", "rps", "wheel", "mole"}
+GAME_KEYS = {"memory", "rps", "wheel", "mole"}
 
 
 def _user_items(

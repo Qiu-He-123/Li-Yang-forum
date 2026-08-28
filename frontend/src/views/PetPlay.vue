@@ -3,7 +3,7 @@
  * 宠物游乐场「陪我玩」- 游戏中心
  * - 分类 TAB：单人游戏 / 多人游戏（多人开发中，暂只展示占位）
  * - 「制作游戏」按钮：上传 HTML 小游戏，后台审核通过后上架
- * - 内置 6 款宠物互动小游戏（接零食/戳泡泡/记忆翻牌/猜拳/幸运轮/打地鼠）
+ * - 内置 4 款宠物互动小游戏（记忆翻牌/猜拳/幸运轮/打地鼠）
  * - 移植 tufang-games 11 款 HTML 小游戏（iframe 内嵌在当前页面，不新开界面）
  * - 每局/每次游玩可领金币奖励（后台可配每局金币与每日上限），本地游戏同时加好感
  */
@@ -75,7 +75,7 @@ function reactLose() {
 }
 
 // ================= 游戏中心 =================
-const LOCAL_KEYS = new Set(['catch', 'bubble', 'memory', 'rps', 'wheel', 'mole'])
+const LOCAL_KEYS = new Set(['memory', 'rps', 'wheel', 'mole'])
 const gameTab = ref<'single' | 'multi'>('single')
 const games = ref<GameItem[]>([])
 const loadingGames = ref(false)
@@ -155,9 +155,7 @@ function startGame(g: GameItem) {
     activeGame.value = g.slug
     window.setTimeout(() => {
       const key = g.slug
-      if (key === 'catch') startCatch()
-      else if (key === 'bubble') startBubble()
-      else if (key === 'memory') startMemory()
+      if (key === 'memory') startMemory()
       else if (key === 'rps') startRps()
       else if (key === 'wheel') startWheel()
       else if (key === 'mole') startMole()
@@ -372,205 +370,6 @@ function recordBest(key: string, score: number, lowerIsBetter = false) {
       }).catch(() => { /* 排行榜上报失败不打扰游戏 */ })
     }
   }
-}
-
-// ================= 本地游戏：接零食 =================
-interface CatchItem { id: number; x: number; y: number; speed: number; emoji: string; size: number }
-const CATCH_EMOJIS = ['🍎', '🍗', '🍩', '🍰', '🥕', '🍉', '🍓', '🍿']
-const catchState = reactive({
-  running: false,
-  score: 0,
-  lives: 5,
-  time: 30,
-  bowlX: 50,
-  items: [] as CatchItem[],
-  boom: [] as { id: number; x: number; emoji: string }[],
-})
-let catchSeq = 0
-let catchRaf = 0
-let catchLast = 0
-let catchClock = 0
-let catchTimer: number | null = null
-
-function onCatchMove(e: PointerEvent) {
-  if (!catchState.running) return
-  const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
-  catchState.bowlX = Math.min(94, Math.max(6, ((e.clientX - rect.left) / rect.width) * 100))
-}
-
-function startCatch() {
-  catchState.running = true
-  catchState.score = 0
-  catchState.lives = 5
-  catchState.time = 30
-  catchState.items = []
-  catchState.bowlX = 50
-  catchState.boom = []
-  catchLast = performance.now()
-  catchClock = 0
-  catchTimer = window.setInterval(() => {
-    if (catchState.running) catchState.time -= 1
-  }, 1000)
-  catchRaf = requestAnimationFrame(stepCatch)
-  say('快！帮我接住好吃的！', 'chat', 1600)
-}
-
-function stepCatch(now: number) {
-  if (!catchState.running) return
-  const dt = Math.min(50, now - catchLast)
-  catchLast = now
-  catchClock += dt
-  for (const it of catchState.items) it.y += it.speed * (dt / 16.6)
-  const rest: CatchItem[] = []
-  const boomBatch: { id: number; x: number; emoji: string }[] = []
-  for (const it of catchState.items) {
-    if (it.y > 92) {
-      catchState.lives -= 1
-      boomBatch.push({ id: it.id, x: it.x, emoji: '💥' })
-      continue
-    }
-    if (it.y > 76 && Math.abs(it.x - catchState.bowlX) < 11) {
-      catchState.score += 1
-      boomBatch.push({ id: it.id, x: it.x, emoji: it.emoji })
-      continue
-    }
-    rest.push(it)
-  }
-  catchState.items = rest
-  if (boomBatch.length) catchState.boom.push(...boomBatch)
-  if (catchClock >= 150 && catchState.items.length < 9) {
-    const elapsed = 30 - catchState.time
-    // 随时间逐渐加快：下落速度逐步提升，产物也更密（更难接）
-    const spawnInterval = Math.max(250, 650 - elapsed * 14)
-    if (catchClock >= spawnInterval) {
-      catchState.items.push({
-        id: catchSeq++,
-        x: 6 + Math.random() * 88,
-        y: -6,
-        speed: 0.22 + Math.random() * 0.14 + elapsed * 0.022,
-        emoji: CATCH_EMOJIS[Math.floor(Math.random() * CATCH_EMOJIS.length)],
-        size: 20 + Math.random() * 8,
-      })
-      catchClock = 0
-    }
-  }
-  if (catchState.boom.length) {
-    window.setTimeout(() => {
-      catchState.boom = []
-    }, 500)
-  }
-  if (catchState.lives <= 0 || catchState.time <= 0) {
-    endCatch()
-    return
-  }
-  catchRaf = requestAnimationFrame(stepCatch)
-}
-
-function endCatch() {
-  catchState.running = false
-  if (catchTimer !== null) { window.clearInterval(catchTimer); catchTimer = null }
-  catchState.items = []
-  const s = catchState.score
-  recordBest('catch', s)
-  if (s >= 15) { reactWin(); rewardPlay() }
-  else if (s >= 8) { say(gs('good', `接住 ${s} 个！不错哦~ (+好感)`), 'feedback', 2400); rewardPlay() }
-  else reactLose()
-}
-
-function stopCatch() {
-  catchState.running = false
-  if (catchTimer !== null) { window.clearInterval(catchTimer); catchTimer = null }
-}
-
-// ================= 本地游戏：戳泡泡 =================
-interface BubbleItem { id: number; x: number; y: number; size: number; dur: number; hue: string }
-const bubbleState = reactive({
-  running: false,
-  score: 0,
-  time: 30,
-  bubbles: [] as BubbleItem[],
-  pops: [] as { id: number; x: number; y: number; emoji: string }[],
-})
-let bubbleSeq = 0
-let bubbleTimer: number | null = null
-let bubbleSpawnTimer: number | null = null
-
-function startBubble() {
-  bubbleState.running = true
-  bubbleState.score = 0
-  bubbleState.time = 30
-  bubbleState.bubbles = []
-  bubbleState.pops = []
-  bubbleTimer = window.setInterval(() => {
-    if (bubbleState.running) bubbleState.time -= 1
-  }, 1000)
-  bubbleSpawnTimer = window.setInterval(spawnBubble, 520)
-  for (let i = 0; i < 4; i++) window.setTimeout(spawnBubble, i * 160)
-  say('泡泡飞起来啦，戳戳戳！', 'chat', 1600)
-}
-
-function spawnBubble() {
-  if (!bubbleState.running || bubbleState.bubbles.length >= 12) return
-  const hues = ['#ff6b81', '#5b8cff', '#ffb347', '#00c9a7', '#a18cd1', '#ff8a5c']
-  bubbleState.bubbles.push({
-    id: bubbleSeq++,
-    x: 8 + Math.random() * 80,
-    y: 5 + Math.random() * 45,
-    size: 34 + Math.random() * 26,
-    dur: 5.5 + Math.random() * 4,
-    hue: hues[Math.floor(Math.random() * hues.length)],
-  })
-}
-
-function popBubble(b: BubbleItem) {
-  const idx = bubbleState.bubbles.findIndex((x) => x.id === b.id)
-  if (idx < 0) return
-  bubbleState.bubbles.splice(idx, 1)
-  bubbleState.score += 1
-  bubbleState.pops.push({ id: b.id, x: b.x, y: b.y, emoji: '✨' })
-  window.setTimeout(() => {
-    bubbleState.pops = bubbleState.pops.filter((p) => p.id !== b.id)
-  }, 600)
-  if (bubbleState.score === 1) say('哇！一下就戳中了！', 'chat', 1500)
-}
-
-/** 点击泡泡区域：用命中测试找到被点的具体泡泡再戳破（兼容动画/变换导致的点击失效） */
-function onBubbleFieldClick(e: MouseEvent | TouchEvent) {
-  if (!bubbleState.running) return
-  const x = 'clientX' in e ? e.clientX : e.touches?.[0]?.clientX
-  const y = 'clientY' in e ? e.clientY : e.touches?.[0]?.clientY
-  if (x == null || y == null) return
-  if ('touches' in e && e.touches.length === 0 && e.type === 'touchend') {
-    // touchend 时无 touches，改用 changedTouches
-  }
-  let el: Element | null = document.elementFromPoint(x, y)
-  // 沿命中链向上找最近的泡泡元素
-  while (el && !(el instanceof HTMLElement && el.dataset.bubbleId)) {
-    el = el.parentElement
-  }
-  if (el && el instanceof HTMLElement && el.dataset.bubbleId) {
-    const id = Number(el.dataset.bubbleId)
-    const b = bubbleState.bubbles.find((bb) => bb.id === id)
-    if (b) popBubble(b)
-  }
-}
-
-function endBubble() {
-  bubbleState.running = false
-  if (bubbleTimer !== null) { window.clearInterval(bubbleTimer); bubbleTimer = null }
-  if (bubbleSpawnTimer !== null) { window.clearInterval(bubbleSpawnTimer); bubbleSpawnTimer = null }
-  bubbleState.bubbles = []
-  const s = bubbleState.score
-  recordBest('bubble', s)
-  if (s >= 20) { reactWin(); rewardPlay() }
-  else if (s >= 10) { say(gs('good', `戳爆 ${s} 个！手速可以！(+好感)`), 'feedback', 2400); rewardPlay() }
-  else reactLose()
-}
-
-function stopBubble() {
-  bubbleState.running = false
-  if (bubbleTimer !== null) { window.clearInterval(bubbleTimer); bubbleTimer = null }
-  if (bubbleSpawnTimer !== null) { window.clearInterval(bubbleSpawnTimer); bubbleSpawnTimer = null }
 }
 
 // ================= 本地游戏：记忆翻牌 =================
@@ -1064,87 +863,15 @@ function goShop() {
       <template v-else>
         <!-- 通用顶栏 -->
         <div class="pp-game__bar">
-          <div v-if="activeGame === 'catch' || activeGame === 'bubble' || activeGame === 'mole'" class="pp-game__hud">
-            <span class="pp-game__hud-item">⏱ {{ activeGame === 'catch' ? catchState.time : activeGame === 'bubble' ? bubbleState.time : moleState.time }}s</span>
-            <span class="pp-game__hud-item pp-game__hud-item--score">⭐ {{ activeGame === 'catch' ? catchState.score : activeGame === 'bubble' ? bubbleState.score : moleState.score }}</span>
-            <span v-if="activeGame === 'catch'" class="pp-game__hud-item pp-game__hud-item--lives">❤️ {{ catchState.lives }}</span>
+          <div v-if="activeGame === 'mole'" class="pp-game__hud">
+            <span class="pp-game__hud-item">⏱ {{ moleState.time }}s</span>
+            <span class="pp-game__hud-item pp-game__hud-item--score">⭐ {{ moleState.score }}</span>
           </div>
           <button class="pp-game__quit" type="button" @click="goBackToLobby">退出</button>
         </div>
 
-        <!-- 1. 接零食 -->
-        <div v-if="activeGame === 'catch'" class="catch-game" @pointermove="onCatchMove">
-          <TransitionGroup name="pp-fall" tag="div" class="catch-game__items">
-            <span
-              v-for="it in catchState.items"
-              :key="it.id"
-              class="catch-game__item"
-              :style="{ left: it.x + '%', top: it.y + '%', fontSize: it.size + 'px' }"
-            >{{ it.emoji }}</span>
-          </TransitionGroup>
-          <TransitionGroup name="pp-boom" tag="div" class="catch-game__booms">
-            <span
-              v-for="b in catchState.boom"
-              :key="b.id"
-              class="catch-game__boom"
-              :style="{ left: b.x + '%' }"
-            >{{ b.emoji }}</span>
-          </TransitionGroup>
-          <div class="catch-game__bowl" :style="{ left: catchState.bowlX + '%' }">
-            <span class="catch-game__bowl-emoji">🥣</span>
-          </div>
-          <div v-if="!catchState.running" class="catch-game__overlay">
-            <div class="catch-game__overlay-card">
-              <p class="catch-game__overlay-title">接住 {{ catchState.score }} 个零食！</p>
-              <div class="catch-game__overlay-actions">
-                <button type="button" @click="startCatch">再来一局</button>
-                <button type="button" @click="goBackToLobby">返回大厅</button>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- 2. 戳泡泡 -->
-        <div v-else-if="activeGame === 'bubble'" class="bubble-game">
-          <div class="bubble-game__field" @click="onBubbleFieldClick">
-            <TransitionGroup name="pp-bubble" tag="div" class="bubble-game__inner">
-              <span
-                v-for="b in bubbleState.bubbles"
-                :key="b.id"
-                class="bubble-game__bubble"
-                :style="{
-                  left: b.x + '%',
-                  bottom: b.y + '%',
-                  width: b.size + 'px',
-                  height: b.size + 'px',
-                  animationDuration: b.dur + 's',
-                  background: `radial-gradient(circle at 32% 30%, rgba(255,255,255,.85), ${b.hue} 58%, rgba(23,32,64,.15))`,
-                }"
-                :data-bubble-id="b.id"
-              ></span>
-            </TransitionGroup>
-          </div>
-          <TransitionGroup name="pp-boom" tag="div" class="bubble-game__pops">
-            <span
-              v-for="p in bubbleState.pops"
-              :key="p.id"
-              class="bubble-game__pop"
-              :style="{ left: p.x + '%', bottom: p.y + '%' }"
-            >{{ p.emoji }}</span>
-          </TransitionGroup>
-          <div v-if="!bubbleState.running" class="bubble-game__overlay">
-            <div class="bubble-game__overlay-card">
-              <p class="bubble-game__overlay-title">戳爆 {{ bubbleState.score }} 个泡泡！</p>
-              <div class="bubble-game__overlay-actions">
-                <button type="button" @click="startBubble">再来一局</button>
-                <button type="button" @click="goBackToLobby">返回大厅</button>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- 3. 记忆翻牌 -->
-        <div v-else-if="activeGame === 'memory'" class="memory-game">
+        <!-- 1. 记忆翻牌 -->
+        <div v-if="activeGame === 'memory'" class="memory-game">
           <div class="memory-game__hud">
             <span class="memory-game__hud-item">剩余 {{ memoryState.pairs }} 对</span>
             <span class="memory-game__hud-item">步数 {{ memoryState.moves }}</span>
@@ -1865,8 +1592,6 @@ function goShop() {
 }
 
 /* 通用结束遮罩 */
-.catch-game__overlay,
-.bubble-game__overlay,
 .memory-game__overlay,
 .rps-game__overlay,
 .mole-game__overlay {
@@ -1880,8 +1605,6 @@ function goShop() {
   backdrop-filter: blur(4px);
   z-index: 5;
 }
-.catch-game__overlay-card,
-.bubble-game__overlay-card,
 .memory-game__overlay-card,
 .rps-game__overlay-card,
 .mole-game__overlay-card {
@@ -1896,8 +1619,6 @@ function goShop() {
   box-shadow: var(--shadow-xl);
   animation: pp-bubble-pop 300ms cubic-bezier(0.32, 1.3, 0.4, 1) both;
 }
-.catch-game__overlay-title,
-.bubble-game__overlay-title,
 .memory-game__overlay-title,
 .rps-game__overlay-title,
 .mole-game__overlay-title {
@@ -1910,16 +1631,12 @@ function goShop() {
   font-size: 12px;
   color: var(--text-400);
 }
-.catch-game__overlay-actions,
-.bubble-game__overlay-actions,
 .memory-game__overlay-actions,
 .rps-game__overlay-actions,
 .mole-game__overlay-actions {
   display: flex;
   gap: 10px;
 }
-.catch-game__overlay-actions button,
-.bubble-game__overlay-actions button,
 .memory-game__overlay-actions button,
 .rps-game__overlay-actions button,
 .mole-game__overlay-actions button {
@@ -1930,113 +1647,17 @@ function goShop() {
   font-weight: 600;
   cursor: pointer;
 }
-.catch-game__overlay-actions button:first-child,
-.bubble-game__overlay-actions button:first-child,
 .memory-game__overlay-actions button:first-child,
 .rps-game__overlay-actions button:first-child,
 .mole-game__overlay-actions button:first-child {
   background: var(--brand-500);
   color: #fff;
 }
-.catch-game__overlay-actions button:last-child,
-.bubble-game__overlay-actions button:last-child,
 .memory-game__overlay-actions button:last-child,
 .rps-game__overlay-actions button:last-child,
 .mole-game__overlay-actions button:last-child {
   background: var(--bg-100);
   color: var(--text-600);
-}
-
-/* ===== 接零食 ===== */
-.catch-game {
-  position: relative;
-  height: 400px;
-  border-radius: var(--radius);
-  overflow: hidden;
-  background:
-    radial-gradient(circle at 20% 20%, rgba(0, 122, 255, 0.10), transparent 45%),
-    radial-gradient(circle at 80% 15%, rgba(255, 95, 158, 0.10), transparent 42%),
-    linear-gradient(180deg, #ffffff, #f0f4ff);
-  border: 0.5px solid var(--bg-300);
-  touch-action: none;
-}
-.catch-game__items { position: absolute; inset: 0; }
-.catch-game__item {
-  position: absolute;
-  line-height: 1;
-  filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.2));
-  animation: pp-fall-tilt 0.8s ease-in-out infinite alternate;
-}
-@keyframes pp-fall-tilt {
-  from { transform: rotate(-8deg); }
-  to { transform: rotate(8deg); }
-}
-.catch-game__booms { position: absolute; inset: 0; pointer-events: none; }
-.catch-game__boom {
-  position: absolute;
-  top: 72%;
-  transform: translateX(-50%);
-  font-size: 24px;
-  animation: pp-boom 480ms ease-out forwards;
-}
-@keyframes pp-boom {
-  0% { opacity: 1; transform: translateX(-50%) translateY(0) scale(0.6); }
-  100% { opacity: 0; transform: translateX(-50%) translateY(-34px) scale(1.3); }
-}
-.catch-game__bowl {
-  position: absolute;
-  bottom: 16px;
-  transform: translateX(-50%);
-  width: 64px;
-  height: 48px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 42px;
-  filter: drop-shadow(0 5px 12px rgba(0, 0, 0, 0.25));
-  transition: left 60ms linear;
-}
-.catch-game__bowl-emoji { animation: pp-bowl 0.5s ease-in-out infinite alternate; }
-@keyframes pp-bowl {
-  from { transform: rotate(-4deg); }
-  to { transform: rotate(4deg); }
-}
-
-/* ===== 戳泡泡 ===== */
-.bubble-game {
-  position: relative;
-  height: 400px;
-  border-radius: var(--radius);
-  overflow: hidden;
-  background:
-    radial-gradient(circle at 70% 25%, rgba(124, 91, 255, 0.12), transparent 45%),
-    linear-gradient(180deg, #ffffff, #f4f2ff);
-  border: 0.5px solid var(--bg-300);
-  touch-action: none;
-}
-.bubble-game__field { position: absolute; inset: 0; cursor: pointer; touch-action: manipulation; }
-.bubble-game__inner { position: absolute; inset: 0; }
-.bubble-game__bubble {
-  position: absolute;
-  border: 1px solid rgba(255, 255, 255, 0.6);
-  border-radius: 50%;
-  cursor: pointer;
-  pointer-events: none;
-  animation: pp-bubble-rise linear forwards;
-  box-shadow: inset -6px -6px 14px rgba(255, 255, 255, 0.6), 0 6px 18px rgba(0, 0, 0, 0.12);
-}
-@keyframes pp-bubble-rise {
-  0% { transform: translateY(0); opacity: 0; }
-  8% { opacity: 1; }
-  100% { transform: translateY(-720px); opacity: 0.9; }
-}
-.bubble-game__pops { position: absolute; inset: 0; pointer-events: none; }
-.bubble-game__pop {
-  position: absolute;
-  transform: translate(-50%, -50%);
-  font-size: 26px;
-  animation: pp-boom 520ms ease-out forwards;
-  filter: drop-shadow(0 3px 8px rgba(0, 0, 0, 0.3));
 }
 
 /* ===== 记忆翻牌 ===== */
@@ -2351,14 +1972,8 @@ function goShop() {
 .pp-say-leave-active { transition: all 220ms ease; }
 .pp-say-enter-from,
 .pp-say-leave-to { opacity: 0; transform: translateY(8px); }
-.pp-fall-enter-active,
-.pp-fall-leave-active { transition: opacity 200ms ease; }
-.pp-fall-enter-from { opacity: 0; }
-.pp-fall-leave-to { opacity: 0; }
 .pp-boom-enter-active,
 .pp-boom-leave-active { transition: all 200ms ease; }
-.pp-bubble-enter-active { transition: all 200ms ease; }
-.pp-bubble-enter-from { opacity: 0; transform: scale(0.3); }
 .pp-mole-enter-active,
 .pp-mole-leave-active { transition: all 160ms cubic-bezier(0.32, 1.4, 0.4, 1); }
 .pp-mole-enter-from { opacity: 0; transform: translateX(-50%) translateY(22px) scale(0.5); }
