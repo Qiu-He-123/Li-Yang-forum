@@ -150,6 +150,11 @@ function onSearch() {
   loadProducts()
 }
 
+// 移动端搜索图标：进入独立商品搜索页
+function goSearch() {
+  router.push('/pet-shop/search')
+}
+
 function isImageUrl(url: string | null | undefined): boolean {
   if (!url) return false
   return url.startsWith('/') || url.startsWith('http')
@@ -262,6 +267,10 @@ function onCardClick(product: PetProduct) {
             @keyup.enter="onSearch"
           />
         </div>
+        <!-- 移动端：仅搜索图标，点击进入独立搜索页 -->
+        <button class="shop-search-btn" type="button" aria-label="搜索" @click="goSearch">
+          <Icon name="search" :size="19" />
+        </button>
       </div>
     </header>
 
@@ -414,8 +423,8 @@ function onCardClick(product: PetProduct) {
   margin: 0;
 }
 .shop-search {
+  display: none; /* 移动端隐藏输入框，改用搜索图标按钮 */
   flex: 1;
-  display: flex;
   align-items: center;
   gap: 8px;
   height: 34px;
@@ -437,6 +446,21 @@ function onCardClick(product: PetProduct) {
   min-width: 0;
 }
 .shop-search__input::placeholder { color: var(--text-400); }
+
+/* 移动端搜索图标按钮（默认展示，桌面端隐藏） */
+.shop-search-btn {
+  display: inline-flex;
+  flex-shrink: 0;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: none;
+  background: var(--bg-200);
+  color: var(--text-600);
+  cursor: pointer;
+  align-items: center;
+  justify-content: center;
+}
 
 .shop-coins {
   flex-shrink: 0;
@@ -763,6 +787,8 @@ function onCardClick(product: PetProduct) {
 
 @media (min-width: 540px) {
   .shop-grid { grid-template-columns: repeat(3, 1fr); gap: 14px; }
+  .shop-search { display: flex; }
+  .shop-search-btn { display: none; }
 }
 @media (min-width: 768px) {
   .shop-grid { grid-template-columns: repeat(4, 1fr); gap: 16px; }

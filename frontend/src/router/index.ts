@@ -101,6 +101,11 @@ const routes = [
     meta: { requiresAuth: true },
   },
   {
+    path: '/pet-shop/search',
+    name: 'pet-shop-search',
+    component: () => import('../views/PetShopSearch.vue'),
+  },
+  {
     path: '/pet-shop/:id',
     name: 'pet-shop-detail',
     component: () => import('../views/PetShopDetail.vue'),

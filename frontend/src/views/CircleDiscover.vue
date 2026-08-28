@@ -137,7 +137,19 @@ async function onCircleFilterChange(key: CircleFilterMode) {
   postStore.setPage(1)
   applyCircleFilterToStore(key)
   await postStore.loadPosts()
-  document.querySelector('.page-discover .feed-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  scrollFeedIntoView()
+}
+
+// 切换筛选/顶栏 Tab 后，精准让动态 Feed 停在「固定顶栏 + 吸顶筛选条」正下方，
+// 保证首帖的头像与昵称完整露出，不被导航遮挡。
+function scrollFeedIntoView() {
+  const feed = document.querySelector<HTMLElement>('.page-discover .feed-section')
+  if (!feed) return
+  const header = document.querySelector<HTMLElement>('.page-discover .plaza-header')
+  const filter = document.querySelector<HTMLElement>('.page-discover .plaza-filter')
+  const overlay = (header ? header.clientHeight : 0) + (filter ? filter.clientHeight : 0)
+  const target = feed.getBoundingClientRect().top + window.pageYOffset - overlay - 10
+  window.scrollTo({ top: Math.max(0, target), behavior: 'smooth' })
 }
 
 // 把「圈子二级 Tab」同步到 postStore（不主动请求，由上层组合决定）
@@ -170,7 +182,7 @@ async function onTopTabChange(tab: PlazaTopTab) {
     applyCircleFilterToStore(circleFilter.value)
   }
   await postStore.loadPosts()
-  document.querySelector('.page-discover .feed-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  scrollFeedIntoView()
 }
 
 // 展示给 feed：
@@ -1131,6 +1143,7 @@ onUnmounted(() => stopAuditPolling())
 *, *::before, *::after { box-sizing: border-box; }
 
 .page-discover {
+  --plaza-header-h: 52px;
   min-height: 100vh;
   /* 规范：背景加深一档 #F2F3F7，清爽不刺眼 */
   background: #F2F3F7;
@@ -1440,7 +1453,7 @@ onUnmounted(() => stopAuditPolling())
    ================================================ */
 .plaza-filter {
   position: sticky;
-  top: 0;
+  top: var(--plaza-header-h);
   z-index: 20;
   margin: 0 -12px 16px;
   padding: 6px 0 10px;
@@ -1494,6 +1507,8 @@ onUnmounted(() => stopAuditPolling())
    PLAZA FEED (朋友圈风单列卡片)
    ================================================ */
 .plaza-feed { padding-bottom: 24px; }
+/* 切换筛选/顶部 Tab 后精准定位：由 scrollFeedIntoView 动态计算偏移，
+   不再依赖静态 scroll-margin */
 .plaza-feed__list {
   display: flex;
   flex-direction: column;
@@ -1856,6 +1871,7 @@ onUnmounted(() => stopAuditPolling())
    ================================================ */
 @media (max-width: 768px) {
   .page-discover {
+    --plaza-header-h: 48px;
     padding-top: 48px;
     padding-bottom: calc(52px + env(safe-area-inset-bottom));
   }
