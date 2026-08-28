@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>扫雷 - 途放Game小游戏</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+            background: #0f172a;
+            color: #f8fafc;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+            user-select: none;
+        }
+        .back {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            color: #6ee7b7;
+            text-decoration: none;
+            font-size: 0.9rem;
+            font-weight: 700;
+            padding: 10px 20px;
+            border: 3px solid #34d399;
+            border-radius: 999px;
+            background: rgba(16, 185, 129, 0.12);
+            transition: all 0.2s;
+            z-index: 100;
+        }
+        .back:hover {
+            background: rgba(16, 185, 129, 0.25);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+        }
+
+        .orient-toggle {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            color: #6ee7b7;
+            font-size: 0.85rem;
+            font-weight: 700;
+            padding: 10px 18px;
+            border: 3px solid #34d399;
+            border-radius: 999px;
+            background: rgba(16, 185, 129, 0.12);
+            cursor: pointer;
+            transition: all 0.2s;
+            z-index: 100;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-family: inherit;
+        }
+        .orient-toggle:hover {
+            background: rgba(16, 185, 129, 0.25);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+        }
+        .orient-toggle .icon {
+            display: inline-block;
+            font-size: 1rem;
+            transition: transform 0.3s;
+        }
+        body.landscape .orient-toggle .icon {
+            transform: rotate(90deg);
+        }
+
+        body.landscape {
+            justify-content: center;
+            overflow: hidden;
+        }
+        body.landscape .game-wrapper {
+            transform: rotate(90deg);
+            max-width: calc(100vh - 100px);
+        }
+
+        .game-wrapper {
+            background: rgba(30, 41, 59, 0.7);
+            border: 2px solid rgba(52, 211, 153, 0.3);
+            border-radius: 24px;
+            padding: 30px;
+            max-width: 600px;
+            width: 100%;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.4), 0 0 0 1px rgba(52,211,153,0.1);
+        }
+
+        h1 {
+            font-size: 1.6rem;
+            text-align: center;
+            margin-bottom: 8px;
+            font-weight: 900;
+        }
+        h1 .accent { color: #34d399; }
+
+        .diff-select {
+            display: flex;
+            gap: 8px;
+            justify-content: center;
+            margin-bottom: 18px;
+            flex-wrap: wrap;
+        }
+        .diff-btn {
+            padding: 8px 18px;
+            border: 3px solid #334155;
+            border-radius: 999px;
+            background: transparent;
+            color: #94a3b8;
+            font-size: 0.85rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .diff-btn:hover { border-color: #34d399; color: #34d399; }
+        .diff-btn.active {
+            background: #34d399;
+            color: #064e3b;
+            border-color: #34d399;
+            box-shadow: 0 0 14px rgba(52,211,153,0.4);
+        }
+
+        .status-bar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 16px;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+        .status-item {
+            background: #1e293b;
+            border: 2px solid #334155;
+            border-radius: 12px;
+            padding: 8px 18px;
+            font-weight: 800;
+            font-size: 0.95rem;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .status-item .val {
+            color: #34d399;
+            font-family: "SF Mono", "Cascadia Code", "Consolas", monospace;
+            font-size: 1.1rem;
+            min-width: 28px;
+            text-align: center;
+        }
+        .face-btn {
+            width: 44px;
+            height: 44px;
+            border: 3px solid #334155;
+            border-radius: 12px;
+            background: #1e293b;
+            font-size: 1.4rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+        }
+        .face-btn:hover { border-color: #34d399; transform: scale(1.08); }
+
+        .board {
+            display: grid;
+            gap: 2px;
+            background: #334155;
+            border: 3px solid #334155;
+            border-radius: 10px;
+            overflow: hidden;
+            width: fit-content;
+            margin: 0 auto;
+            max-width: 100%;
+        }
+        .cell {
+            width: 28px;
+            height: 28px;
+            background: #1e293b;
+            border: none;
+            cursor: pointer;
+            font-size: 0.8rem;
+            font-weight: 900;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.1s;
+            color: #f8fafc;
+            font-family: "SF Mono", "Cascadia Code", "Consolas", monospace;
+        }
+        .cell:hover { background: #3b4a62; }
+        .cell.revealed {
+            background: #0f1a2e;
+            cursor: default;
+        }
+        .cell.revealed:hover { background: #0f1a2e; }
+        .cell.flagged { background: #1e293b; }
+        .cell.mine-hit { background: #ef4444 !important; }
+
+        .cell[data-adj="1"] { color: #60a5fa; }
+        .cell[data-adj="2"] { color: #34d399; }
+        .cell[data-adj="3"] { color: #f87171; }
+        .cell[data-adj="4"] { color: #a78bfa; }
+        .cell[data-adj="5"] { color: #fbbf24; }
+        .cell[data-adj="6"] { color: #2dd4bf; }
+        .cell[data-adj="7"] { color: #f472b6; }
+        .cell[data-adj="8"] { color: #94a3b8; }
+
+        .overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(15, 23, 42, 0.94);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            z-index: 10;
+        }
+        .overlay.show { display: flex; }
+        .overlay h2 { font-size: 2rem; margin-bottom: 10px; }
+        .overlay .emoji { font-size: 3rem; margin-bottom: 8px; }
+        .overlay p { color: #94a3b8; margin-bottom: 24px; font-size: 1.1rem; }
+
+        .btn {
+            padding: 12px 32px;
+            border: 3px solid #34d399;
+            border-radius: 999px;
+            background: #34d399;
+            color: #064e3b;
+            font-size: 1rem;
+            font-weight: 800;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 24px rgba(52,211,153,0.35);
+        }
+
+        @media (max-width: 600px) {
+            .game-wrapper { padding: 20px 14px; }
+            .cell { width: 22px; height: 22px; font-size: 0.65rem; }
+            .back { top: 10px; left: 10px; font-size: 0.8rem; padding: 8px 14px; }
+            .orient-toggle { top: 10px; right: 10px; font-size: 0.75rem; padding: 8px 14px; }
+        }
+    /* 内嵌适配统一由 /games/embed.css 提供 */
+    </style>
+    <script>if(self!==top)document.documentElement.classList.add('embed');</script>
+    <link rel="stylesheet" href="embed.css" />
+</head>
+<body>
+    <a href="javascript:void(0)" class="back">← 返回</a>
+    <button class="orient-toggle" onclick="toggleOrientation()" title="切换横竖屏"><span class="icon">📱</span> <span class="label">横屏</span></button>
+
+    <div class="game-wrapper">
+        <h1>💣 <span class="accent">扫雷</span></h1>
+
+        <div class="diff-select">
+            <button class="diff-btn active" data-diff="easy">9×9 · 初级</button>
+            <button class="diff-btn" data-diff="medium">16×16 · 中级</button>
+            <button class="diff-btn" data-diff="hard">30×16 · 高级</button>
+        </div>
+
+        <div class="status-bar">
+            <div class="status-item">💣<span class="val" id="mineCount">10</span></div>
+            <button class="face-btn" id="faceBtn">🙂</button>
+            <div class="status-item">⏱<span class="val" id="timer">000</span></div>
+        </div>
+
+        <div class="board" id="board"></div>
+    </div>
+
+    <div class="overlay" id="overlay">
+        <div class="emoji" id="resultEmoji">😵</div>
+        <h2 id="resultTitle">游戏结束</h2>
+        <p id="resultMsg"></p>
+        <button class="btn" id="restartBtn">再来一局</button>
+    </div>
+
+    <script>
+        function toggleOrientation(){document.body.classList.toggle('landscape');const l=document.querySelector('.orient-toggle .label');l.textContent=document.body.classList.contains('landscape')?'竖屏':'横屏';localStorage.setItem('gameOrient',document.body.classList.contains('landscape')?'landscape':'portrait');}
+        (function(){if(localStorage.getItem('gameOrient')==='landscape'){document.body.classList.add('landscape');const l=document.querySelector('.orient-toggle .label');if(l)l.textContent='竖屏';}})();
+        const DIFFS = {
+            easy:   { rows: 9,  cols: 9,  mines: 10 },
+            medium: { rows: 16, cols: 16, mines: 40 },
+            hard:   { rows: 16, cols: 30, mines: 99 },
+        };
+
+        let diff = 'easy';
+        let rows, cols, totalMines;
+        let board = [];       // board[r][c] = { mine, revealed, flagged, adj }
+        let gameOver = false;
+        let firstClick = true;
+        let flagsPlaced = 0;
+        let timerSec = 0;
+        let timerInterval = null;
+        let longPressTimer = null;
+
+        const boardEl = document.getElementById('board');
+        const mineCountEl = document.getElementById('mineCount');
+        const timerEl = document.getElementById('timer');
+        const faceBtn = document.getElementById('faceBtn');
+        const overlay = document.getElementById('overlay');
+
+        function setDiff(d) {
+            diff = d;
+            document.querySelectorAll('.diff-btn').forEach(b => b.classList.toggle('active', b.dataset.diff === d));
+            startGame();
+        }
+
+        function startGame() {
+            const cfg = DIFFS[diff];
+            rows = cfg.rows; cols = cfg.cols; totalMines = cfg.mines;
+            board = [];
+            gameOver = false;
+            firstClick = true;
+            flagsPlaced = 0;
+            timerSec = 0;
+            clearInterval(timerInterval);
+            timerInterval = null;
+            timerEl.textContent = '000';
+            mineCountEl.textContent = totalMines;
+            faceBtn.textContent = '🙂';
+            overlay.classList.remove('show');
+
+            for (let r = 0; r < rows; r++) {
+                board[r] = [];
+                for (let c = 0; c < cols; c++) {
+                    board[r][c] = { mine: false, revealed: false, flagged: false, adj: 0 };
+                }
+            }
+            renderBoard();
+        }
+
+        function placeMines(excludeR, excludeC) {
+            const candidates = [];
+            for (let r = 0; r < rows; r++)
+                for (let c = 0; c < cols; c++)
+                    if (!(r === excludeR && c === excludeC))
+                        candidates.push([r, c]);
+
+            // Fisher-Yates shuffle
+            for (let i = candidates.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [candidates[i], candidates[j]] = [candidates[j], candidates[i]];
+            }
+
+            for (let i = 0; i < totalMines; i++) {
+                const [r, c] = candidates[i];
+                board[r][c].mine = true;
+            }
+
+            // Calculate adjacency
+            for (let r = 0; r < rows; r++) {
+                for (let c = 0; c < cols; c++) {
+                    if (board[r][c].mine) continue;
+                    let count = 0;
+                    for (let dr = -1; dr <= 1; dr++)
+                        for (let dc = -1; dc <= 1; dc++) {
+                            const nr = r + dr, nc = c + dc;
+                            if (nr >= 0 && nr < rows && nc >= 0 && nc < cols && board[nr][nc].mine)
+                                count++;
+                        }
+                    board[r][c].adj = count;
+                }
+            }
+        }
+
+        function startTimer() {
+            if (timerInterval) return;
+            timerInterval = setInterval(() => {
+                timerSec++;
+                timerEl.textContent = String(timerSec).padStart(3, '0');
+            }, 1000);
+        }
+
+        function reveal(r, c) {
+            if (gameOver || board[r][c].revealed || board[r][c].flagged) return;
+            if (firstClick) {
+                firstClick = false;
+                placeMines(r, c);
+                startTimer();
+            }
+
+            const cell = board[r][c];
+            cell.revealed = true;
+
+            if (cell.mine) {
+                // Hit mine
+                gameOver = true;
+                clearInterval(timerInterval);
+                cell.mineHit = true;
+                faceBtn.textContent = '😵';
+                revealAllMines();
+                setTimeout(() => showResult(false), 400);
+                return;
+            }
+
+            // Flood fill if adj === 0
+            if (cell.adj === 0) {
+                for (let dr = -1; dr <= 1; dr++)
+                    for (let dc = -1; dc <= 1; dc++) {
+                        const nr = r + dr, nc = c + dc;
+                        if (nr >= 0 && nr < rows && nc >= 0 && nc < cols)
+                            reveal(nr, nc);
+                    }
+            }
+
+            checkWin();
+            renderBoard();
+        }
+
+        function toggleFlag(r, c) {
+            if (gameOver || board[r][c].revealed) return;
+            if (firstClick) return; // can't flag before first reveal
+            const cell = board[r][c];
+            cell.flagged = !cell.flagged;
+            flagsPlaced += cell.flagged ? 1 : -1;
+            mineCountEl.textContent = totalMines - flagsPlaced;
+            renderBoard();
+        }
+
+        function revealAllMines() {
+            for (let r = 0; r < rows; r++)
+                for (let c = 0; c < cols; c++)
+                    if (board[r][c].mine)
+                        board[r][c].revealed = true;
+            renderBoard();
+        }
+
+        function checkWin() {
+            let allCleared = true;
+            for (let r = 0; r < rows; r++)
+                for (let c = 0; c < cols; c++)
+                    if (!board[r][c].mine && !board[r][c].revealed)
+                        allCleared = false;
+            if (allCleared) {
+                gameOver = true;
+                clearInterval(timerInterval);
+                // Flag all mines
+                for (let r = 0; r < rows; r++)
+                    for (let c = 0; c < cols; c++)
+                        if (board[r][c].mine) board[r][c].flagged = true;
+                flagsPlaced = totalMines;
+                mineCountEl.textContent = 0;
+                faceBtn.textContent = '😎';
+                renderBoard();
+                setTimeout(() => showResult(true), 300);
+            }
+        }
+
+        function showResult(won) {
+            document.getElementById('resultEmoji').textContent = won ? '🎉' : '😵';
+            document.getElementById('resultTitle').textContent = won ? '恭喜通关！' : '踩雷了！';
+            document.getElementById('resultMsg').textContent = won
+                ? `用时 ${timerSec} 秒完成 ${diff === 'easy' ? '初级' : diff === 'medium' ? '中级' : '高级'}扫雷`
+                : `坚持了 ${timerSec} 秒，再试一次吧！`;
+            overlay.classList.add('show');
+        }
+
+        function renderBoard() {
+            boardEl.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
+            boardEl.innerHTML = '';
+            for (let r = 0; r < rows; r++) {
+                for (let c = 0; c < cols; c++) {
+                    const cell = board[r][c];
+                    const el = document.createElement('div');
+                    el.className = 'cell';
+                    if (cell.revealed) {
+                        el.classList.add('revealed');
+                        if (cell.mineHit) el.classList.add('mine-hit');
+                        if (cell.mine) {
+                            el.textContent = '💣';
+                        } else if (cell.adj > 0) {
+                            el.textContent = cell.adj;
+                            el.dataset.adj = cell.adj;
+                        }
+                    } else if (cell.flagged) {
+                        el.classList.add('flagged');
+                        el.textContent = '🚩';
+                    }
+                    el.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        reveal(r, c);
+                    });
+                    el.addEventListener('contextmenu', (e) => {
+                        e.preventDefault();
+                        toggleFlag(r, c);
+                    });
+
+                    // Touch long-press for flag
+                    el.addEventListener('touchstart', (e) => {
+                        longPressTimer = setTimeout(() => {
+                            toggleFlag(r, c);
+                            longPressTimer = null;
+                        }, 400);
+                    });
+                    el.addEventListener('touchend', () => {
+                        if (longPressTimer) clearTimeout(longPressTimer);
+                    });
+                    el.addEventListener('touchmove', () => {
+                        if (longPressTimer) clearTimeout(longPressTimer);
+                    });
+
+                    boardEl.appendChild(el);
+                }
+            }
+        }
+
+        document.querySelectorAll('.diff-btn').forEach(btn => {
+            btn.addEventListener('click', () => setDiff(btn.dataset.diff));
+        });
+
+        faceBtn.addEventListener('click', startGame);
+        document.getElementById('restartBtn').addEventListener('click', startGame);
+
+        startGame();
+    </script>
+</body>
+</html>

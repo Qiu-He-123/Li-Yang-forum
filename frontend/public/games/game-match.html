@@ -1,0 +1,593 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>连连看 - 途放Game小游戏</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+            background: #0f172a;
+            color: #f8fafc;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+            user-select: none;
+        }
+        .back {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            color: #fda4af;
+            text-decoration: none;
+            font-size: 0.9rem;
+            font-weight: 700;
+            padding: 10px 20px;
+            border: 3px solid #f43f5e;
+            border-radius: 999px;
+            background: rgba(244, 63, 94, 0.12);
+            transition: all 0.2s;
+            z-index: 100;
+        }
+        .back:hover {
+            background: rgba(244, 63, 94, 0.25);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(244, 63, 94, 0.3);
+        }
+
+        .orient-toggle {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            color: #fda4af;
+            font-size: 0.85rem;
+            font-weight: 700;
+            padding: 10px 18px;
+            border: 3px solid #f43f5e;
+            border-radius: 999px;
+            background: rgba(244, 63, 94, 0.12);
+            cursor: pointer;
+            transition: all 0.2s;
+            z-index: 100;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-family: inherit;
+        }
+        .orient-toggle:hover {
+            background: rgba(244, 63, 94, 0.25);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(244, 63, 94, 0.3);
+        }
+        .orient-toggle .icon {
+            display: inline-block;
+            font-size: 1rem;
+            transition: transform 0.3s;
+        }
+        body.landscape .orient-toggle .icon {
+            transform: rotate(90deg);
+        }
+
+        body.landscape {
+            justify-content: center;
+            overflow: hidden;
+        }
+        body.landscape .game-wrapper {
+            transform: rotate(90deg);
+            max-width: calc(100vh - 100px);
+        }
+
+        .game-wrapper {
+            background: rgba(30, 41, 59, 0.7);
+            border: 2px solid rgba(244, 63, 94, 0.3);
+            border-radius: 24px;
+            padding: 30px;
+            max-width: 560px;
+            width: 100%;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.4), 0 0 0 1px rgba(244,63,94,0.1);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        h1 {
+            font-size: 1.6rem;
+            text-align: center;
+            margin-bottom: 6px;
+            font-weight: 900;
+        }
+        h1 .accent { color: #fda4af; }
+
+        .status-bar {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 16px;
+            margin-bottom: 14px;
+            flex-wrap: wrap;
+        }
+        .status-item {
+            background: #1e293b;
+            border: 2px solid #334155;
+            border-radius: 12px;
+            padding: 8px 16px;
+            font-weight: 800;
+            font-size: 0.9rem;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .status-item .val {
+            color: #fda4af;
+            font-family: "SF Mono", "Cascadia Code", "Consolas", monospace;
+            font-size: 1.1rem;
+        }
+
+        .board {
+            display: grid;
+            grid-template-columns: repeat(8, 1fr);
+            gap: 4px;
+            max-width: 420px;
+            width: 100%;
+            aspect-ratio: 1;
+            padding: 8px;
+            background: #1e293b;
+            border: 3px solid #334155;
+            border-radius: 14px;
+        }
+        .cell {
+            aspect-ratio: 1;
+            background: #0f172a;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.8rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: 2px solid transparent;
+        }
+        .cell:hover { background: #1e293b; border-color: #475569; }
+        .cell.selected {
+            border-color: #f43f5e !important;
+            box-shadow: 0 0 14px rgba(244,63,94,0.5);
+            transform: scale(1.08);
+            background: #2d1220;
+        }
+        .cell.eliminated {
+            opacity: 0.15;
+            pointer-events: none;
+            cursor: default;
+        }
+        .cell.path-highlight {
+            border-color: #fbbf24 !important;
+            box-shadow: 0 0 10px rgba(251,191,36,0.4);
+        }
+
+        .actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 16px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        .btn {
+            padding: 10px 24px;
+            border: 3px solid #f43f5e;
+            border-radius: 999px;
+            background: transparent;
+            color: #fda4af;
+            font-size: 0.95rem;
+            font-weight: 800;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .btn:hover {
+            background: #f43f5e;
+            color: #fff;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(244,63,94,0.35);
+        }
+        .btn.primary {
+            background: #f43f5e;
+            color: #fff;
+        }
+        .btn.primary:hover {
+            box-shadow: 0 6px 20px rgba(244,63,94,0.45);
+        }
+
+        .overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(15, 23, 42, 0.94);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            z-index: 10;
+        }
+        .overlay.show { display: flex; }
+        .overlay h2 { font-size: 2rem; margin-bottom: 10px; }
+        .overlay .emoji { font-size: 3rem; margin-bottom: 8px; }
+        .overlay p { color: #94a3b8; margin-bottom: 24px; font-size: 1.1rem; }
+
+        @media (max-width: 500px) {
+            .game-wrapper { padding: 18px 12px; }
+            .cell { font-size: 1.4rem; }
+            .back { top: 10px; left: 10px; font-size: 0.8rem; padding: 8px 14px; }
+            .orient-toggle { top: 10px; right: 10px; font-size: 0.75rem; padding: 8px 14px; }
+        }
+    /* 内嵌适配统一由 /games/embed.css 提供 */
+    </style>
+    <script>if(self!==top)document.documentElement.classList.add('embed');</script>
+    <link rel="stylesheet" href="embed.css" />
+</head>
+<body>
+    <a href="javascript:void(0)" class="back">← 返回</a>
+    <button class="orient-toggle" onclick="toggleOrientation()" title="切换横竖屏"><span class="icon">📱</span> <span class="label">横屏</span></button>
+
+    <div class="game-wrapper">
+        <h1>🔗 <span class="accent">连连看</span></h1>
+
+        <div class="status-bar">
+            <div class="status-item">⭐ <span class="val" id="score">0</span></div>
+            <div class="status-item">⏱ <span class="val" id="timer">00:00</span></div>
+            <div class="status-item">剩 <span class="val" id="remaining">64</span></div>
+        </div>
+
+        <div class="board" id="board"></div>
+
+        <div class="actions">
+            <button class="btn primary" id="newBtn">新游戏</button>
+            <button class="btn" id="hintBtn">💡 提示</button>
+        </div>
+    </div>
+
+    <div class="overlay" id="overlay">
+        <div class="emoji" id="resultEmoji">🎉</div>
+        <h2 id="resultTitle">恭喜通关！</h2>
+        <p id="resultMsg"></p>
+        <button class="btn primary" id="restartBtn">再玩一次</button>
+    </div>
+
+    <script>
+        function toggleOrientation(){document.body.classList.toggle('landscape');const l=document.querySelector('.orient-toggle .label');l.textContent=document.body.classList.contains('landscape')?'竖屏':'横屏';localStorage.setItem('gameOrient',document.body.classList.contains('landscape')?'landscape':'portrait');}
+        (function(){if(localStorage.getItem('gameOrient')==='landscape'){document.body.classList.add('landscape');const l=document.querySelector('.orient-toggle .label');if(l)l.textContent='竖屏';}})();
+        const ROWS = 8, COLS = 8;
+        const TOTAL = ROWS * COLS; // 64, must be even
+        const ICONS = ['🍎','🍊','🍋','🍇','🍓','🍒','🥝','🍑','🌸','🌻','🍀','⭐','💎','🔥','🐶','🐱'];
+
+        const boardEl = document.getElementById('board');
+        const scoreEl = document.getElementById('score');
+        const timerEl = document.getElementById('timer');
+        const remainingEl = document.getElementById('remaining');
+        const overlay = document.getElementById('overlay');
+
+        let grid = [];        // grid[r][c] = icon index or -1
+        let selected = null;  // {r, c} or null
+        let score = 0;
+        let remaining = TOTAL;
+        let timerSec = 0;
+        let timerInterval = null;
+
+        function shuffle(arr) {
+            for (let i = arr.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [arr[i], arr[j]] = [arr[j], arr[i]];
+            }
+            return arr;
+        }
+
+        function initGrid() {
+            const pairs = TOTAL / 2;
+            const pool = [];
+            const numTypes = Math.min(ICONS.length, pairs);
+            for (let i = 0; i < pairs; i++) {
+                const iconIdx = i % numTypes;
+                pool.push(iconIdx, iconIdx);
+            }
+            shuffle(pool);
+
+            grid = [];
+            for (let r = 0; r < ROWS; r++) {
+                grid[r] = [];
+                for (let c = 0; c < COLS; c++) {
+                    grid[r][c] = pool[r * COLS + c];
+                }
+            }
+        }
+
+        function startTimer() {
+            clearInterval(timerInterval);
+            timerSec = 0;
+            updateTimer();
+            timerInterval = setInterval(() => {
+                timerSec++;
+                updateTimer();
+            }, 1000);
+        }
+
+        function updateTimer() {
+            const m = Math.floor(timerSec / 60);
+            const s = timerSec % 60;
+            timerEl.textContent = String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
+        }
+
+        function newGame() {
+            initGrid();
+            selected = null;
+            score = 0;
+            remaining = TOTAL;
+            scoreEl.textContent = '0';
+            remainingEl.textContent = TOTAL;
+            overlay.classList.remove('show');
+            startTimer();
+            renderBoard();
+        }
+
+        // Check if two cells can be connected with at most 2 turns (3 segments)
+        function canConnect(r1, c1, r2, c2) {
+            if (r1 === r2 && c1 === c2) return false;
+            if (grid[r1][c1] !== grid[r2][c2]) return false;
+            if (grid[r1][c1] === -1) return false;
+
+            // Direct horizontal line
+            if (r1 === r2) {
+                const minC = Math.min(c1, c2), maxC = Math.max(c1, c2);
+                let clear = true;
+                for (let c = minC + 1; c < maxC; c++)
+                    if (grid[r1][c] !== -1) { clear = false; break; }
+                if (clear) return { path: [{r: r1, c: c1}, {r: r2, c: c2}] };
+            }
+
+            // Direct vertical line
+            if (c1 === c2) {
+                const minR = Math.min(r1, r2), maxR = Math.max(r1, r2);
+                let clear = true;
+                for (let r = minR + 1; r < maxR; r++)
+                    if (grid[r][c1] !== -1) { clear = false; break; }
+                if (clear) return { path: [{r: r1, c: c1}, {r: r2, c: c2}] };
+            }
+
+            // One turn (L-shape)
+            // Corner at (r1, c2)
+            if (grid[r1][c2] === -1) {
+                let clearH = true, clearV = true;
+                const minC12 = Math.min(c1, c2), maxC12 = Math.max(c1, c2);
+                const minR12 = Math.min(r1, r2), maxR12 = Math.max(r1, r2);
+                for (let c = minC12 + 1; c < maxC12; c++)
+                    if (grid[r1][c] !== -1) { clearH = false; break; }
+                for (let r = minR12 + 1; r < maxR12; r++)
+                    if (grid[r][c2] !== -1) { clearV = false; break; }
+                if (clearH && clearV)
+                    return { path: [{r: r1, c: c1}, {r: r1, c: c2}, {r: r2, c: c2}] };
+            }
+
+            // Corner at (r2, c1)
+            if (grid[r2][c1] === -1) {
+                let clearH = true, clearV = true;
+                const minC12 = Math.min(c1, c2), maxC12 = Math.max(c1, c2);
+                const minR12 = Math.min(r1, r2), maxR12 = Math.max(r1, r2);
+                for (let c = minC12 + 1; c < maxC12; c++)
+                    if (grid[r2][c] !== -1) { clearH = false; break; }
+                for (let r = minR12 + 1; r < maxR12; r++)
+                    if (grid[r][c1] !== -1) { clearV = false; break; }
+                if (clearH && clearV)
+                    return { path: [{r: r1, c: c1}, {r: r2, c: c1}, {r: r2, c: c2}] };
+            }
+
+            // Two turns - scan horizontal line
+            for (let r = 0; r < ROWS; r++) {
+                if (r === r1 || r === r2) continue;
+                if (grid[r][c1] === -1 && grid[r][c2] === -1) {
+                    let clear1 = true, clear2 = true, clearH = true;
+                    const minR1r = Math.min(r1, r), maxR1r = Math.max(r1, r);
+                    const minR2r = Math.min(r2, r), maxR2r = Math.max(r2, r);
+                    const minC = Math.min(c1, c2), maxC = Math.max(c1, c2);
+                    for (let rr = minR1r + 1; rr < maxR1r; rr++)
+                        if (grid[rr][c1] !== -1) { clear1 = false; break; }
+                    for (let rr = minR2r + 1; rr < maxR2r; rr++)
+                        if (grid[rr][c2] !== -1) { clear2 = false; break; }
+                    for (let cc = minC + 1; cc < maxC; cc++)
+                        if (grid[r][cc] !== -1) { clearH = false; break; }
+                    if (clear1 && clear2 && clearH)
+                        return { path: [{r: r1, c: c1}, {r: r, c: c1}, {r: r, c: c2}, {r: r2, c: c2}] };
+                }
+            }
+
+            // Two turns - scan vertical line
+            for (let c = 0; c < COLS; c++) {
+                if (c === c1 || c === c2) continue;
+                if (grid[r1][c] === -1 && grid[r2][c] === -1) {
+                    let clear1 = true, clear2 = true, clearV = true;
+                    const minC1c = Math.min(c1, c), maxC1c = Math.max(c1, c);
+                    const minC2c = Math.min(c2, c), maxC2c = Math.max(c2, c);
+                    const minR = Math.min(r1, r2), maxR = Math.max(r1, r2);
+                    for (let cc = minC1c + 1; cc < maxC1c; cc++)
+                        if (grid[r1][cc] !== -1) { clear1 = false; break; }
+                    for (let cc = minC2c + 1; cc < maxC2c; cc++)
+                        if (grid[r2][cc] !== -1) { clear2 = false; break; }
+                    for (let rr = minR + 1; rr < maxR; rr++)
+                        if (grid[rr][c] !== -1) { clearV = false; break; }
+                    if (clear1 && clear2 && clearV)
+                        return { path: [{r: r1, c: c1}, {r: r1, c: c}, {r: r2, c: c}, {r: r2, c: c2}] };
+                }
+            }
+
+            // Also check beyond borders (virtual empty rows/cols at -1 and ROWS/COLS)
+            // Above
+            if (checkBeyondRow(-1, r1, c1, r2, c2)) return checkBeyondRow(-1, r1, c1, r2, c2);
+            // Below
+            if (checkBeyondRow(ROWS, r1, c1, r2, c2)) return checkBeyondRow(ROWS, r1, c1, r2, c2);
+            // Left
+            if (checkBeyondCol(-1, r1, c1, r2, c2)) return checkBeyondCol(-1, r1, c1, r2, c2);
+            // Right
+            if (checkBeyondCol(COLS, r1, c1, r2, c2)) return checkBeyondCol(COLS, r1, c1, r2, c2);
+
+            return false;
+        }
+
+        function checkBeyondRow(vr, r1, c1, r2, c2) {
+            let clear1 = true, clear2 = true;
+            const minR1 = Math.min(r1, vr), maxR1 = Math.max(r1, vr);
+            const minR2 = Math.min(r2, vr), maxR2 = Math.max(r2, vr);
+            for (let r = minR1 + 1; r < maxR1; r++)
+                if (grid[r] && grid[r][c1] !== -1) { clear1 = false; break; }
+            for (let r = minR2 + 1; r < maxR2; r++)
+                if (grid[r] && grid[r][c2] !== -1) { clear2 = false; break; }
+            // Check horizontal between c1 and c2 at virtual row
+            const minC = Math.min(c1, c2), maxC = Math.max(c1, c2);
+            let clearH = true;
+            if (vr >= 0 && vr < ROWS) {
+                for (let c = minC + 1; c < maxC; c++)
+                    if (grid[vr][c] !== -1) { clearH = false; break; }
+            }
+            if (clear1 && clear2 && clearH)
+                return { path: [{r: r1, c: c1}, {r: vr, c: c1}, {r: vr, c: c2}, {r: r2, c: c2}] };
+            return false;
+        }
+
+        function checkBeyondCol(vc, r1, c1, r2, c2) {
+            let clear1 = true, clear2 = true;
+            const minC1 = Math.min(c1, vc), maxC1 = Math.max(c1, vc);
+            const minC2 = Math.min(c2, vc), maxC2 = Math.max(c2, vc);
+            for (let c = minC1 + 1; c < maxC1; c++)
+                if (grid[r1][c] !== -1) { clear1 = false; break; }
+            for (let c = minC2 + 1; c < maxC2; c++)
+                if (grid[r2][c] !== -1) { clear2 = false; break; }
+            const minR = Math.min(r1, r2), maxR = Math.max(r1, r2);
+            let clearV = true;
+            if (vc >= 0 && vc < COLS) {
+                for (let r = minR + 1; r < maxR; r++)
+                    if (grid[r][vc] !== -1) { clearV = false; break; }
+            }
+            if (clear1 && clear2 && clearV)
+                return { path: [{r: r1, c: c1}, {r: r1, c: vc}, {r: r2, c: vc}, {r: r2, c: c2}] };
+            return false;
+        }
+
+        function eliminate(r1, c1, r2, c2) {
+            grid[r1][c1] = -1;
+            grid[r2][c2] = -1;
+            score += 10;
+            remaining -= 2;
+            scoreEl.textContent = score;
+            remainingEl.textContent = remaining;
+            if (remaining === 0) {
+                clearInterval(timerInterval);
+                document.getElementById('resultEmoji').textContent = '🎉';
+                document.getElementById('resultTitle').textContent = '恭喜通关！';
+                const m = Math.floor(timerSec / 60);
+                const s = timerSec % 60;
+                document.getElementById('resultMsg').textContent = `得分：${score} · 用时 ${m} 分 ${s} 秒`;
+                overlay.classList.add('show');
+            }
+        }
+
+        function handleClick(r, c) {
+            if (grid[r][c] === -1) return;
+
+            if (selected === null) {
+                selected = { r, c };
+                renderBoard();
+                return;
+            }
+
+            if (selected.r === r && selected.c === c) {
+                selected = null;
+                renderBoard();
+                return;
+            }
+
+            const result = canConnect(selected.r, selected.c, r, c);
+            if (result) {
+                // Highlight path briefly then eliminate
+                const pathCells = result.path;
+                pathCells.forEach(p => {
+                    if (p.r >= 0 && p.r < ROWS && p.c >= 0 && p.c < COLS) {
+                        const idx = p.r * COLS + p.c;
+                        const cellEl = boardEl.children[idx];
+                        if (cellEl) cellEl.classList.add('path-highlight');
+                    }
+                });
+                const sr = selected.r, sc = selected.c;
+                selected = null;
+                setTimeout(() => {
+                    eliminate(sr, sc, r, c);
+                    renderBoard();
+                }, 200);
+            } else {
+                selected = { r, c };
+                renderBoard();
+            }
+        }
+
+        function findHint() {
+            const cells = [];
+            for (let r = 0; r < ROWS; r++)
+                for (let c = 0; c < COLS; c++)
+                    if (grid[r][c] !== -1) cells.push({r, c});
+
+            for (let i = 0; i < cells.length; i++) {
+                for (let j = i + 1; j < cells.length; j++) {
+                    if (canConnect(cells[i].r, cells[i].c, cells[j].r, cells[j].c)) {
+                        selected = null;
+                        // Briefly highlight the hint pair
+                        const idx1 = cells[i].r * COLS + cells[i].c;
+                        const idx2 = cells[j].r * COLS + cells[j].c;
+                        const el1 = boardEl.children[idx1];
+                        const el2 = boardEl.children[idx2];
+                        if (el1) el1.classList.add('path-highlight');
+                        if (el2) el2.classList.add('path-highlight');
+                        setTimeout(() => renderBoard(), 600);
+                        return;
+                    }
+                }
+            }
+
+            // No moves - auto shuffle
+            if (remaining > 0) {
+                const remainingIcons = [];
+                for (let r = 0; r < ROWS; r++)
+                    for (let c = 0; c < COLS; c++)
+                        if (grid[r][c] !== -1) remainingIcons.push(grid[r][c]);
+                shuffle(remainingIcons);
+                let idx = 0;
+                for (let r = 0; r < ROWS; r++)
+                    for (let c = 0; c < COLS; c++)
+                        if (grid[r][c] !== -1) grid[r][c] = remainingIcons[idx++];
+                renderBoard();
+            }
+        }
+
+        function renderBoard() {
+            boardEl.innerHTML = '';
+            for (let r = 0; r < ROWS; r++) {
+                for (let c = 0; c < COLS; c++) {
+                    const el = document.createElement('div');
+                    el.className = 'cell';
+                    if (grid[r][c] === -1) {
+                        el.classList.add('eliminated');
+                    } else {
+                        el.textContent = ICONS[grid[r][c]];
+                    }
+                    if (selected && selected.r === r && selected.c === c) {
+                        el.classList.add('selected');
+                    }
+                    el.addEventListener('click', () => handleClick(r, c));
+                    boardEl.appendChild(el);
+                }
+            }
+        }
+
+        document.getElementById('newBtn').addEventListener('click', newGame);
+        document.getElementById('hintBtn').addEventListener('click', findHint);
+        document.getElementById('restartBtn').addEventListener('click', newGame);
+
+        newGame();
+    </script>
+</body>
+</html>

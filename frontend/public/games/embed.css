@@ -1,0 +1,180 @@
+/* =====================================================================
+   统一内嵌适配层 —— 供 public/games/*.html 在应用内 iframe 中引用
+   目标：
+     1) 不再被裁切：body 可滚动、canvas 自适应最大宽度、紧凑纵向间距
+     2) 统一触控 / 横屏行为（隐藏独立后退与横竖屏按钮，改为顺滑滚动）
+     3) 统一样式：与「游戏大厅」一致 —— 浅灰底、白卡片、品牌蓝 #007AFF、
+        大圆角、轻阴影
+   仅内嵌（iframe）时生效：html 根节点需带 .embed 类，
+   由每个游戏的 <script>if(self!==top)document.documentElement.classList.add('embed')</script>
+   自动为在应用内打开的页面添加。
+   ===================================================================== */
+
+/* ---------- 1. 页面骨架：浅色、可滚动、不裁切 ---------- */
+html.embed body {
+  background: #f5f6f8;
+  color: #111827;
+  min-height: 100dvh;
+  min-height: 100vh;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  padding: 14px 14px 24px !important;
+}
+
+/* 隐藏独立后退按钮和横竖屏切换按钮：内嵌时这些由应用页面的顶栏承担 */
+html.embed .back,
+html.embed .orient-toggle {
+  display: none !important;
+}
+
+/* 横屏：取消整页旋转，确保在 iframe 内也能正常滚动浏览 */
+html.embed body.landscape {
+  overflow-y: auto !important;
+}
+html.embed body.landscape .game-wrapper {
+  transform: none !important;
+  max-width: 100%;
+  width: 100%;
+}
+
+/* ---------- 2. 游戏容器：统一为 iOS 浅色卡片 ---------- */
+html.embed .game-wrapper {
+  background: #ffffff;
+  border: 0.5px solid rgba(0, 0, 0, 0.08);
+  border-radius: 20px;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.06);
+  max-width: 100%;
+  width: 100%;
+  padding: 16px !important;
+}
+
+html.embed .game-wrapper h1 {
+  font-size: 1.25rem !important;
+  font-weight: 800;
+  text-align: center;
+  color: #111827;
+  margin-bottom: 10px !important;
+}
+html.embed .game-wrapper h1 .accent {
+  color: #007aff;
+}
+
+/* 画布：宽度随容器自适应，避免溢出被裁切 */
+html.embed canvas {
+  max-width: 100% !important;
+  height: auto;
+}
+
+/* ---------- 3. 计分条统一样式 ---------- */
+html.embed .status-bar {
+  margin-bottom: 10px !important;
+}
+html.embed .status-item {
+  background: #ffffff;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  color: #374151;
+  border-radius: 12px;
+}
+html.embed .status-item .val {
+  color: #007aff;
+}
+
+/* ---------- 4. 按钮统一样式 ---------- */
+html.embed .btn {
+  border: none;
+  background: #007aff;
+  color: #ffffff;
+  border-radius: 999px;
+  padding: 10px 26px;
+  font-size: 0.95rem;
+  font-weight: 700;
+  margin-bottom: 12px;
+  transform: none;
+  box-shadow: 0 6px 18px rgba(0, 122, 255, 0.28);
+}
+html.embed .btn:hover {
+  background: #339aff;
+  transform: none;
+  box-shadow: 0 8px 22px rgba(0, 122, 255, 0.34);
+}
+html.embed .btn.primary {
+  background: #007aff;
+  color: #ffffff;
+}
+
+/* ---------- 5. 触控方向键 ---------- */
+html.embed .controls {
+  margin-top: 10px !important;
+}
+html.embed .ctrl-btn {
+  background: #ffffff;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  color: #111827;
+  border-radius: 12px;
+}
+html.embed .ctrl-btn:active {
+  background: #e8f1ff;
+  color: #007aff;
+  border-color: #007aff;
+}
+
+/* ---------- 6. 结束遮罩统一为浅色毛玻璃 ---------- */
+html.embed .overlay {
+  background: rgba(245, 246, 248, 0.94) !important;
+  color: #111827;
+  backdrop-filter: blur(4px);
+}
+html.embed .overlay h2 {
+  color: #111827;
+}
+html.embed .overlay p,
+html.embed .overlay .sub {
+  color: #6b7280 !important;
+}
+html.embed .overlay strong,
+html.embed .overlay .value {
+  color: #007aff;
+}
+
+/* 辅助元素统一留白 */
+html.embed .numpad,
+html.embed .actions,
+html.embed .mobile-controls {
+  margin-top: 10px !important;
+}
+
+/* ---------- 7. 紧凑适配：矮屏幕 / 小 iframe 时收紧纵向间距 ---------- */
+@media (max-height: 760px) {
+  html.embed body {
+    padding: 10px 12px 20px !important;
+  }
+  html.embed .game-wrapper {
+    padding: 12px 12px !important;
+    border-radius: 16px;
+  }
+  html.embed .game-wrapper h1 {
+    font-size: 1.1rem !important;
+    margin-bottom: 8px !important;
+  }
+  html.embed .status-bar {
+    margin-bottom: 8px !important;
+  }
+  html.embed .btn {
+    padding: 8px 22px;
+    margin-bottom: 10px !important;
+  }
+  html.embed .controls {
+    margin-top: 8px !important;
+    grid-template-columns: repeat(3, 44px);
+    grid-template-rows: repeat(3, 44px);
+  }
+  html.embed .ctrl-btn {
+    font-size: 1.1rem;
+  }
+  html.embed .numpad,
+  html.embed .actions,
+  html.embed .mobile-controls {
+    margin-top: 8px !important;
+  }
+}

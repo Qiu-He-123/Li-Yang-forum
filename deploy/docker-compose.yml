@@ -1,0 +1,65 @@
+services:
+  mysql:
+    image: mysql:8.4
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-lycommunity}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-ly_community}
+    volumes:
+      - mysql_data:/var/lib/mysql
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:-minioadmin}
+    volumes:
+      - minio_data:/data
+    restart: unless-stopped
+
+  backend:
+    build: ../backend
+    env_file:
+      - ../backend/.env
+    environment:
+      # P0-2：生产必须显式 prod 模式，否则 Secure Cookie / 强校验全部失效
+      ENV: ${APP_ENV:-prod}
+      DATABASE_URL: mysql+pymysql://root:${MYSQL_ROOT_PASSWORD:-lycommunity}@mysql:3306/${MYSQL_DATABASE:-ly_community}
+      REDIS_URL: redis://redis:6379/0
+      MINIO_ENDPOINT: minio:9000
+      MINIO_SECURE: "false"
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-minioadmin}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-minioadmin}
+      MINIO_BUCKET: ${MINIO_BUCKET:-ly-community}
+      MINIO_PRIVATE_BUCKET: ${MINIO_PRIVATE_BUCKET:-ly-community-private}
+    depends_on:
+      - mysql
+      - redis
+      - minio
+    volumes:
+      - uploads_data:/app/uploads
+      - uploads_private_data:/app/uploads_private
+    restart: unless-stopped
+
+  frontend:
+    build: ../frontend
+    depends_on:
+      - backend
+      - minio
+    ports:
+      - "80:80"
+    volumes:
+      # 让宿主机 fail2ban 能读取 nginx 访问/错误日志（logs/ 已在 .gitignore）
+      - ../logs/nginx:/var/log/nginx
+    restart: unless-stopped
+
+volumes:
+  mysql_data:
+  minio_data:
+  uploads_data:
+  uploads_private_data:

@@ -1,0 +1,526 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>数独 - 途放Game小游戏</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+            background: #0f172a;
+            color: #f8fafc;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+        }
+        .back {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            color: #a78bfa;
+            text-decoration: none;
+            font-size: 0.9rem;
+            font-weight: 700;
+            padding: 10px 20px;
+            border: 3px solid #8b5cf6;
+            border-radius: 999px;
+            background: rgba(139, 92, 246, 0.12);
+            transition: all 0.2s;
+            z-index: 100;
+        }
+        .back:hover {
+            background: rgba(139, 92, 246, 0.25);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(139, 92, 246, 0.3);
+        }
+
+        .orient-toggle {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            color: #a78bfa;
+            font-size: 0.85rem;
+            font-weight: 700;
+            padding: 10px 18px;
+            border: 3px solid #8b5cf6;
+            border-radius: 999px;
+            background: rgba(139, 92, 246, 0.12);
+            cursor: pointer;
+            transition: all 0.2s;
+            z-index: 100;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-family: inherit;
+        }
+        .orient-toggle:hover {
+            background: rgba(139, 92, 246, 0.25);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(139, 92, 246, 0.3);
+        }
+        .orient-toggle .icon {
+            display: inline-block;
+            font-size: 1rem;
+            transition: transform 0.3s;
+        }
+        body.landscape .orient-toggle .icon {
+            transform: rotate(90deg);
+        }
+
+        body.landscape {
+            justify-content: center;
+            overflow: hidden;
+        }
+        body.landscape .game-wrapper {
+            transform: rotate(90deg);
+            max-width: calc(100vh - 100px);
+        }
+
+        .game-wrapper {
+            background: rgba(30, 41, 59, 0.7);
+            border: 2px solid rgba(139, 92, 246, 0.3);
+            border-radius: 24px;
+            padding: 30px;
+            max-width: 500px;
+            width: 100%;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.4), 0 0 0 1px rgba(139,92,246,0.1);
+        }
+
+        h1 {
+            font-size: 1.6rem;
+            text-align: center;
+            margin-bottom: 16px;
+            font-weight: 900;
+        }
+        h1 .accent { color: #a78bfa; }
+
+        .status-bar {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 20px;
+            margin-bottom: 16px;
+            flex-wrap: wrap;
+        }
+        .status-item {
+            background: #1e293b;
+            border: 2px solid #334155;
+            border-radius: 12px;
+            padding: 8px 16px;
+            font-weight: 800;
+            font-size: 0.9rem;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .status-item .val {
+            color: #a78bfa;
+            font-family: "SF Mono", "Cascadia Code", "Consolas", monospace;
+            font-size: 1.1rem;
+        }
+
+        .board {
+            display: grid;
+            grid-template-columns: repeat(9, 1fr);
+            gap: 2px;
+            background: #475569;
+            border: 3px solid #475569;
+            border-radius: 10px;
+            overflow: hidden;
+            max-width: 400px;
+            width: 100%;
+            margin: 0 auto;
+            aspect-ratio: 1;
+        }
+        .cell {
+            aspect-ratio: 1;
+            background: #1e293b;
+            border: none;
+            cursor: pointer;
+            font-size: 1.1rem;
+            font-weight: 800;
+            color: #f8fafc;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.15s;
+            font-family: "SF Mono", "Cascadia Code", "Consolas", monospace;
+            position: relative;
+        }
+        .cell:hover { background: #374151; }
+        .cell.given { color: #cbd5e1; cursor: default; }
+        .cell.given:hover { background: #1e293b; }
+        .cell.selected {
+            background: #312e81 !important;
+            box-shadow: inset 0 0 0 2px #a78bfa;
+        }
+        .cell.conflict { color: #f87171 !important; }
+        .cell.highlight { background: #1e293b; }
+        .cell.same-num { background: #1e1a3c; }
+
+        /* 3x3 box borders */
+        .cell:nth-child(3n) { border-right: 2px solid #475569; }
+        .cell:nth-child(9n) { border-right: none; }
+        .cell:nth-child(n+19):nth-child(-n+27),
+        .cell:nth-child(n+46):nth-child(-n+54) { border-bottom: 2px solid #475569; }
+
+        .numpad {
+            display: flex;
+            gap: 8px;
+            justify-content: center;
+            margin-top: 16px;
+            flex-wrap: wrap;
+        }
+        .num-btn {
+            width: 40px;
+            height: 40px;
+            border: 3px solid #334155;
+            border-radius: 10px;
+            background: #1e293b;
+            color: #f8fafc;
+            font-size: 1.1rem;
+            font-weight: 800;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-family: "SF Mono", "Cascadia Code", "Consolas", monospace;
+        }
+        .num-btn:hover {
+            border-color: #a78bfa;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(139,92,246,0.3);
+        }
+        .num-btn.erase {
+            font-size: 0.85rem;
+            color: #f87171;
+            border-color: #7f1d1d;
+        }
+        .num-btn.erase:hover { border-color: #f87171; box-shadow: 0 4px 12px rgba(248,113,113,0.3); }
+
+        .actions {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            margin-top: 14px;
+            flex-wrap: wrap;
+        }
+        .btn {
+            padding: 10px 24px;
+            border: 3px solid #8b5cf6;
+            border-radius: 999px;
+            background: transparent;
+            color: #a78bfa;
+            font-size: 0.95rem;
+            font-weight: 800;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .btn:hover {
+            background: #8b5cf6;
+            color: #fff;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(139,92,246,0.35);
+        }
+        .btn.primary {
+            background: #8b5cf6;
+            color: #fff;
+        }
+        .btn.primary:hover {
+            box-shadow: 0 6px 20px rgba(139,92,246,0.45);
+        }
+
+        .overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(15, 23, 42, 0.94);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            z-index: 10;
+        }
+        .overlay.show { display: flex; }
+        .overlay h2 { font-size: 2rem; margin-bottom: 10px; }
+        .overlay .emoji { font-size: 3rem; margin-bottom: 8px; }
+        .overlay p { color: #94a3b8; margin-bottom: 24px; font-size: 1.1rem; }
+
+        @media (max-width: 500px) {
+            .game-wrapper { padding: 18px 12px; }
+            .cell { font-size: 0.9rem; }
+            .num-btn { width: 34px; height: 34px; font-size: 1rem; }
+            .back { top: 10px; left: 10px; font-size: 0.8rem; padding: 8px 14px; }
+            .orient-toggle { top: 10px; right: 10px; font-size: 0.75rem; padding: 8px 14px; }
+        }
+    /* 内嵌适配统一由 /games/embed.css 提供 */
+    </style>
+    <script>if(self!==top)document.documentElement.classList.add('embed');</script>
+    <link rel="stylesheet" href="embed.css" />
+</head>
+<body>
+    <a href="javascript:void(0)" class="back">← 返回</a>
+    <button class="orient-toggle" onclick="toggleOrientation()" title="切换横竖屏"><span class="icon">📱</span> <span class="label">横屏</span></button>
+
+    <div class="game-wrapper">
+        <h1>🧩 <span class="accent">数独</span></h1>
+
+        <div class="status-bar">
+            <div class="status-item">⏱ <span class="val" id="timer">00:00</span></div>
+            <div class="status-item">✖ <span class="val" id="errors">0</span>/3</div>
+        </div>
+
+        <div class="board" id="board"></div>
+
+        <div class="numpad" id="numpad">
+            <button class="num-btn" data-num="1">1</button>
+            <button class="num-btn" data-num="2">2</button>
+            <button class="num-btn" data-num="3">3</button>
+            <button class="num-btn" data-num="4">4</button>
+            <button class="num-btn" data-num="5">5</button>
+            <button class="num-btn" data-num="6">6</button>
+            <button class="num-btn" data-num="7">7</button>
+            <button class="num-btn" data-num="8">8</button>
+            <button class="num-btn" data-num="9">9</button>
+            <button class="num-btn erase" data-num="0">⌫</button>
+        </div>
+
+        <div class="actions">
+            <button class="btn primary" id="newBtn">新游戏</button>
+            <button class="btn" id="hintBtn">💡 提示</button>
+        </div>
+    </div>
+
+    <div class="overlay" id="overlay">
+        <div class="emoji" id="resultEmoji">🎉</div>
+        <h2 id="resultTitle">恭喜完成！</h2>
+        <p id="resultMsg"></p>
+        <button class="btn primary" id="restartBtn">再玩一局</button>
+    </div>
+
+    <script>
+        function toggleOrientation(){document.body.classList.toggle('landscape');const l=document.querySelector('.orient-toggle .label');l.textContent=document.body.classList.contains('landscape')?'竖屏':'横屏';localStorage.setItem('gameOrient',document.body.classList.contains('landscape')?'landscape':'portrait');}
+        (function(){if(localStorage.getItem('gameOrient')==='landscape'){document.body.classList.add('landscape');const l=document.querySelector('.orient-toggle .label');if(l)l.textContent='竖屏';}})();
+        const boardEl = document.getElementById('board');
+        const timerEl = document.getElementById('timer');
+        const errorsEl = document.getElementById('errors');
+        const overlay = document.getElementById('overlay');
+
+        let solution = [];    // 9×9 full solution
+        let puzzle = [];      // 9×9 with blanks (0 = blank)
+        let player = [];      // 9×9 current state
+        let given = [];       // 9×9 boolean mask
+        let selectedR = -1, selectedC = -1;
+        let errorCount = 0;
+        let timerSec = 0;
+        let timerInterval = null;
+
+        function startTimer() {
+            clearInterval(timerInterval);
+            timerSec = 0;
+            updateTimer();
+            timerInterval = setInterval(() => {
+                timerSec++;
+                updateTimer();
+            }, 1000);
+        }
+
+        function updateTimer() {
+            const m = Math.floor(timerSec / 60);
+            const s = timerSec % 60;
+            timerEl.textContent = String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
+        }
+
+        function generateSudoku() {
+            // Generate a valid full solution
+            solution = Array.from({ length: 9 }, () => Array(9).fill(0));
+
+            function isValid(grid, r, c, num) {
+                for (let i = 0; i < 9; i++) {
+                    if (grid[r][i] === num) return false;
+                    if (grid[i][c] === num) return false;
+                }
+                const br = Math.floor(r / 3) * 3, bc = Math.floor(c / 3) * 3;
+                for (let i = br; i < br + 3; i++)
+                    for (let j = bc; j < bc + 3; j++)
+                        if (grid[i][j] === num) return false;
+                return true;
+            }
+
+            function fill(grid) {
+                for (let r = 0; r < 9; r++) {
+                    for (let c = 0; c < 9; c++) {
+                        if (grid[r][c] === 0) {
+                            const nums = [1,2,3,4,5,6,7,8,9];
+                            // Shuffle
+                            for (let i = nums.length - 1; i > 0; i--) {
+                                const j = Math.floor(Math.random() * (i + 1));
+                                [nums[i], nums[j]] = [nums[j], nums[i]];
+                            }
+                            for (const num of nums) {
+                                if (isValid(grid, r, c, num)) {
+                                    grid[r][c] = num;
+                                    if (fill(grid)) return true;
+                                    grid[r][c] = 0;
+                                }
+                            }
+                            return false;
+                        }
+                    }
+                }
+                return true;
+            }
+
+            fill(solution);
+
+            // Create puzzle by removing numbers
+            puzzle = solution.map(row => [...row]);
+            given = Array.from({ length: 9 }, () => Array(9).fill(true));
+
+            const cluesCount = 36; // moderate difficulty
+            const positions = [];
+            for (let i = 0; i < 81; i++) positions.push(i);
+            for (let i = positions.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [positions[i], positions[j]] = [positions[j], positions[i]];
+            }
+
+            const toRemove = 81 - cluesCount;
+            for (let i = 0; i < toRemove; i++) {
+                const idx = positions[i];
+                const r = Math.floor(idx / 9), c = idx % 9;
+                puzzle[r][c] = 0;
+                given[r][c] = false;
+            }
+
+            player = puzzle.map(row => [...row]);
+        }
+
+        function newGame() {
+            generateSudoku();
+            errorCount = 0;
+            errorsEl.textContent = '0';
+            selectedR = -1;
+            selectedC = -1;
+            overlay.classList.remove('show');
+            startTimer();
+            renderBoard();
+        }
+
+        function selectCell(r, c) {
+            if (given[r][c]) return;
+            selectedR = r;
+            selectedC = c;
+            renderBoard();
+        }
+
+        function placeNumber(num) {
+            if (selectedR === -1 || selectedC === -1) return;
+            if (given[selectedR][selectedC]) return;
+
+            if (num === 0) {
+                // Erase
+                player[selectedR][selectedC] = 0;
+                renderBoard();
+                return;
+            }
+
+            // Check against solution
+            if (num !== solution[selectedR][selectedC]) {
+                errorCount++;
+                errorsEl.textContent = errorCount;
+                player[selectedR][selectedC] = num;
+                renderBoard();
+                if (errorCount >= 3) {
+                    clearInterval(timerInterval);
+                    document.getElementById('resultEmoji').textContent = '😢';
+                    document.getElementById('resultTitle').textContent = '错误太多！';
+                    document.getElementById('resultMsg').textContent = '3 次错误，游戏结束。再试一次吧！';
+                    overlay.classList.add('show');
+                }
+                return;
+            }
+
+            player[selectedR][selectedC] = num;
+            renderBoard();
+            checkWin();
+        }
+
+        function giveHint() {
+            // Find a random empty or wrong cell
+            const candidates = [];
+            for (let r = 0; r < 9; r++)
+                for (let c = 0; c < 9; c++)
+                    if (!given[r][c] && player[r][c] !== solution[r][c])
+                        candidates.push([r, c]);
+
+            if (candidates.length === 0) return;
+            const [r, c] = candidates[Math.floor(Math.random() * candidates.length)];
+            player[r][c] = solution[r][c];
+            selectedR = r;
+            selectedC = c;
+            renderBoard();
+            checkWin();
+        }
+
+        function checkWin() {
+            for (let r = 0; r < 9; r++)
+                for (let c = 0; c < 9; c++)
+                    if (player[r][c] !== solution[r][c]) return;
+
+            clearInterval(timerInterval);
+            document.getElementById('resultEmoji').textContent = '🎉';
+            document.getElementById('resultTitle').textContent = '恭喜通关！';
+            const m = Math.floor(timerSec / 60);
+            const s = timerSec % 60;
+            document.getElementById('resultMsg').textContent = `用时 ${m} 分 ${s} 秒，错误 ${errorCount} 次`;
+            overlay.classList.add('show');
+        }
+
+        function renderBoard() {
+            boardEl.innerHTML = '';
+            for (let r = 0; r < 9; r++) {
+                for (let c = 0; c < 9; c++) {
+                    const el = document.createElement('div');
+                    el.className = 'cell';
+                    if (given[r][c]) el.classList.add('given');
+                    if (r === selectedR && c === selectedC) el.classList.add('selected');
+                    if (player[r][c] !== 0) {
+                        el.textContent = player[r][c];
+                        if (!given[r][c] && player[r][c] !== solution[r][c])
+                            el.classList.add('conflict');
+                    }
+                    // Highlight same number
+                    if (player[r][c] !== 0 && player[selectedR] && player[selectedR][selectedC] !== 0
+                        && player[r][c] === player[selectedR][selectedC]
+                        && !(r === selectedR && c === selectedC)) {
+                        el.classList.add('same-num');
+                    }
+                    el.addEventListener('click', () => selectCell(r, c));
+                    boardEl.appendChild(el);
+                }
+            }
+        }
+
+        document.querySelectorAll('.num-btn').forEach(btn => {
+            btn.addEventListener('click', () => placeNumber(parseInt(btn.dataset.num)));
+        });
+
+        // Keyboard input
+        document.addEventListener('keydown', (e) => {
+            if (e.key >= '1' && e.key <= '9') placeNumber(parseInt(e.key));
+            if (e.key === 'Backspace' || e.key === 'Delete' || e.key === '0') placeNumber(0);
+            if (e.key === 'ArrowUp' && selectedR > 0) selectCell(selectedR - 1, selectedC);
+            if (e.key === 'ArrowDown' && selectedR < 8) selectCell(selectedR + 1, selectedC);
+            if (e.key === 'ArrowLeft' && selectedC > 0) selectCell(selectedR, selectedC - 1);
+            if (e.key === 'ArrowRight' && selectedC < 8) selectCell(selectedR, selectedC + 1);
+        });
+
+        document.getElementById('newBtn').addEventListener('click', newGame);
+        document.getElementById('hintBtn').addEventListener('click', giveHint);
+        document.getElementById('restartBtn').addEventListener('click', newGame);
+
+        newGame();
+    </script>
+</body>
+</html>

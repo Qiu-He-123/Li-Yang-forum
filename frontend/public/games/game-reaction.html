@@ -1,0 +1,522 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>反应测试 - 途放Game小游戏</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+            background: #0f172a;
+            color: #f8fafc;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+            user-select: none;
+        }
+        .back {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            color: #fca5a5;
+            text-decoration: none;
+            font-size: 0.9rem;
+            font-weight: 700;
+            padding: 10px 20px;
+            border: 3px solid #ef4444;
+            border-radius: 999px;
+            background: rgba(239, 68, 68, 0.12);
+            transition: all 0.2s;
+            z-index: 100;
+        }
+        .back:hover {
+            background: rgba(239, 68, 68, 0.25);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
+        }
+
+        .orient-toggle {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            color: #fca5a5;
+            font-size: 0.85rem;
+            font-weight: 700;
+            padding: 10px 18px;
+            border: 3px solid #ef4444;
+            border-radius: 999px;
+            background: rgba(239, 68, 68, 0.12);
+            cursor: pointer;
+            transition: all 0.2s;
+            z-index: 100;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-family: inherit;
+        }
+        .orient-toggle:hover {
+            background: rgba(239, 68, 68, 0.25);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
+        }
+        .orient-toggle .icon {
+            display: inline-block;
+            font-size: 1rem;
+            transition: transform 0.3s;
+        }
+        body.landscape .orient-toggle .icon {
+            transform: rotate(90deg);
+        }
+
+        body.landscape {
+            justify-content: center;
+            overflow: hidden;
+        }
+        body.landscape .game-wrapper {
+            transform: rotate(90deg);
+            max-width: calc(100vh - 100px);
+        }
+
+        .game-wrapper {
+            background: rgba(30, 41, 59, 0.7);
+            border: 2px solid rgba(239, 68, 68, 0.3);
+            border-radius: 24px;
+            padding: 30px;
+            max-width: 520px;
+            width: 100%;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.4), 0 0 0 1px rgba(239,68,68,0.1);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin-top: 40px;
+        }
+
+        h1 {
+            font-size: 1.6rem;
+            text-align: center;
+            margin-bottom: 6px;
+            font-weight: 900;
+        }
+        h1 .accent { color: #fca5a5; }
+
+        .status-bar {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 16px;
+            margin-bottom: 14px;
+            flex-wrap: wrap;
+        }
+        .status-item {
+            background: #1e293b;
+            border: 2px solid #334155;
+            border-radius: 12px;
+            padding: 8px 16px;
+            font-weight: 800;
+            font-size: 0.95rem;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            white-space: nowrap;
+        }
+        .status-item .emoji { font-size: 1.1rem; }
+        .status-item .label { color: #94a3b8; font-size: 0.8rem; font-weight: 600; }
+        .status-item .value { color: #fca5a5; }
+
+        .game-area {
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .reaction-zone {
+            width: 100%;
+            aspect-ratio: 4/3;
+            border-radius: 16px;
+            border: 2px solid #334155;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: background 0.15s;
+            position: relative;
+            overflow: hidden;
+        }
+        .reaction-zone.waiting {
+            background: #991b1b;
+        }
+        .reaction-zone.ready {
+            background: #15803d;
+        }
+        .reaction-zone.idle {
+            background: #1e293b;
+        }
+        .reaction-zone.result {
+            background: #1e293b;
+        }
+        .reaction-zone.too-early {
+            background: #9a3412;
+        }
+
+        .zone-text {
+            font-size: 1.6rem;
+            font-weight: 900;
+            text-align: center;
+            padding: 20px;
+            line-height: 1.5;
+        }
+        .zone-sub {
+            font-size: 1rem;
+            font-weight: 600;
+            color: rgba(255,255,255,0.7);
+            margin-top: 8px;
+        }
+        .zone-result-time {
+            font-size: 3.5rem;
+            font-weight: 900;
+            color: #fca5a5;
+            text-shadow: 0 0 30px rgba(239, 68, 68, 0.5);
+        }
+        .zone-result-unit {
+            font-size: 1.2rem;
+            color: #94a3b8;
+            font-weight: 700;
+        }
+        .zone-result-msg {
+            font-size: 1.1rem;
+            font-weight: 700;
+            margin-top: 8px;
+        }
+
+        .results-panel {
+            width: 100%;
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 12px;
+        }
+        .result-card {
+            background: #1e293b;
+            border: 2px solid #334155;
+            border-radius: 12px;
+            padding: 14px 10px;
+            text-align: center;
+        }
+        .result-card .rc-label {
+            color: #94a3b8;
+            font-size: 0.8rem;
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+        .result-card .rc-value {
+            color: #fca5a5;
+            font-size: 1.4rem;
+            font-weight: 900;
+        }
+        .result-card .rc-unit {
+            color: #64748b;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .round-dots {
+            display: flex;
+            gap: 8px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+        .round-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #334155;
+            transition: all 0.3s;
+        }
+        .round-dot.done {
+            background: #fca5a5;
+            box-shadow: 0 0 8px rgba(239, 68, 68, 0.5);
+        }
+        .round-dot.current {
+            background: #ef4444;
+            box-shadow: 0 0 12px rgba(239, 68, 68, 0.7);
+            transform: scale(1.3);
+        }
+
+        .btn {
+            background: #ef4444;
+            color: #fff;
+            border: none;
+            padding: 14px 36px;
+            border-radius: 14px;
+            font-size: 1rem;
+            font-weight: 800;
+            cursor: pointer;
+            transition: all 0.2s;
+            box-shadow: 0 4px 15px rgba(239, 68, 68, 0.4);
+        }
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(239, 68, 68, 0.6);
+        }
+        .btn:active { transform: translateY(0); }
+
+        .tip {
+            text-align: center;
+            color: #64748b;
+            font-size: 0.85rem;
+            margin-top: 4px;
+        }
+
+        .history-list {
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            max-height: 150px;
+            overflow-y: auto;
+        }
+        .history-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: #1e293b;
+            border-radius: 8px;
+            padding: 8px 14px;
+            font-size: 0.85rem;
+        }
+        .history-item .hi-round {
+            color: #94a3b8;
+            font-weight: 600;
+        }
+        .history-item .hi-time {
+            color: #fca5a5;
+            font-weight: 800;
+        }
+
+        @media (max-width: 500px) {
+            .game-wrapper { padding: 20px 16px; border-radius: 20px; margin-top: 30px; }
+            h1 { font-size: 1.3rem; }
+            .status-bar { gap: 8px; }
+            .status-item { padding: 6px 12px; font-size: 0.85rem; }
+            .back { padding: 8px 14px; font-size: 0.8rem; }
+            .zone-text { font-size: 1.3rem; }
+            .zone-result-time { font-size: 2.8rem; }
+        }
+    /* 内嵌适配统一由 /games/embed.css 提供 */
+    </style>
+    <script>if(self!==top)document.documentElement.classList.add('embed');</script>
+    <link rel="stylesheet" href="embed.css" />
+</head>
+<body>
+    <a href="javascript:void(0)" class="back">← 返回</a>
+    <button class="orient-toggle" onclick="toggleOrientation()" title="切换横竖屏"><span class="icon">📱</span> <span class="label">横屏</span></button>
+
+    <div class="game-wrapper">
+        <h1>⚡ 反应<span class="accent">测试</span></h1>
+        <div class="status-bar">
+            <div class="status-item">
+                <span class="emoji">🏆</span>
+                <span class="label">最佳</span>
+                <span class="value" id="bestTime">---</span>
+            </div>
+            <div class="status-item">
+                <span class="emoji">🎯</span>
+                <span class="label">轮次</span>
+                <span class="value" id="roundDisplay">0/5</span>
+            </div>
+        </div>
+
+        <div class="game-area">
+            <div class="round-dots" id="roundDots">
+                <div class="round-dot"></div>
+                <div class="round-dot"></div>
+                <div class="round-dot"></div>
+                <div class="round-dot"></div>
+                <div class="round-dot"></div>
+            </div>
+
+            <div class="reaction-zone idle" id="reactionZone">
+                <div class="zone-text" id="zoneText">
+                    ⚡ 反应测试
+                    <div class="zone-sub">点击开始，测试你的反应速度！</div>
+                </div>
+            </div>
+
+            <div class="results-panel" id="resultsPanel" style="display:none;">
+                <div class="result-card">
+                    <div class="rc-label">最快</div>
+                    <div class="rc-value" id="fastest">---</div>
+                    <div class="rc-unit">ms</div>
+                </div>
+                <div class="result-card">
+                    <div class="rc-label">平均</div>
+                    <div class="rc-value" id="average">---</div>
+                    <div class="rc-unit">ms</div>
+                </div>
+                <div class="result-card">
+                    <div class="rc-label">最慢</div>
+                    <div class="rc-value" id="slowest">---</div>
+                    <div class="rc-unit">ms</div>
+                </div>
+            </div>
+
+            <div class="history-list" id="historyList" style="display:none;"></div>
+        </div>
+
+        <div class="tip">当屏幕变绿时尽快点击！共 5 轮</div>
+    </div>
+
+    <script>
+        const zone = document.getElementById('reactionZone');
+        const zoneText = document.getElementById('zoneText');
+        const roundDots = document.querySelectorAll('.round-dot');
+        const TOTAL_ROUNDS = 5;
+
+        let state = 'idle'; // idle, waiting, ready, result, too-early, finished
+        let round = 0;
+        let results = [];
+        let startTime = 0;
+        let timeoutId = null;
+        let bestTime = localStorage.getItem('reaction_best') ? parseInt(localStorage.getItem('reaction_best')) : null;
+
+        if (bestTime) {
+            document.getElementById('bestTime').textContent = bestTime;
+        }
+
+        function updateRoundDisplay() {
+            document.getElementById('roundDisplay').textContent = `${round}/${TOTAL_ROUNDS}`;
+            roundDots.forEach((dot, i) => {
+                dot.classList.remove('done', 'current');
+                if (i < round) dot.classList.add('done');
+                else if (i === round && state !== 'finished' && state !== 'idle') dot.classList.add('current');
+            });
+        }
+
+        function showResults() {
+            document.getElementById('resultsPanel').style.display = 'grid';
+            const historyList = document.getElementById('historyList');
+            historyList.style.display = 'flex';
+
+            const sorted = [...results].sort((a, b) => a - b);
+            const fastest = sorted[0];
+            const slowest = sorted[sorted.length - 1];
+            const avg = Math.round(results.reduce((a, b) => a + b, 0) / results.length);
+
+            document.getElementById('fastest').textContent = fastest;
+            document.getElementById('average').textContent = avg;
+            document.getElementById('slowest').textContent = slowest;
+
+            if (!bestTime || fastest < bestTime) {
+                bestTime = fastest;
+                localStorage.setItem('reaction_best', bestTime);
+                document.getElementById('bestTime').textContent = bestTime;
+            }
+
+            historyList.innerHTML = '';
+            results.forEach((time, i) => {
+                const item = document.createElement('div');
+                item.className = 'history-item';
+                item.innerHTML = `<span class="hi-round">第 ${i + 1} 轮</span><span class="hi-time">${time} ms</span>`;
+                historyList.appendChild(item);
+            });
+        }
+
+        function startWaiting() {
+            state = 'waiting';
+            zone.className = 'reaction-zone waiting';
+            zoneText.innerHTML = '等待变绿...<div class="zone-sub">变绿时立刻点击！</div>';
+            updateRoundDisplay();
+
+            const delay = 1500 + Math.random() * 3500; // 1.5-5 seconds
+            timeoutId = setTimeout(() => {
+                state = 'ready';
+                zone.className = 'reaction-zone ready';
+                zoneText.innerHTML = '点击！';
+                startTime = performance.now();
+            }, delay);
+        }
+
+        function handleClick() {
+            switch (state) {
+                case 'idle':
+                case 'finished':
+                    // Start game
+                    round = 0;
+                    results = [];
+                    document.getElementById('resultsPanel').style.display = 'none';
+                    document.getElementById('historyList').style.display = 'none';
+                    document.getElementById('historyList').innerHTML = '';
+                    startWaiting();
+                    break;
+
+                case 'waiting':
+                    // Too early!
+                    clearTimeout(timeoutId);
+                    state = 'too-early';
+                    zone.className = 'reaction-zone too-early';
+                    zoneText.innerHTML = '😅 太早了！<div class="zone-sub">点击重试本轮</div>';
+                    break;
+
+                case 'too-early':
+                    // Retry this round
+                    startWaiting();
+                    break;
+
+                case 'ready':
+                    // Got it!
+                    const reactionTime = Math.round(performance.now() - startTime);
+                    results.push(reactionTime);
+                    round++;
+                    updateRoundDisplay();
+
+                    state = 'result';
+                    zone.className = 'reaction-zone result';
+
+                    let msg = '';
+                    let msgColor = '';
+                    if (reactionTime < 200) { msg = '🏅 超人反应！'; msgColor = '#fbbf24'; }
+                    else if (reactionTime < 250) { msg = '🎉 非常快！'; msgColor = '#22c55e'; }
+                    else if (reactionTime < 300) { msg = '👍 不错！'; msgColor = '#38bdf8'; }
+                    else if (reactionTime < 400) { msg = '😊 平均水平'; msgColor = '#94a3b8'; }
+                    else { msg = '🐢 有点慢哦'; msgColor = '#f97316'; }
+
+                    zoneText.innerHTML = `
+                        <div class="zone-result-time">${reactionTime}</div>
+                        <div class="zone-result-unit">毫秒</div>
+                        <div class="zone-result-msg" style="color:${msgColor}">${msg}</div>
+                    `;
+
+                    if (round >= TOTAL_ROUNDS) {
+                        state = 'finished';
+                        setTimeout(() => {
+                            showResults();
+                            zone.className = 'reaction-zone idle';
+                            zoneText.innerHTML = `
+                                ⚡ 测试完成！
+                                <div class="zone-sub">点击重新开始</div>
+                            `;
+                        }, 1500);
+                    } else {
+                        setTimeout(() => {
+                            startWaiting();
+                        }, 1200);
+                    }
+                    break;
+            }
+        }
+
+        zone.addEventListener('click', handleClick);
+        zone.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            handleClick();
+        }, { passive: false });
+
+        updateRoundDisplay();
+    </script>
+</body>
+</html>

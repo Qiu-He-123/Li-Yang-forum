@@ -1,0 +1,747 @@
+from pathlib import Path
+import logging
+
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.exceptions import RequestValidationError
+from fastapi.staticfiles import StaticFiles
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
+from fastapi.responses import FileResponse, JSONResponse
+from loguru import logger
+from sqlalchemy import select
+
+from app.api.routes import (
+    activities,
+    admin, announcements, app_download, auth, badges, bottles, browse_history, captcha, circle_apply, circles, checkin,
+    coins, comments, deepseek, feedback, follows, gatherings, games, guesses, gratitude_list, images, interactions, match, messages, notifications, onboarding,
+    pet_ai, pet_shop, polls, posts, rankings, schools, search, settings as settings_router, stats, target_comments, topics, users, ws,
+    videos, wechat_sync,
+)
+from app.api.deps import extract_ip
+from app.core.config import get_settings
+from app.core.database import Base, SessionLocal, engine
+from app.core.errors import ErrorCode, error_response, get_error_message, pydantic_error_to_code
+from app.core.logger import setup_logger
+from app.services.rate_limit_service import check_rate_limit
+from app.services.captcha_service import has_challenge_pass
+from app.models.rate_limit import RateLimit as _RateLimit
+from app.models.captcha import CaptchaTicket as _CaptchaTicket, DownloadToken as _DownloadToken
+from app.models import Announcement, Badge, Category, CategoryAdmin, School, SeedInviteCode, WarningConfig, WarningLog  # noqa: F401  保证模型注册到 Base.metadata
+
+setup_logger()
+
+
+class _QuietSyncLogFilter(logging.Filter):
+    """把同步客户端的心跳/扫描请求从 uvicorn 访问日志里滤掉，避免每 3 秒刷屏。"""
+
+    QUIET_PATHS = (
+        "/api/wechat-sync/ping",
+        "/api/wechat-sync/cutoffs",
+        "/api/wechat-sync/messages/recent",
+    )
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        return not any(p in record.getMessage() for p in self.QUIET_PATHS)
+
+
+logging.getLogger("uvicorn.access").addFilter(_QuietSyncLogFilter())
+settings = get_settings()
+
+# 生产环境关闭 API 文档（/docs /redoc /openapi.json），避免接口结构泄露给攻击者
+app = FastAPI(
+    title=settings.app_name,
+    docs_url=None if settings.env != "dev" else "/docs",
+    redoc_url=None if settings.env != "dev" else "/redoc",
+    openapi_url=None if settings.env != "dev" else "/openapi.json",
+)
+
+# GZip 压缩：显著减小 JS/CSS/HTML 传输体积（1.1MB 主包压缩后约 300KB）
+app.add_middleware(GZipMiddleware, minimum_size=1024)
+
+# 允许的前端来源：本地 + .env 中配置的额外域名（内网穿透/外网部署）
+_allowed_origins = [settings.frontend_origin]
+if settings.extra_origins:
+    _allowed_origins.extend(
+        [o.strip() for o in settings.extra_origins.split(",") if o.strip()]
+    )
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=_allowed_origins,
+    allow_credentials=True,
+    # T7-12：生产收紧 CORS，明确允许的方法和头，避免 TRACE/CONNECT 等危险方法
+    allow_methods=["GET", "POST", "PATCH", "DELETE", "PUT"],
+    allow_headers=["Content-Type", "Authorization"],
+)
+
+
+@app.middleware("http")
+async def rewrite_api_prefix(request: Request, call_next):
+    """将前端 /api/* 请求去掉 /api 前缀，匹配后端路由（生产环境无 Vite proxy）。
+
+    稳定性修复：浏览器直接导航到 /api/* URL（如地址栏输入、收藏夹、自动补全）时，
+    不重写路径 → 不命中 API 路由 → SPA fallback 返回 index.html → Vue Router 接管。
+    避免「页面显示原始 JSON」的稳定性问题。
+
+    判定方式：浏览器导航请求 Accept 头包含 text/html；
+    AJAX 请求（axios/fetch）Accept 头为 application/json 或 */*（不带 text/html 优先）。
+    """
+    path = request.url.path
+    if path.startswith("/api/") or path == "/api":
+        accept = request.headers.get("accept", "")
+        # 浏览器导航：Accept 包含 text/html → 不重写，交给 SPA fallback
+        if "text/html" in accept:
+            pass
+        else:
+            # AJAX 请求：去掉 /api 前缀
+            new_path = path[4:] if len(path) > 4 else "/"
+            scope = request.scope
+            scope["path"] = new_path
+            scope["raw_path"] = new_path.encode("utf-8")
+    return await call_next(request)
+
+
+# ============ 反爬：写接口按 IP 限流（60 秒窗口） ============
+# 只限写接口（POST/PUT/PATCH/DELETE），正常用户无验证码、无感；读取频率由 Nginx 层限制。
+_WRITE_LIMITS: dict[str, tuple[str, int]] = {
+    "/auth": ("auth", 10),
+    "/posts": ("post_create", 5),
+    "/comments": ("comment_create", 10),
+    "/checkin": ("checkin", 2),
+    "/bottles": ("bottle", 5),
+    "/messages": ("message_send", 20),
+    "/interactions": ("interaction", 20),
+    "/feedback": ("feedback", 5),
+    "/polls": ("poll", 10),
+    "/deepseek": ("ai", 5),
+    "/search": ("search", 30),
+    "/match": ("match", 10),
+    "/images": ("upload", 10),
+    "/wechat-sync": ("wechat_sync", 600),
+}
+
+# 高频访问挑战阈值：每 IP 每分钟超过该值的 GET /api 请求触发验证码（正常用户无感）
+READ_CHALLENGE_LIMIT = 90
+# 不计入挑战的路径（验证码/下载接口自身 + 健康检查），避免鸡生蛋问题
+_CHALLENGE_EXEMPT = {
+    "/api/captcha",
+    "/api/captcha/verify",
+    "/api/app-download",
+    "/api/app-download/token",
+    "/api/health",
+}
+
+
+def _write_limit_for(path: str) -> tuple[str, int]:
+    """按路径前缀返回 (动作名, 每分钟上限)，未匹配的写接口默认 30 次/分。"""
+    for prefix, spec in _WRITE_LIMITS.items():
+        if path.startswith(prefix):
+            return spec
+    return "write", 30
+
+
+@app.middleware("http")
+async def api_read_challenge(request: Request, call_next):
+    """高频访问验证码：脚本/爬虫超阈值后必须先过验证码，正常用户无感。
+
+    验证通过后由 /captcha/verify 签发 10 分钟挑战通行证 Cookie，
+    持有通行证期间不再弹验证码。
+
+    仅生产模式启用：dev/内测服经 frp 穿透时所有用户共用一个出口 IP，
+    按 IP 计数会误伤全体正常用户。
+    """
+    if settings.env != "dev" and request.method == "GET" and request.url.path.startswith("/api"):
+        path = request.url.path
+        if path not in _CHALLENGE_EXEMPT:
+            ip = extract_ip(request)
+            if ip:
+                with SessionLocal() as db:
+                    allowed = check_rate_limit(db, f"rl:{ip}:read", READ_CHALLENGE_LIMIT)
+                if not allowed and not has_challenge_pass(request, ip):
+                    return JSONResponse(
+                        status_code=200,
+                        content={
+                            "code": ErrorCode.CAPTCHA_REQUIRED,
+                            "msg": "访问过于频繁，请完成验证码验证",
+                            "data": {},
+                        },
+                    )
+    return await call_next(request)
+
+
+@app.middleware("http")
+async def api_write_rate_limit(request: Request, call_next):
+    """反爬限流：同 IP 写接口超频直接返回 RATE_LIMITED（复用 SQLite rate_limits 表）。"""
+    if request.method in {"POST", "PUT", "PATCH", "DELETE"} and request.url.path.startswith("/api"):
+        ip = extract_ip(request)
+        if ip:
+            path = request.url.path[4:] if request.url.path != "/api" else "/"
+            action, max_requests = _write_limit_for(path)
+            with SessionLocal() as db:
+                allowed = check_rate_limit(db, f"rl:{ip}:{action}", max_requests)
+            if not allowed:
+                return JSONResponse(
+                    status_code=200,
+                    content={"code": ErrorCode.RATE_LIMITED, "msg": "操作太频繁，请稍后再试", "data": {}},
+                )
+    return await call_next(request)
+
+
+@app.exception_handler(HTTPException)
+async def http_exception_handler(_: Request, exc: HTTPException) -> JSONResponse:
+    # exc.detail 可以是 int（错误码）或 str（旧式消息）
+    if isinstance(exc.detail, int):
+        code = exc.detail
+        msg = get_error_message(code)
+    else:
+        # 兼容字符串 detail（如 AI 审核返回的动态原因）
+        code_map = {401: ErrorCode.NOT_LOGGED_IN, 403: ErrorCode.NO_PERMISSION, 404: ErrorCode.UNKNOWN_ERROR, 429: ErrorCode.LOGIN_LOCKED}
+        code = code_map.get(exc.status_code, ErrorCode.UNKNOWN_ERROR)
+        msg = str(exc.detail)
+    logger.warning("[HTTP_EXC] status={} code={} msg={}", exc.status_code, code, msg)
+    return JSONResponse(status_code=200, content={"code": code, "msg": msg, "data": {}})
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(_: Request, exc: RequestValidationError) -> JSONResponse:
+    errors = exc.errors()
+    code = pydantic_error_to_code(errors)
+    msg = get_error_message(code)
+    # Pydantic 校验错误中 ctx 可能含 ValueError 等不可 JSON 序列化的对象，
+    # 提取错误消息字符串后再返回，避免 TypeError: Object of type ValueError is not JSON serializable
+    safe_errors = []
+    for err in errors:
+        safe_err = {
+            "loc": err.get("loc"),
+            "msg": err.get("msg"),
+            "type": err.get("type"),
+        }
+        ctx = err.get("ctx")
+        if ctx:
+            # ctx 中的异常对象转为字符串
+            safe_ctx = {k: (str(v) if isinstance(v, BaseException) else v) for k, v in ctx.items()}
+            safe_err["ctx"] = safe_ctx
+        safe_errors.append(safe_err)
+    # value_error 是自定义校验器抛出的（如图片 URL 协议非法），用具体 msg 替代通用 "参数错误"
+    # 让前端 ElMessage 直接展示更有用的错误信息。
+    if errors and errors[0].get("type") == "value_error":
+        first_msg = errors[0].get("msg", "")
+        # Pydantic 的 msg 形如 "Value error, 图片 URL 不允许使用该协议"
+        if first_msg.startswith("Value error, "):
+            first_msg = first_msg[len("Value error, "):]
+        if first_msg:
+            msg = first_msg
+    logger.warning("[VALIDATION_ERR] code={} msg={} errors={}", code, msg, safe_errors)
+    return JSONResponse(status_code=200, content={"code": code, "msg": msg, "data": {"errors": safe_errors}})
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(_: Request, exc: Exception) -> JSONResponse:
+    logger.exception("[UNHANDLED] {}", exc)
+    return JSONResponse(status_code=200, content=error_response(ErrorCode.UNKNOWN_ERROR))
+
+
+@app.on_event("startup")
+def startup() -> None:
+    # T2-4：生产环境必须修改 jwt_secret 默认值，否则启动失败（防止 JWT 被伪造，S4）
+    if settings.env != "dev" and settings.jwt_secret == "change-me":  # nosec B105
+        raise RuntimeError(
+            "[FATAL] 生产环境 (ENV != dev) 必须修改 JWT_SECRET 环境变量，"
+            "当前仍为默认值 'change-me'，JWT 可被任意伪造。"
+        )
+
+    # 生产环境禁止使用默认数据库/MinIO 弱口令（防暴力破解进数据库/对象存储）
+    if settings.env != "dev":
+        db_url_lower = settings.database_url.lower()
+        if "lycommunity" in db_url_lower:
+            raise RuntimeError(
+                "[FATAL] 生产环境禁止使用默认 MySQL 密码（lycommunity），"
+                "请在 .env 设置强密码后重启。"
+            )
+        if settings.minio_access_key == "minioadmin" or settings.minio_secret_key == "minioadmin":
+            raise RuntimeError(
+                "[FATAL] 生产环境禁止使用默认 MinIO 密钥（minioadmin/minioadmin），"
+                "请在 .env 设置强密钥后重启。"
+            )
+
+    # T3-1：废弃 Base.metadata.create_all，schema 改由 Alembic 管理。
+    # 启动时用应用 engine 执行 alembic upgrade head（in-memory SQLite 也能正确迁移）。
+    # 生产环境迁移失败直接 raise；dev 环境兜底用 create_all。
+    from app.core.alembic_helper import ensure_schema
+
+    ensure_schema(engine, settings.database_url, settings.env)
+
+    with SessionLocal() as db:
+        for name, code in [
+            ("本部校区", "main"),
+            ("未来校区", "future"),
+            ("香山校区", "xiangshan"),
+            ("东校区", "east"),
+            ("杞县校区", "qixian"),
+        ]:
+            if not db.scalar(select(School).where(School.code == code)):
+                db.add(School(name=name, code=code))
+        # 初始化徽章系统（幂等，至少 20 个种子徽章）
+        _init_badges(db)
+        if not db.scalar(select(Announcement)):
+            db.add(Announcement(title="欢迎来到同伴圈", content="请遵守校园社区规范，友好交流，保护隐私。"))
+        # 初始化 8 个圈子（与 School 初始化保持一致风格）
+        _init_categories(db)
+        # 初始化警告值系统默认配置（单行，id=1）
+        if not db.get(WarningConfig, 1):
+            db.add(WarningConfig(id=1))
+        # 初始化种子邀请码（冷启动，幂等）
+        _init_seed_invite_codes(db, settings.seed_invite_code_count)
+        # 初始化今日竞猜种子：如当日没有活跃竞猜，自动创建一个（用户登录立即能体验弹窗/焦点区）
+        _init_seed_guess(db)
+        db.commit()
+    logger.info("{} started (env={})", settings.app_name, settings.env)
+
+
+@app.on_event("startup")
+async def _start_match_cleanup() -> None:
+    """启动后台清理任务：定期清理超时的匹配队列和会话。"""
+    import asyncio as _asyncio
+    from app.services import match_service as _ms
+
+    async def _loop() -> None:
+        while True:
+            await _asyncio.sleep(10)
+            try:
+                with SessionLocal() as db:
+                    _ms_cleanup(db)
+            except Exception as exc:
+                logger.warning("[MATCH_CLEANUP] err={}", exc)
+
+    def _ms_cleanup(db) -> None:
+        from datetime import timedelta
+        from app.core.time_utils import now_utc
+        from app.models import MatchQueue, MatchSession
+        now = now_utc()
+        # 1. 超时等待队列
+        expired_queue = db.scalars(
+            select(MatchQueue).where(
+                MatchQueue.status == "waiting",
+                MatchQueue.created_at < now - timedelta(seconds=_ms.WAIT_TIMEOUT_SECONDS),
+            )
+        ).all()
+        for q in expired_queue:
+            q.status = "timeout"
+            _ms._fire_and_forget({
+                "type": "match_timeout",
+                "queue_id": q.id,
+            }, q.user_id)
+        # 2. 超时会话
+        expired_sessions = db.scalars(
+            select(MatchSession).where(
+                MatchSession.status == "active",
+                MatchSession.expires_at < now,
+            )
+        ).all()
+        for s in expired_sessions:
+            _ms._expire_session(db, s)
+        if expired_queue or expired_sessions:
+            db.commit()
+
+    _asyncio.create_task(_loop())
+
+
+@app.on_event("startup")
+async def _start_security_cleanup() -> None:
+    """定期清理限流计数 / 验证码票据 / 下载令牌，防止临时表无限膨胀。"""
+    import asyncio as _asyncio
+    from datetime import timedelta as _timedelta
+
+    from app.core.time_utils import now_utc as _now_utc
+
+    async def _loop() -> None:
+        while True:
+            await _asyncio.sleep(600)
+            try:
+                with SessionLocal() as db:
+                    cutoff = _now_utc() - _timedelta(hours=48)
+                    db.execute(_RateLimit.__table__.delete().where(_RateLimit.window_start < cutoff))
+                    db.execute(
+                        _CaptchaTicket.__table__.delete().where(
+                            _CaptchaTicket.created_at < _now_utc() - _timedelta(minutes=30)
+                        )
+                    )
+                    db.execute(
+                        _DownloadToken.__table__.delete().where(
+                            _DownloadToken.created_at < _now_utc() - _timedelta(minutes=10)
+                        )
+                    )
+                    db.commit()
+            except Exception as exc:
+                logger.warning("[SECURITY_CLEANUP] err={}", exc)
+
+    _asyncio.create_task(_loop())
+
+
+@app.on_event("startup")
+async def _reaudit_stuck_wechat_posts() -> None:
+    """自愈：把卡在"审核中"的微信同步帖子重新送 AI 审核。
+
+    同步发帖之前漏了触发后台审核，历史帖子会一直停在 pending；
+    每次启动时扫一遍并补发审核任务，新帖子则在创建时直接调度。
+    """
+    import asyncio as _asyncio
+    from app.services import audit_service
+    from app.models import Post
+
+    with SessionLocal() as db:
+        stuck = db.scalars(
+            select(Post).where(
+                Post.wechat_moment_id.isnot(None),
+                Post.ai_status == "pending",
+            )
+        ).all()
+        ids = [p.id for p in stuck]
+    for post_id in ids:
+        _asyncio.create_task(audit_service.audit_post_background(post_id))
+    if ids:
+        logger.info("重新调度 {} 条卡住的微信同步帖子进行 AI 审核", len(ids))
+
+
+@app.on_event("startup")
+async def _start_wechat_auto_sync() -> None:
+    """微信自动同步：朋友圈每次被刷新（sns.db 变化）时自动扫描发布。
+
+    不固定全量扫描：循环每 N 秒（设置 wechat_sync_interval_seconds，默认 10、
+    最小 5）只 stat 一下 sns.db 的修改时间，几乎零开销；只有 mtime 变了
+    （微信刚拉到新朋友圈）才真正扫描入库并发帖。没有开启自动同步的绑定
+    则直接跳过。
+    """
+    import asyncio as _asyncio
+
+    from app.services import wechat_sync_service as _wss
+    from app.services.settings_service import get_int as _get_int
+
+    _lock = _asyncio.Lock()
+    _state: dict = {"mt": {}}
+
+    def _cycle() -> tuple[dict, int]:
+        """一轮检查 + 同步（在线程池执行：微信库解密/扫描很慢，绝不能阻塞事件循环）。"""
+        with SessionLocal() as db:
+            if not _wss.has_auto_sync_binding(db):
+                return {}, 0
+            now = _wss.sns_mtimes()
+            if not any(v is not None for v in now.values()):
+                return now, -1  # -1 = 找不到 sns.db
+            if now == _state["mt"]:
+                return now, 0  # 朋友圈没有刷新
+            added = _wss.sync_moments_from_local(db)
+            return now, added
+
+    async def _loop() -> None:
+        while True:
+            with SessionLocal() as _db:
+                interval = max(5, _get_int(_db, "wechat_sync_interval_seconds", 10))
+            await _asyncio.sleep(interval)
+            if _lock.locked():
+                continue
+            async with _lock:
+                try:
+                    now, added = await _asyncio.to_thread(_cycle)
+                    if added == -1:
+                        logger.warning(
+                            "[WECHAT_AUTO_SYNC] 找不到任何 sns.db（微信数据目录/账号配置问题），"
+                            "不会同步；请用 诊断同步.py 排查"
+                        )
+                        _state["mt"] = now
+                        continue
+                    if added:
+                        logger.info(
+                            "[WECHAT_AUTO_SYNC] 朋友圈已刷新，新增入库 {} 条", added
+                        )
+                    _state["mt"] = now
+                except Exception as exc:
+                    logger.warning("[WECHAT_AUTO_SYNC] err={}", exc)
+
+    _asyncio.create_task(_loop())
+
+
+@app.on_event("startup")
+async def _start_proactive_messenger() -> None:
+    """宠物 AI 主动消息调度器：时钟轮询（决策 AI + 到点主动发消息）。
+
+    使用独立后台任务，不阻塞主进程；内部按 MAX_SCAN_PAIRS 控制每轮处理量，
+    避免抢占用户聊天的 DeepSeek 配额。
+    """
+    import asyncio as _asyncio
+
+    from app.services import proactive_messenger as _pm
+
+    _asyncio.create_task(_pm.run_loop())
+
+
+@app.on_event("startup")
+async def _start_video_link_guard() -> None:
+    """抖音/快手视频直链守护：定时检测失效直链并自动重解析恢复。
+
+    直链有签名时效，后台每 video_link_refresh_interval 分钟探测一次，
+    失效的帖子自动用存的分享文本重新解析换新直链，用户无感。
+    """
+    import asyncio as _asyncio
+
+    from app.services import video_service as _vs
+    from app.services.settings_service import get_int as _get_int
+
+    _lock = _asyncio.Lock()
+
+    def _cycle() -> int:
+        # 在线程池执行：直链探测是同步网络请求，不能阻塞事件循环
+        with SessionLocal() as db:
+            return _vs.check_and_restore_video_links(db)
+
+    async def _loop() -> None:
+        while True:
+            with SessionLocal() as _db:
+                interval_min = max(5, _get_int(_db, "video_link_refresh_interval", 30))
+            await _asyncio.sleep(interval_min * 60)
+            if _lock.locked():
+                continue
+            async with _lock:
+                try:
+                    fixed = await _asyncio.to_thread(_cycle)
+                    if fixed:
+                        logger.info("[VIDEO_LINK_GUARD] 自动恢复 {} 条失效直链", fixed)
+                except Exception as exc:
+                    logger.warning("[VIDEO_LINK_GUARD] err={}", exc)
+
+    _asyncio.create_task(_loop())
+
+
+def _init_seed_guess(db) -> None:
+    """初始化今日竞猜种子（幂等：当日已有活跃竞猜则跳过）。"""
+    from datetime import datetime, timedelta
+    from app.services import guess_service
+    from app.models import Guess
+
+    today_key = datetime.now().strftime("%Y-%m-%d")
+    active = db.execute(
+        select(Guess).where(Guess.date_key == today_key, Guess.is_active.is_(True))
+    ).scalar_one_or_none()
+    if active:
+        return
+    # 创建一个示例竞猜
+    try:
+        guess_service.create_guess(
+            db,
+            title="今晚谁能夺冠？🏆🔥",
+            description="今晚 20:00 决赛，押上你的积分见证王者诞生！\n截止时间 20:00，过后不能再下注！",
+            deadline=datetime.now().replace(hour=23, minute=59, second=0, microsecond=0) + timedelta(hours=24),
+            date_key=today_key,
+            options=["🔥 红队卫冕", "💙 蓝队爆冷", "⚖️ 加时点球大战"],
+            admin_id=None,  # 种子种子默认 1 admin 可能不存在，填 None
+        )
+        # 兜底：如果 admin_id 的 FK 限制了，改为用 id=1 或不填；这里失败不影响启动
+    except Exception as exc:
+        logger.warning("[SEED_GUESS] init failed: {}", exc)
+
+
+def _init_categories(db) -> None:
+    """初始化圈子数据（幂等，已有则跳过；并强制固定 sort_order 保证展示顺序）。"""
+    initial_circles = [
+        # 注意：0=校园圈(默认)，1=表白墙，2=求助区，3=游戏开黑 —— 此顺序固定不变
+        ("校园圈", "default", None, "校园动态与日常交流", "#007aff", 0),
+        ("表白墙", "confess", None, "勇敢表达你的心意", "#ff3b30", 1),
+        ("求助区", "help", None, "发布求助信息并设置悬赏金币", "#4a96ff", 2),
+        ("游戏开黑", "game", None, "组队开黑与游戏讨论", "#af52de", 3),
+        ("失物招领", "lost", None, "丢失或捡到物品在此发布", "#ff9500", 4),
+        ("二手市场", "market", None, "二手物品交易", "#34c759", 5),
+        ("学习互助", "study", None, "学习资料与互助答疑", "#5856d6", 6),
+        ("校园美食", "food", None, "美食探店与食堂点评", "#ff6b35", 7),
+        ("摄影", "photo", None, "摄影作品分享与交流", "#00c7be", 8),
+        ("随机匹配", "match", None, "随机匹配陌生人聊天", "#ff9500", 9),
+        ("匿名树洞", "treehole", None, "匿名倾诉心事", "#8e8e93", 10),
+        ("校园问答", "qa", None, "校园问题互助问答", "#007aff", 11),
+        ("跳蚤市场", "flea", None, "闲置物品跳蚤市场", "#34c759", 12),
+        ("视频", "video", None, "抖音/快手视频分享", "#ff2d55", 13),
+    ]
+    for name, slug, icon, description, color, sort_order in initial_circles:
+        if not db.scalar(select(Category).where(Category.slug == slug)):
+            db.add(
+                Category(
+                    name=name,
+                    slug=slug,
+                    icon=icon,
+                    description=description,
+                    color=color,
+                    sort_order=sort_order,
+                )
+            )
+        else:
+            # 已存在：同步名称/描述/排序，保证「表白墙→求助区→游戏开黑」固定顺序永远生效
+            existing = db.scalar(select(Category).where(Category.slug == slug))
+            if existing and existing.sort_order != sort_order:
+                existing.sort_order = sort_order
+                existing.name = name
+                if description:
+                    existing.description = description
+
+
+def _init_seed_invite_codes(db, count: int) -> None:
+    """初始化种子邀请码（幂等，已存在则补足至 count 个未使用的）。
+
+    冷启动阶段：管理员把种子码线下发给可靠的班长/学生会主席，
+    学生注册时填种子码即可直接获得 verified 状态。
+    """
+    import secrets
+    import string
+    from sqlalchemy import func
+
+    # 查当前未使用的种子码数量（「待使用」的种子码已被管理员复制带走，不计入）
+    unused = db.scalar(
+        select(func.count(SeedInviteCode.id)).where(
+            SeedInviteCode.used_by.is_(None),
+            SeedInviteCode.status == "unused",
+        )
+    ) or 0
+    if unused >= count:
+        return  # 数量足够，跳过
+
+    need = count - unused
+    safe_chars = "".join(c for c in (string.ascii_uppercase + string.digits) if c not in "0OI1")
+    for i in range(need):
+        # 生成唯一码（重试 5 次）
+        for _ in range(5):
+            code = "S" + "".join(secrets.choice(safe_chars) for _ in range(7))  # S 前缀表示种子码
+            if not db.scalar(select(SeedInviteCode).where(SeedInviteCode.code == code)):
+                db.add(SeedInviteCode(code=code, note=f"启动自动生成 #{unused + i + 1}"))
+                break
+
+
+def _init_badges(db) -> None:
+    """初始化种子徽章（幂等，已有 code 则跳过）。"""
+    from app.services.badge_service import DEFAULT_BADGES
+
+    existing_codes = set(
+        db.scalars(select(Badge.code)).all()
+    )
+    for item in DEFAULT_BADGES:
+        if item["code"] in existing_codes:
+            continue
+        db.add(
+            Badge(
+                name=item["name"],
+                code=item["code"],
+                icon=item["icon"],
+                description=item["description"],
+                sort_order=item.get("sort_order", 0),
+                is_system=item.get("is_system", False),
+            )
+        )
+
+
+app.include_router(auth.router)
+app.include_router(captcha.router)
+# FastAPI 0.141 的 include_router 懒加载与 SPA 通配路由 /{full_path:path} 有冲突，
+# 下载接口改为直接注册，保证在通配路由之前命中
+app.add_api_route(
+    "/api/app-download",
+    app_download.app_download,
+    methods=["GET"],
+    tags=["app"],
+)
+# 开发模式 Vite 代理会剥掉 /api 前缀，这里再注册一个不带前缀的等价路径
+app.add_api_route(
+    "/app-download",
+    app_download.app_download,
+    methods=["GET"],
+    tags=["app"],
+    include_in_schema=False,
+)
+app.add_api_route(
+    "/api/app-download/token",
+    app_download.issue_download_token,
+    methods=["POST"],
+    tags=["app"],
+)
+app.add_api_route(
+    "/app-download/token",
+    app_download.issue_download_token,
+    methods=["POST"],
+    tags=["app"],
+    include_in_schema=False,
+)
+app.include_router(schools.router)
+app.include_router(posts.router)
+app.include_router(comments.router)
+app.include_router(interactions.router)
+app.include_router(users.router)
+app.include_router(badges.router)
+app.include_router(coins.router)
+app.include_router(onboarding.router)
+app.include_router(images.router)
+app.include_router(admin.router)
+app.include_router(announcements.router)
+app.include_router(activities.router)
+app.include_router(notifications.router)
+# 阶段四：圈子申请路由必须在 circles.router 之前注册，
+# 否则 /circles/apply 和 /circles/my-applies 会被 /circles/{slug} 抢先匹配
+app.include_router(circle_apply.router)
+app.include_router(circles.router)
+app.include_router(search.router)
+app.include_router(settings_router.router)
+app.include_router(follows.router)
+app.include_router(messages.router)
+app.include_router(checkin.router)
+app.include_router(browse_history.router)
+app.include_router(feedback.router)
+app.include_router(deepseek.router)
+app.include_router(topics.router)
+app.include_router(polls.router)
+app.include_router(guesses.router)
+app.include_router(pet_shop.router)
+app.include_router(pet_ai.admin_router)
+app.include_router(pet_ai.router)
+app.include_router(gratitude_list.router)
+app.include_router(gratitude_list.admin_router)
+app.include_router(games.router)
+app.include_router(games.admin_router)
+app.include_router(gatherings.router)
+app.include_router(target_comments.router)
+app.include_router(wechat_sync.router)
+app.include_router(wechat_sync.device_router)
+app.include_router(stats.router)
+app.include_router(rankings.router)
+app.include_router(bottles.router)
+app.include_router(match.router)
+app.include_router(ws.router)
+app.include_router(videos.router)
+app.mount("/uploads", StaticFiles(directory="uploads", check_dir=False), name="uploads")
+
+# 前端构建产物的绝对路径（避免相对路径在不同工作目录下失效）
+_FRONTEND_DIST = (Path(__file__).resolve().parent.parent.parent / "frontend" / "dist").resolve()
+app.mount("/assets", StaticFiles(directory=str(_FRONTEND_DIST / "assets"), check_dir=False), name="assets")
+
+
+@app.get("/health")
+def health() -> dict:
+    return {"code": 0, "msg": "success", "data": {"status": "ok"}}
+
+
+# ============ 前端 SPA 静态文件服务 ============
+# 将前端构建产物（dist/）由后端直接服务，便于内网穿透/外网部署只暴露一个端口
+_INDEX_HTML = _FRONTEND_DIST / "index.html"
+
+
+@app.get("/{full_path:path}")
+async def serve_spa(full_path: str):
+    """SPA fallback：未匹配 API/静态文件的 GET 请求返回 index.html，由前端路由处理。
+
+    安全修复：曾被用于任意文件读取——用户输入拼路径时遇到绝对路径会
+    替换掉 dist 目录前缀（如 /C:/Windows/win.ini 直接吐出系统文件）。
+    现在先 resolve() 再校验必须位于 dist 目录内，否则一律返回 index.html。
+    """
+    # 拒绝绝对路径 / 上级目录穿越（双保险，resolve + is_relative_to 兜底）
+    if full_path.startswith(("/", "\\")) or ".." in full_path.replace("\\", "/").split("/"):
+        raise HTTPException(status_code=404, detail="Not Found")
+    candidate = (_FRONTEND_DIST / full_path).resolve()
+    if candidate.is_file() and candidate.is_relative_to(_FRONTEND_DIST):
+        return FileResponse(candidate)
+    # 其余一律返回 index.html（Vue Router 接管）
+    if _INDEX_HTML.exists():
+        return FileResponse(_INDEX_HTML)
+    raise HTTPException(status_code=404, detail="Frontend not built")

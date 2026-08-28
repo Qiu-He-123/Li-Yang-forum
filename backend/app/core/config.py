@@ -1,0 +1,61 @@
+from functools import lru_cache
+from pathlib import Path
+
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# 无论从仓库根目录还是 backend 目录启动，都锚定到 backend 目录：
+# 1) .env 固定读 backend/.env（不再依赖当前工作目录）
+# 2) 相对 sqlite 路径固定解析到 backend/xxx.sqlite3（避免在根目录新建空库）
+BACKEND_DIR = Path(__file__).resolve().parents[2]
+
+
+class Settings(BaseSettings):
+    app_name: str = "同伴圈"
+    env: str = "dev"
+    database_url: str = "sqlite:///./ly_community.sqlite3"
+    redis_url: str = "redis://localhost:6379/0"
+    jwt_secret: str = "change-me"
+    jwt_algorithm: str = "HS256"
+    access_token_expire_minutes: int = 180
+    refresh_token_expire_days: int = 30
+    frontend_origin: str = "http://localhost:5173"
+    # 额外允许的前端来源（多个用逗号分隔），用于内网穿透/外网域名场景
+    extra_origins: str = ""
+    # 可信反代白名单（逗号分隔 IP/CIDR）：只有来自这些直连来源的
+    # X-Real-IP 才被信任，防止后端端口被直连时伪造代理头绕过限流
+    trusted_proxies: str = "127.0.0.1,::1,172.16.0.0/12,192.168.0.0/16,10.0.0.0/8"
+    ai_provider: str = "OpenAI"
+    minio_endpoint: str = "localhost:9000"
+    minio_access_key: str = "minioadmin"
+    minio_secret_key: str = "minioadmin"
+    minio_bucket: str = "ly-community"
+    minio_private_bucket: str = "ly-community-private"
+    minio_secure: bool = False
+    openai_api_key: str = ""
+    openai_base_url: str = "https://api.openai.com/v1"
+    ai_model: str = "gpt-4o-mini"
+    ai_timeout_seconds: int = 30
+    # 邀请码系统：管理员微信号（前端弹窗展示，用于学生获取种子邀请码）
+    admin_wechat: str = "qhsqq2623655749"
+    # 启动时自动生成的种子邀请码数量（冷启动用，已存在则跳过）
+    seed_invite_code_count: int = 10
+
+    # extra=ignore：.env 里允许存在 Settings 之外的键
+    # （备份脚本等直接读取 .env 的字段，如 github_token/backup_keep），
+    # 避免这些字段导致后端启动报 ValidationError
+    model_config = SettingsConfigDict(
+        env_file=str(BACKEND_DIR / ".env"), env_file_encoding="utf-8", extra="ignore"
+    )
+
+
+@lru_cache
+def get_settings() -> Settings:
+    s = Settings()
+    # 相对 sqlite 路径锚定到 backend 目录：无论进程从仓库根还是 backend 下启动，
+    # 都指向同一个库文件，避免"根目录被新建一个空库 -> no such table"这类跨机器坑
+    url = s.database_url
+    if url.startswith("sqlite:///") and not url.startswith("sqlite:////"):
+        rel = url[len("sqlite:///"):]
+        if rel and not rel.startswith(":") and not Path(rel).is_absolute():
+            s.database_url = "sqlite:///" + (BACKEND_DIR / rel).as_posix()
+    return s

@@ -1,0 +1,603 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ============ 暗色模式：覆盖设计令牌 + 硬编码浅色表面 ============ */
+[data-theme="dark"] {
+  color-scheme: dark;
+  --bg-50: #1c1c1e;
+  --bg-100: #121214;
+  --bg-200: #232326;
+  --bg-300: #2c2c2f;
+  --bg-400: #3a3a3d;
+  --bg-500: #4b4b4f;
+  --bg-600: #6e6e73;
+  --bg-700: #9a9aa0;
+  --bg-800: #c7c7cc;
+  --bg-900: #f5f5f7;
+  --text-50: #1d1d1f;
+  --text-100: #2c2c2e;
+  --text-200: #3a3a3c;
+  --text-300: #4b4b4f;
+  --text-400: #8e8e93;
+  --text-500: #a3a3a8;
+  --text-600: #c7c7cc;
+  --text-700: #d8d8dc;
+  --text-800: #e9e9ec;
+  --text-900: #f5f5f7;
+}
+
+html[data-theme="dark"] body {
+  background: #121214;
+  color: var(--text-800);
+}
+
+/* 启动预加载遮罩（index.html 内联样式） */
+html[data-theme="dark"] #app-preloader {
+  background: #121214 !important;
+}
+
+/* 顶部导航 / 下拉 / 悬浮引导卡等硬编码浅色表面 */
+html[data-theme="dark"] header.site-header,
+html[data-theme="dark"] .msg-header,
+html[data-theme="dark"] .detail-header,
+html[data-theme="dark"] .search-header,
+html[data-theme="dark"] .list-header,
+html[data-theme="dark"] .chat-header,
+html[data-theme="dark"] .topnav-desktop,
+html[data-theme="dark"] .user-dropdown,
+html[data-theme="dark"] .guest-guide {
+  background: rgba(28, 28, 30, 0.92) !important;
+  border-color: var(--bg-300) !important;
+}
+
+/* 原生弹窗 */
+html[data-theme="dark"] .dialog-panel {
+  background: #1c1c1e !important;
+  color: var(--text-800);
+}
+
+/* 聊天页 */
+html[data-theme="dark"] .chat-page,
+html[data-theme="dark"] .chat-messages {
+  background: #121214 !important;
+}
+html[data-theme="dark"] .chat-input-bar,
+html[data-theme="dark"] .chat-input-wrap {
+  background: #1c1c1e !important;
+  border-color: var(--bg-300) !important;
+}
+html[data-theme="dark"] .chat-input-wrap.is-disabled {
+  background: #232326 !important;
+}
+html[data-theme="dark"] .chat-bubble-row:not(.is-self) .chat-bubble {
+  background: #2c2c2f !important;
+  color: var(--text-800);
+}
+html[data-theme="dark"] .chat-bubble-row.is-self .chat-bubble {
+  background: #1e5f22 !important;
+  color: #e8f5e9;
+}
+html[data-theme="dark"] .chat-time-divider span {
+  background: #2c2c2f !important;
+  color: var(--text-500);
+}
+html[data-theme="dark"] .chat-perm-banner {
+  background: #3a2f1d !important;
+  border-color: #6b5528 !important;
+}
+
+/* ============ 左上角「下载手机端」按钮 ============ */
+.download-app-btn {
+  position: absolute;
+  left: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 10;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #007aff, #0064d6);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+  text-decoration: none;
+  box-shadow: 0 2px 10px rgba(0, 122, 255, 0.35);
+}
+
+.download-app-btn:active {
+  opacity: 0.85;
+}
+
+/* 仅在 App 内嵌 WebView 中隐藏「下载手机端」按钮；
+   手机浏览器打开网页的用户仍然需要看到下载入口 */
+html.ly-app .download-app-btn {
+  display: none;
+}
+
+/* ============ 移动端：中间内容区滚动，头尾导航不属于滚动区域、不会被拉伸 ============ */
+@media (max-width: 767px) {
+  html,
+  body {
+    overscroll-behavior: none;
+  }
+
+  main.page-home,
+  main.page-discover,
+  main.page-msg,
+  main.page-me,
+  main.page-notif-list,
+  main.page-detail,
+  main.page-search,
+  main.page-circle,
+  main.page-topic,
+  main.page-list,
+  main.page-history,
+  main.page-checkin,
+  main.page-feedback,
+  main.page-badges,
+  main.page-applies,
+  main.page-friends,
+  main.page-notif-detail,
+  main.page-create,
+  main.page-all-circles {
+    height: 100vh;
+    height: 100dvh;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-y: contain;
+  }
+}
+
+/* ============ 设计令牌（CSS 变量，对齐设计稿 Pinguo Design） ============ */
+:root {
+  /* 品牌色（完整 10 阶，对齐设计稿 brand palette） */
+  --brand-50: #e8f2ff;
+  --brand-100: #cfe5ff;
+  --brand-200: #9fcbff;
+  --brand-300: #66abff;
+  --brand-400: #2e8dff;
+  --brand-500: #007aff;
+  --brand-600: #0064d6;
+  --brand-700: #004fad;
+  --brand-800: #003b82;
+  --brand-900: #00275a;
+
+  /* 背景（完整 10 阶，对齐设计稿 background palette） */
+  --bg-50: #ffffff;
+  --bg-100: #f7f7fa;
+  --bg-200: #f2f2f7;
+  --bg-300: #e5e5ea;
+  --bg-400: #d1d1d6;
+  --bg-500: #aeaeb2;
+  --bg-600: #8e8e93;
+  --bg-700: #3a3a3c;
+  --bg-800: #1c1c1e;
+  --bg-900: #000000;
+
+  /* 文字（完整 10 阶，对齐设计稿 text palette） */
+  --text-50: #f5f5f7;
+  --text-100: #e3e3e8;
+  --text-200: #c7c7cc;
+  --text-300: #aeaeb2;
+  --text-400: #8e8e93;
+  --text-500: #6e6e73;
+  --text-600: #48484a;
+  --text-700: #3c3c43;
+  --text-800: #1d1d1f;
+  --text-900: #000000;
+
+  /* 功能色 */
+  --success: #34c759;
+  --error: #ff3b30;
+  --warning: #ff9500;
+  /* 对齐设计稿 state-* 命名 */
+  --state-success: #34c759;
+  --state-success-surface: #e9f9ee;
+  --state-error: #ff3b30;
+  --state-error-surface: #ffecea;
+
+  /* 图表色（对齐设计稿 chart palette） */
+  --chart-1: #34c759;
+  --chart-2: #007aff;
+  --chart-3: #ff9500;
+  --chart-4: #5856d6;
+  --chart-5: #af52de;
+
+  /* 语义角色 */
+  --color-border: #e5e5ea;
+  --color-input: #d1d1d6;
+  --color-ring: #007aff;
+
+  /* 圆角（对齐设计稿） */
+  --radius: 1.2rem;
+  --radius-lg: 1.2rem;
+  --radius-md: 0.8rem;
+  --radius-sm: 0.6rem;
+
+  /* 阴影（对齐设计稿 Pinguo shadow scale） */
+  --shadow-2xs: 0 1px 2px -1px rgba(0, 0, 0, 0.04);
+  --shadow-xs: 0 1px 2px 0 rgba(0, 0, 0, 0.04);
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05), 0 1px 3px -1px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 8px -2px rgba(0, 0, 0, 0.06), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
+  --shadow-lg: 0 8px 24px -8px rgba(0, 0, 0, 0.08), 0 4px 8px -4px rgba(0, 0, 0, 0.05);
+  --shadow-xl: 0 16px 40px -10px rgba(0, 0, 0, 0.10), 0 8px 16px -8px rgba(0, 0, 0, 0.06);
+  --shadow-2xl: 0 24px 64px -12px rgba(0, 0, 0, 0.12);
+
+  /* 缓动 */
+  --ease-apple: cubic-bezier(0.32, 0.72, 0, 1);
+
+  /* 字体（对齐设计稿） */
+  --font-sans: 'DM Sans', 'Inter', ui-sans-serif, system-ui, -apple-system, 'Microsoft YaHei', sans-serif;
+
+  /* 兼容 Element Plus（admin 页面仍在用，主色对齐 Apple） */
+  --el-color-primary: #007aff;
+  --el-color-primary-light-3: #4d9bff;
+  --el-color-primary-light-5: #82baff;
+  --el-color-primary-light-7: #b3d4ff;
+  --el-color-primary-light-8: #cfe5ff;
+  --el-color-primary-light-9: #e8f2ff;
+  --el-color-primary-dark-2: #0064d6;
+  --el-border-radius-base: 12px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: var(--bg-100);
+  color: var(--text-800);
+  font-family: 'DM Sans', 'Inter', ui-sans-serif, system-ui, -apple-system, 'Microsoft YaHei', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-feature-settings: 'cv11', 'ss01';
+  font-variant-numeric: tabular-nums;
+}
+
+/* ============ 通用工具类 ============ */
+
+/* 焦点光环 */
+.focus-ring:focus-visible {
+  outline: 3px solid rgba(0, 122, 255, 0.35);
+  outline-offset: 2px;
+}
+
+/* 多行截断 */
+.line-clamp-1 {
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.line-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.line-clamp-3 {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* 无滚动条 */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* 发丝分隔线 */
+.hairline {
+  border-bottom: 1px solid var(--color-border);
+}
+
+/* ============ 原生组件样式 ============ */
+
+/* Apple 风格按钮 */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border-radius: var(--radius-md);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s var(--ease-apple);
+  border: none;
+  white-space: nowrap;
+}
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.btn-primary {
+  background: var(--brand-500);
+  color: white;
+}
+.btn-primary:hover:not(:disabled) {
+  background: var(--brand-600);
+}
+.btn-secondary {
+  background: var(--bg-200);
+  color: var(--text-800);
+}
+.btn-secondary:hover:not(:disabled) {
+  background: var(--bg-300);
+}
+.btn-outline {
+  background: transparent;
+  border: 1px solid var(--color-border);
+  color: var(--text-800);
+}
+.btn-outline:hover:not(:disabled) {
+  background: var(--bg-100);
+}
+.btn-ghost {
+  background: transparent;
+  color: var(--brand-500);
+}
+.btn-ghost:hover:not(:disabled) {
+  background: var(--brand-50);
+}
+.btn-danger {
+  background: var(--error);
+  color: white;
+}
+.btn-pill {
+  border-radius: 9999px;
+}
+.btn-sm {
+  padding: 6px 12px;
+  font-size: 13px;
+}
+.btn-lg {
+  padding: 12px 24px;
+  font-size: 16px;
+}
+
+/* Apple 风格输入框 */
+.input {
+  width: 100%;
+  padding: 10px 14px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  background: var(--bg-50);
+  font-size: 14px;
+  color: var(--text-800);
+  transition: all 0.2s var(--ease-apple);
+  outline: none;
+}
+.input:focus {
+  border-color: var(--brand-500);
+  box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.15);
+}
+.input::placeholder {
+  color: var(--text-500);
+}
+.input-lg {
+  padding: 12px 16px;
+  font-size: 15px;
+}
+
+/* Apple 风格卡片 */
+.card {
+  background: var(--bg-50);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-xs);
+}
+
+/* Apple 风格 segmented control */
+.segmented {
+  display: inline-flex;
+  background: var(--bg-200);
+  border-radius: var(--radius-md);
+  padding: 2px;
+  gap: 2px;
+}
+.segmented-item {
+  padding: 6px 14px;
+  border-radius: calc(var(--radius-md) - 2px);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-500);
+  cursor: pointer;
+  transition: all 0.2s var(--ease-apple);
+  border: none;
+  background: transparent;
+}
+.segmented-item:hover {
+  color: var(--text-800);
+}
+.segmented-item.active {
+  background: var(--bg-50);
+  color: var(--text-800);
+  box-shadow: var(--shadow-xs);
+  font-weight: 600;
+}
+
+/* iOS Toggle 开关 */
+.ios-toggle {
+  position: relative;
+  display: inline-block;
+  width: 44px;
+  height: 26px;
+  flex-shrink: 0;
+}
+.ios-toggle input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+.ios-toggle-slider {
+  position: absolute;
+  cursor: pointer;
+  inset: 0;
+  background: var(--bg-400);
+  border-radius: 9999px;
+  transition: 0.3s var(--ease-apple);
+}
+.ios-toggle-slider::before {
+  content: '';
+  position: absolute;
+  height: 22px;
+  width: 22px;
+  left: 2px;
+  bottom: 2px;
+  background: white;
+  border-radius: 50%;
+  transition: 0.3s var(--ease-apple);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
+}
+.ios-toggle input:checked + .ios-toggle-slider {
+  background: var(--brand-500);
+}
+.ios-toggle input:checked + .ios-toggle-slider::before {
+  transform: translateX(18px);
+}
+
+/* 滚动条美化 */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--bg-300);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--bg-400);
+}
+
+/* ============ SWR 数据刷新渐变动画 ============ */
+/* 用法：<div :class="{ 'swr-updated': fadeActive }">...</div> */
+/* 数据变化时添加 swr-updated 类，子元素自动播放渐变动画：
+ * - 文字：旧文字淡出（带轻微上移）→ Vue 原地替换文本 → 新文字淡入（带轻微下移）
+ * - 图片：旧图左滑消失 → 新图右滑进入
+ * 不销毁 DOM，保持滚动位置 */
+.swr-updated .post-title,
+.swr-updated .post-body,
+.swr-updated .post-author,
+.swr-updated .post-time,
+.swr-updated .post-count,
+.swr-updated .card-title,
+.swr-updated .card-body,
+.swr-updated .card-author,
+.swr-updated .card-meta,
+.swr-updated .footprint-name {
+  animation: swr-text-update 0.35s var(--ease-apple, ease-out);
+}
+
+.swr-updated .post-img,
+.swr-updated .card-img,
+.swr-updated .post-thumb,
+.swr-updated .footprint-icon {
+  animation: swr-img-update 0.35s var(--ease-apple, ease-out);
+}
+
+/* 文字渐变：淡出（上移）→ 替换 → 淡入（下移回到原位） */
+@keyframes swr-text-update {
+  0% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  45% {
+    opacity: 0;
+    transform: translateY(-3px);
+  }
+  55% {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* 图片渐变：左滑消失 → 右滑进入 */
+@keyframes swr-img-update {
+  0% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  45% {
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+  55% {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .swr-updated * {
+    animation: none !important;
+  }
+}
+
+/* ============ 骨架屏通用 shimmer 动画 ============ */
+/* 各骨架屏组件统一引用，避免重复定义 */
+.sk-shimmer {
+  background: linear-gradient(
+    90deg,
+    var(--bg-200) 0%,
+    var(--bg-300) 50%,
+    var(--bg-200) 100%
+  );
+  background-size: 200% 100%;
+  animation: sk-shimmer 1.4s ease-in-out infinite;
+}
+@keyframes sk-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sk-shimmer { animation: none; }
+}
+
+/* 兼容旧 tie- 风格（admin 页面） */
+.tie-module-title {
+  position: relative;
+  padding-left: 10px;
+}
+.tie-module-title::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 4px;
+  height: 14px;
+  border-radius: 2px;
+  background: var(--brand-500);
+}
+
+.el-button {
+  font-weight: 600;
+}

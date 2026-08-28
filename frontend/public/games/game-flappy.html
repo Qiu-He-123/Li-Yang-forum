@@ -1,0 +1,542 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>像素鸟 - 途放Game小游戏</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+            background: #0f172a;
+            color: #f8fafc;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+            user-select: none;
+        }
+        .back {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            color: #7dd3fc;
+            text-decoration: none;
+            font-size: 0.9rem;
+            font-weight: 700;
+            padding: 10px 20px;
+            border: 3px solid #38bdf8;
+            border-radius: 999px;
+            background: rgba(56, 189, 248, 0.12);
+            transition: all 0.2s;
+            z-index: 100;
+        }
+        .back:hover {
+            background: rgba(56, 189, 248, 0.25);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(56, 189, 248, 0.3);
+        }
+
+        .orient-toggle {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            color: #7dd3fc;
+            font-size: 0.85rem;
+            font-weight: 700;
+            padding: 10px 18px;
+            border: 3px solid #38bdf8;
+            border-radius: 999px;
+            background: rgba(56, 189, 248, 0.12);
+            cursor: pointer;
+            transition: all 0.2s;
+            z-index: 100;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-family: inherit;
+        }
+        .orient-toggle:hover {
+            background: rgba(56, 189, 248, 0.25);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(56, 189, 248, 0.3);
+        }
+        .orient-toggle .icon {
+            display: inline-block;
+            font-size: 1rem;
+            transition: transform 0.3s;
+        }
+        body.landscape .orient-toggle .icon {
+            transform: rotate(90deg);
+        }
+
+        body.landscape {
+            justify-content: center;
+            overflow: hidden;
+        }
+        body.landscape .game-wrapper {
+            transform: rotate(90deg);
+            max-width: calc(100vh - 100px);
+        }
+
+        .game-wrapper {
+            background: rgba(30, 41, 59, 0.7);
+            border: 2px solid rgba(56, 189, 248, 0.3);
+            border-radius: 24px;
+            padding: 30px;
+            max-width: 480px;
+            width: 100%;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.4), 0 0 0 1px rgba(56,189,248,0.1);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        h1 {
+            font-size: 1.6rem;
+            text-align: center;
+            margin-bottom: 6px;
+            font-weight: 900;
+        }
+        h1 .accent { color: #7dd3fc; }
+
+        .status-bar {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 16px;
+            margin-bottom: 14px;
+            flex-wrap: wrap;
+        }
+        .status-item {
+            background: #1e293b;
+            border: 2px solid #334155;
+            border-radius: 12px;
+            padding: 8px 16px;
+            font-weight: 800;
+            font-size: 0.95rem;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            white-space: nowrap;
+        }
+        .status-item .emoji { font-size: 1.1rem; }
+        .status-item .label { color: #94a3b8; font-size: 0.8rem; font-weight: 600; }
+        .status-item .value { color: #7dd3fc; }
+
+        .canvas-container {
+            position: relative;
+            width: 100%;
+            max-width: 360px;
+            aspect-ratio: 3/4;
+            border-radius: 16px;
+            overflow: hidden;
+            border: 2px solid #334155;
+            margin-bottom: 16px;
+        }
+        canvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+
+        .overlay {
+            position: absolute;
+            inset: 0;
+            background: rgba(15, 23, 42, 0.85);
+            backdrop-filter: blur(8px);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 16px;
+            z-index: 10;
+        }
+        .overlay.hidden { display: none; }
+        .overlay h2 {
+            font-size: 1.8rem;
+            font-weight: 900;
+            text-align: center;
+        }
+        .overlay h2 .accent { color: #7dd3fc; }
+        .overlay p {
+            color: #94a3b8;
+            font-size: 0.95rem;
+            text-align: center;
+            line-height: 1.6;
+            max-width: 280px;
+        }
+        .overlay .final-score {
+            font-size: 3rem;
+            font-weight: 900;
+            color: #7dd3fc;
+            text-shadow: 0 0 30px rgba(56, 189, 248, 0.5);
+        }
+
+        .btn {
+            background: #38bdf8;
+            color: #0f172a;
+            border: none;
+            padding: 14px 36px;
+            border-radius: 14px;
+            font-size: 1rem;
+            font-weight: 800;
+            cursor: pointer;
+            transition: all 0.2s;
+            box-shadow: 0 4px 15px rgba(56, 189, 248, 0.4);
+        }
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(56, 189, 248, 0.6);
+        }
+        .btn:active { transform: translateY(0); }
+
+        .btn-secondary {
+            background: rgba(56, 189, 248, 0.15);
+            color: #7dd3fc;
+            border: 2px solid rgba(56, 189, 248, 0.3);
+            padding: 10px 24px;
+            border-radius: 12px;
+            font-size: 0.9rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .btn-secondary:hover {
+            background: rgba(56, 189, 248, 0.25);
+            transform: translateY(-2px);
+        }
+
+        .tip {
+            text-align: center;
+            color: #64748b;
+            font-size: 0.85rem;
+            margin-top: 4px;
+        }
+
+        @media (max-width: 500px) {
+            .game-wrapper { padding: 20px 16px; border-radius: 20px; }
+            h1 { font-size: 1.3rem; }
+            .status-bar { gap: 8px; }
+            .status-item { padding: 6px 12px; font-size: 0.85rem; }
+            .back { padding: 8px 14px; font-size: 0.8rem; }
+            .orient-toggle { padding: 8px 14px; font-size: 0.8rem; }
+        }
+    /* 内嵌适配统一由 /games/embed.css 提供 */
+    </style>
+    <script>if(self!==top)document.documentElement.classList.add('embed');</script>
+    <link rel="stylesheet" href="embed.css" />
+</head>
+<body>
+    <a href="javascript:void(0)" class="back">← 返回</a>
+    <button class="orient-toggle" onclick="toggleOrientation()" title="切换横竖屏"><span class="icon">📱</span> <span class="label">横屏</span></button>
+
+    <div class="game-wrapper">
+        <h1>🐦 像素<span class="accent">鸟</span></h1>
+        <div class="status-bar">
+            <div class="status-item">
+                <span class="emoji">🏆</span>
+                <span class="label">最高</span>
+                <span class="value" id="bestScore">0</span>
+            </div>
+            <div class="status-item">
+                <span class="emoji">🎯</span>
+                <span class="label">得分</span>
+                <span class="value" id="currentScore">0</span>
+            </div>
+        </div>
+
+        <div class="canvas-container" id="canvasContainer">
+            <canvas id="gameCanvas"></canvas>
+            <!-- Start overlay -->
+            <div class="overlay" id="startOverlay">
+                <h2>🐦 像素<span class="accent">鸟</span></h2>
+                <p>点击屏幕或按空格键让小鸟飞起来，穿越管道！</p>
+                <button class="btn" id="startBtn">开始游戏</button>
+            </div>
+            <!-- Game over overlay -->
+            <div class="overlay hidden" id="gameOverOverlay">
+                <h2>💥 游戏结束</h2>
+                <div class="final-score" id="finalScore">0</div>
+                <p id="gameOverMsg">再来一次吧！</p>
+                <button class="btn" id="restartBtn">再来一局</button>
+            </div>
+        </div>
+
+        <div class="tip">点击屏幕 / 按空格键 让小鸟飞起来</div>
+    </div>
+
+    <script>
+        // Canvas setup
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const container = document.getElementById('canvasContainer');
+
+        function resizeCanvas() {
+            const rect = container.getBoundingClientRect();
+            canvas.width = rect.width * window.devicePixelRatio;
+            canvas.height = rect.height * window.devicePixelRatio;
+            ctx.setTransform(window.devicePixelRatio, 0, 0, window.devicePixelRatio, 0, 0);
+            W = rect.width;
+            H = rect.height;
+        }
+
+        let W, H;
+        resizeCanvas();
+        window.addEventListener('resize', resizeCanvas);
+
+        function toggleOrientation(){
+            document.body.classList.toggle('landscape');
+            const l=document.querySelector('.orient-toggle .label');
+            l.textContent=document.body.classList.contains('landscape')?'竖屏':'横屏';
+            localStorage.setItem('gameOrient',document.body.classList.contains('landscape')?'landscape':'portrait');
+            setTimeout(resizeCanvas, 50);
+        }
+        (function(){if(localStorage.getItem('gameOrient')==='landscape'){document.body.classList.add('landscape');const l=document.querySelector('.orient-toggle .label');if(l)l.textContent='竖屏';setTimeout(resizeCanvas,50);}})();
+
+        // Game state
+        let bird, pipes, score, bestScore, gameRunning, gameover, frameCount;
+        const GRAVITY = 0.5;
+        const JUMP = -8;
+        const PIPE_WIDTH = 52;
+        const PIPE_GAP = 140;
+        const PIPE_SPEED = 2.5;
+        const PIPE_INTERVAL = 100; // frames between pipes
+
+        bestScore = parseInt(localStorage.getItem('flappy_best') || '0');
+        document.getElementById('bestScore').textContent = bestScore;
+
+        function init() {
+            bird = { x: W * 0.25, y: H * 0.4, vy: 0, radius: 14 };
+            pipes = [];
+            score = 0;
+            frameCount = 0;
+            gameover = false;
+            document.getElementById('currentScore').textContent = '0';
+        }
+
+        function jump() {
+            if (!gameRunning || gameover) return;
+            bird.vy = JUMP;
+        }
+
+        function spawnPipe() {
+            const minTop = 60;
+            const maxTop = H - PIPE_GAP - 60;
+            const topH = minTop + Math.random() * (maxTop - minTop);
+            pipes.push({ x: W, topH: topH, scored: false });
+        }
+
+        function update() {
+            if (!gameRunning || gameover) return;
+
+            // Bird physics
+            bird.vy += GRAVITY;
+            bird.y += bird.vy;
+
+            // Spawn pipes
+            if (frameCount % PIPE_INTERVAL === 0) {
+                spawnPipe();
+            }
+
+            // Move pipes
+            for (let i = pipes.length - 1; i >= 0; i--) {
+                pipes[i].x -= PIPE_SPEED;
+
+                // Score
+                if (!pipes[i].scored && pipes[i].x + PIPE_WIDTH < bird.x) {
+                    pipes[i].scored = true;
+                    score++;
+                    document.getElementById('currentScore').textContent = score;
+                }
+
+                // Remove off-screen
+                if (pipes[i].x + PIPE_WIDTH < -10) {
+                    pipes.splice(i, 1);
+                }
+            }
+
+            // Collision detection
+            // Ground / ceiling
+            if (bird.y - bird.radius < 0 || bird.y + bird.radius > H) {
+                die();
+                return;
+            }
+
+            // Pipes
+            for (const pipe of pipes) {
+                if (bird.x + bird.radius > pipe.x && bird.x - bird.radius < pipe.x + PIPE_WIDTH) {
+                    if (bird.y - bird.radius < pipe.topH || bird.y + bird.radius > pipe.topH + PIPE_GAP) {
+                        die();
+                        return;
+                    }
+                }
+            }
+        }
+
+        function die() {
+            gameover = true;
+            gameRunning = false;
+            if (score > bestScore) {
+                bestScore = score;
+                localStorage.setItem('flappy_best', bestScore);
+                document.getElementById('bestScore').textContent = bestScore;
+            }
+            document.getElementById('finalScore').textContent = score;
+            const msg = score >= 30 ? '🏅 传奇飞行员！' :
+                        score >= 20 ? '🎉 太厉害了！' :
+                        score >= 10 ? '👍 不错的成绩！' : '再来一次吧！';
+            document.getElementById('gameOverMsg').textContent = msg;
+            document.getElementById('gameOverOverlay').classList.remove('hidden');
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, W, H);
+
+            // Sky gradient
+            const skyGrad = ctx.createLinearGradient(0, 0, 0, H);
+            skyGrad.addColorStop(0, '#0c4a6e');
+            skyGrad.addColorStop(0.5, '#0369a1');
+            skyGrad.addColorStop(1, '#0ea5e9');
+            ctx.fillStyle = skyGrad;
+            ctx.fillRect(0, 0, W, H);
+
+            // Clouds (simple)
+            ctx.fillStyle = 'rgba(255,255,255,0.08)';
+            const cloudOffset = (frameCount * 0.3) % (W + 200);
+            for (let i = 0; i < 3; i++) {
+                const cx = ((i * 180 + 50) - cloudOffset + W + 200) % (W + 200) - 100;
+                const cy = 40 + i * 60;
+                ctx.beginPath();
+                ctx.ellipse(cx, cy, 50, 20, 0, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.beginPath();
+                ctx.ellipse(cx + 30, cy - 10, 35, 18, 0, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            // Pipes
+            for (const pipe of pipes) {
+                // Top pipe
+                const pipeGrad = ctx.createLinearGradient(pipe.x, 0, pipe.x + PIPE_WIDTH, 0);
+                pipeGrad.addColorStop(0, '#16a34a');
+                pipeGrad.addColorStop(0.3, '#22c55e');
+                pipeGrad.addColorStop(0.7, '#22c55e');
+                pipeGrad.addColorStop(1, '#15803d');
+                ctx.fillStyle = pipeGrad;
+                ctx.fillRect(pipe.x, 0, PIPE_WIDTH, pipe.topH);
+                // Top pipe cap
+                ctx.fillStyle = '#15803d';
+                ctx.fillRect(pipe.x - 4, pipe.topH - 20, PIPE_WIDTH + 8, 20);
+                ctx.strokeStyle = '#166534';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(pipe.x - 4, pipe.topH - 20, PIPE_WIDTH + 8, 20);
+
+                // Bottom pipe
+                const bottomY = pipe.topH + PIPE_GAP;
+                ctx.fillStyle = pipeGrad;
+                ctx.fillRect(pipe.x, bottomY, PIPE_WIDTH, H - bottomY);
+                // Bottom pipe cap
+                ctx.fillStyle = '#15803d';
+                ctx.fillRect(pipe.x - 4, bottomY, PIPE_WIDTH + 8, 20);
+                ctx.strokeStyle = '#166534';
+                ctx.strokeRect(pipe.x - 4, bottomY, PIPE_WIDTH + 8, 20);
+            }
+
+            // Ground
+            ctx.fillStyle = '#92400e';
+            ctx.fillRect(0, H - 3, W, 3);
+
+            // Bird
+            const angle = Math.min(Math.max(bird.vy * 3, -30), 60) * Math.PI / 180;
+            ctx.save();
+            ctx.translate(bird.x, bird.y);
+            ctx.rotate(angle);
+
+            // Body
+            ctx.fillStyle = '#fbbf24';
+            ctx.beginPath();
+            ctx.ellipse(0, 0, bird.radius + 2, bird.radius, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.strokeStyle = '#f59e0b';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+
+            // Wing
+            const wingFlap = Math.sin(frameCount * 0.3) * 5;
+            ctx.fillStyle = '#fde68a';
+            ctx.beginPath();
+            ctx.ellipse(-4, wingFlap, 8, 5, -0.3, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Eye
+            ctx.fillStyle = '#fff';
+            ctx.beginPath();
+            ctx.arc(7, -4, 5, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = '#1e293b';
+            ctx.beginPath();
+            ctx.arc(8, -4, 2.5, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Beak
+            ctx.fillStyle = '#ef4444';
+            ctx.beginPath();
+            ctx.moveTo(12, 0);
+            ctx.lineTo(20, 2);
+            ctx.lineTo(12, 5);
+            ctx.closePath();
+            ctx.fill();
+
+            ctx.restore();
+        }
+
+        function gameLoop() {
+            frameCount++;
+            update();
+            draw();
+            requestAnimationFrame(gameLoop);
+        }
+
+        // Controls
+        function handleInput(e) {
+            if (e.type === 'keydown' && e.code !== 'Space') return;
+            e.preventDefault();
+            jump();
+        }
+
+        document.getElementById('canvasContainer').addEventListener('click', (e) => {
+            if (e.target.closest('.overlay')) return;
+            jump();
+        });
+        document.getElementById('canvasContainer').addEventListener('touchstart', (e) => {
+            if (e.target.closest('.overlay')) return;
+            e.preventDefault();
+            jump();
+        }, { passive: false });
+        document.addEventListener('keydown', handleInput);
+
+        // Start / Restart
+        function startGame() {
+            init();
+            gameRunning = true;
+            document.getElementById('startOverlay').classList.add('hidden');
+            document.getElementById('gameOverOverlay').classList.add('hidden');
+        }
+
+        document.getElementById('startBtn').addEventListener('click', (e) => {
+            e.stopPropagation();
+            startGame();
+        });
+        document.getElementById('restartBtn').addEventListener('click', (e) => {
+            e.stopPropagation();
+            startGame();
+        });
+
+        // Init
+        init();
+        gameLoop();
+    </script>
+</body>
+</html>

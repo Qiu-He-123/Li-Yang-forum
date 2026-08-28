@@ -1,0 +1,947 @@
+"""同伴圈服务器启动器（分步向导）。
+
+流程：
+  第 1 步 选择微信号（昵称（微信号））；点「跳过并启动」可跳过微信配置直接启动服务器
+        （跳过后不做解密门禁，也不启动微信同步客户端/图片密钥监控）
+  第 2 步 数据库密钥页：能解密朋友圈数据库 → 自动跳过；失败 → 引导运行密钥工具重抓 db_key
+  第 3 步 图片密钥页：能解密图片缓存 → 自动跳过；失败 → 引导点开两三张图片 + 解密图片
+  第 4 步 启动服务器（迁移 + 后端 + 前端 + 可选同步客户端 + 浏览器）
+
+服务器启动后，由独立的 图片密钥监控.py 常驻检测；微信闪退/重登导致图片解不开时
+会弹出解密图片窗口，不需要重启服务器。
+"""
+
+import hashlib
+import json
+import importlib.util
+import os
+import shutil
+import subprocess
+import sys
+from pathlib import Path
+
+# tkinter 可选：Python 缺 tcl/tk 组件（精简版/商店版安装）时，不崩，
+# 改用无界面模式直接启动服务器（见 run_headless_server）
+try:
+    import tkinter as tk
+    import tkinter.filedialog as filedialog
+    import tkinter.messagebox as messagebox
+    HAVE_TK = True
+except Exception:  # noqa: BLE001 - 缺 tcl/tk 组件
+    tk = filedialog = messagebox = None
+    HAVE_TK = False
+
+# 控制台统一 UTF-8，避免中文/符号在 GBK 控制台报编码错误
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+
+ROOT = Path(__file__).resolve().parent
+CLIENT_DIR = ROOT / "微信同步客户端"
+sys.path.insert(0, str(CLIENT_DIR))
+
+import sns_reader  # noqa: E402
+import client_common  # noqa: E402
+
+CONFIG = CLIENT_DIR / "config.json"
+IMAGE_KEY_TOOL = ROOT / "获取微信朋友圈" / "获取图片密钥.py"
+# 数据库密钥工具：已内置到仓库 工具/微信密钥工具，完全自包含
+_DB_KEY_TOOL_CANDIDATES = [
+    ROOT / "工具" / "微信密钥工具" / "key_grabber_ui.py",
+    ROOT / "key_grabber_ui.py",
+]
+DB_KEY_TOOL = next((p for p in _DB_KEY_TOOL_CANDIDATES if p.is_file()), _DB_KEY_TOOL_CANDIDATES[0])
+MONITOR_PY = ROOT / "图片密钥监控.py"
+# 服务器访问配置：bind_host=127.0.0.1 仅本机；0.0.0.0 对外开放（局域网/公网直连机器）
+SERVER_CONFIG = ROOT / "server_config.json"
+SERVER_CONFIG_EXAMPLE = ROOT / "server_config.example.json"
+_SERVER_CONFIG_DEFAULTS = {"bind_host": "127.0.0.1", "port": 8000, "open_browser": True}
+
+
+def load_config() -> dict:
+    if not CONFIG.is_file():
+        example = CLIENT_DIR / "config.example.json"
+        if example.is_file():
+            shutil.copy2(example, CONFIG)
+    try:
+        cfg = json.loads(CONFIG.read_text(encoding="utf-8-sig")) if CONFIG.is_file() else {}
+    except (ValueError, OSError):
+        cfg = {}
+    # 兼容旧配置：补全 data_root
+    if not cfg.get("data_root"):
+        datadir = cfg.get("datadir") or ""
+        if datadir and os.path.isdir(os.path.join(datadir, "db_storage")):
+            cfg["data_root"] = str(Path(datadir).parent)
+        else:
+            cfg["data_root"] = datadir
+    return cfg
+
+
+def save_config(cfg: dict) -> None:
+    CONFIG.write_text(json.dumps(cfg, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def load_server_config() -> dict:
+    """服务器访问配置：bind_host=127.0.0.1 仅本机；0.0.0.0 对外开放。
+    配置文件不存在时自动从 server_config.example.json 生成；改完保存后重启服务器生效。
+    """
+    if not SERVER_CONFIG.is_file() and SERVER_CONFIG_EXAMPLE.is_file():
+        try:
+            shutil.copy2(SERVER_CONFIG_EXAMPLE, SERVER_CONFIG)
+        except OSError:
+            pass
+    cfg = dict(_SERVER_CONFIG_DEFAULTS)
+    if SERVER_CONFIG.is_file():
+        try:
+            cfg.update(json.loads(SERVER_CONFIG.read_text(encoding="utf-8-sig")))
+        except (ValueError, OSError):
+            print(f"[警告] 读取 {SERVER_CONFIG.name} 失败，使用默认配置")
+    try:
+        cfg["port"] = int(cfg.get("port") or 8000)
+    except (TypeError, ValueError):
+        cfg["port"] = 8000
+    cfg["bind_host"] = str(cfg.get("bind_host") or "127.0.0.1").strip() or "127.0.0.1"
+    cfg["open_browser"] = bool(cfg.get("open_browser", True))
+    return cfg
+
+
+def _src_tree_hash(src_dir: Path) -> str:
+    """对前端源码树做内容哈希：内容没变就不重建（git pull 只改 mtime 也能跳过）。"""
+    h = hashlib.md5()
+    for p in sorted(src_dir.rglob("*")):
+        if not p.is_file():
+            continue
+        try:
+            h.update(p.relative_to(src_dir).as_posix().encode("utf-8"))
+            with open(p, "rb") as f:
+                for chunk in iter(lambda: f.read(65536), b""):
+                    h.update(chunk)
+        except OSError:
+            continue
+    return h.hexdigest()
+
+
+def _lan_ip() -> str:
+    try:
+        import socket
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("223.5.5.5", 80))
+        ip = s.getsockname()[0]
+        s.close()
+        return ip
+    except Exception:
+        return "本机IP"
+
+
+def _print_access_info(server_cfg: dict) -> None:
+    host = server_cfg["bind_host"]
+    port = server_cfg["port"]
+    if host == "0.0.0.0":
+        ip = _lan_ip()
+        print("\n[提示] 对外访问已开放（bind_host=0.0.0.0）")
+        print(f"       本机访问   : http://127.0.0.1:{port}/")
+        print(f"       局域网访问 : http://{ip}:{port}/")
+        print(f"       外网访问   : 需在路由器/云防火墙放行 TCP {port}，或配内网穿透（路由侠等）")
+        print("       手动放行防火墙: netsh advfirewall firewall add rule name=\"LY Community\" dir=in action=allow protocol=TCP localport=%d" % port)
+    else:
+        print(f"\n[提示] 当前仅本机可访问（bind_host={host}）。")
+        print("       需要局域网/公网机器直接访问时，把 根目录/server_config.json 的 bind_host 改为 0.0.0.0 后重启服务器。")
+
+
+def get_key_hex(cfg: dict) -> str:
+    key_file = cfg.get("key_file", "")
+    if not key_file or not os.path.isfile(key_file):
+        return ""
+    try:
+        return Path(key_file).read_text(encoding="utf-8").strip()
+    except OSError:
+        return ""
+
+
+def _self_identity(account_path: str, key_hex: str) -> tuple[str | None, str | None]:
+    try:
+        contacts = sns_reader.read_contacts(account_path, key_hex)
+    except Exception:
+        return None, None
+    name = os.path.basename(account_path)
+    self_wxid = name.rsplit("_", 1)[0] if name.startswith("wxid_") and "_" in name else name
+    row = next((c for c in contacts if c.get("wxid") == self_wxid), None)
+    if not row:
+        return None, None
+    nickname = (row.get("remark") or "").strip() or (row.get("nickname") or "").strip() or None
+    return nickname, (row.get("wechat_id") or "").strip() or None
+
+
+def account_label(acc: dict) -> str:
+    if acc.get("nickname"):
+        ident = acc.get("wechat_id") or acc["wxid_display"]
+        return f"{acc['nickname']}（{ident}）"
+    return acc["wxid_display"]
+
+
+def resolve_data_root(cfg: dict) -> str:
+    """微信数据根目录：优先 data_root；若指向账号目录（含 db_storage）则取其父级，保证列出全部账号。"""
+    for key in ("data_root", "datadir"):
+        dr = cfg.get(key) or ""
+        if not dr or not os.path.isdir(dr):
+            continue
+        if os.path.isdir(os.path.join(dr, "db_storage")):
+            return str(Path(dr).parent)
+        return dr
+    return ""
+
+
+def scan_accounts(data_root: str, cfg: dict) -> list[dict]:
+    out = []
+    exp = sns_reader._load_exporter()
+    if not data_root or not os.path.isdir(data_root):
+        return out
+    shared_key_hex = get_key_hex(cfg)
+    for acc, p in exp.find_sns_db_candidates(data_root):
+        ok = False
+        acc_key_path = client_common.account_key_path(os.path.basename(acc))
+        key_hex = ""
+        if acc_key_path.is_file():
+            try:
+                key_hex = acc_key_path.read_text(encoding="utf-8").strip()
+            except OSError:
+                key_hex = ""
+        if not key_hex:
+            key_hex = shared_key_hex
+        if key_hex:
+            try:
+                ok = exp.check_key(p, key_hex)
+            except Exception:
+                ok = False
+        name = os.path.basename(acc)
+        wxid_display = name.rsplit("_", 1)[0] if name.startswith("wxid_") and "_" in name else name
+        nickname, wechat_id = (None, None)
+        if ok:
+            nickname, wechat_id = _self_identity(acc, key_hex)
+        item = {
+            "name": name,
+            "path": acc,
+            "sns_db": p,
+            "key_ok": ok,
+            "nickname": nickname,
+            "wechat_id": wechat_id,
+            "wxid_display": wxid_display,
+        }
+        item["label"] = account_label(item)
+        out.append(item)
+    return out
+
+
+def db_decrypt_ok(cfg: dict, account_path: str) -> bool:
+    key_hex = get_key_hex(cfg)
+    if not key_hex:
+        return False
+    exp = sns_reader._load_exporter()
+    sns_src = os.path.join(account_path, "db_storage", "sns", "sns.db")
+    try:
+        return os.path.isfile(sns_src) and exp.check_key(sns_src, key_hex)
+    except Exception:
+        return False
+
+
+def image_decrypt_ok(cfg: dict, account_path: str) -> tuple[bool, str]:
+    image_key = sns_reader.load_image_key(cfg.get("images_key"))
+    if not image_key:
+        return False, "缺少 图片密钥.json"
+    try:
+        return sns_reader.verify_image_key(account_path, image_key, expect_wxid=account_path)
+    except Exception as exc:
+        return False, f"图片解密验证异常：{exc}"
+
+
+def ensure_image_key_usable(cfg: dict, acc: dict) -> tuple[bool, str]:
+    """图片密钥能否使用：先验证现有密钥；不行就按新算法（kvcomm）自动重新推导并保存。"""
+    ik = sns_reader.load_image_key(cfg.get("images_key"))
+    if ik:
+        ok, msg = sns_reader.verify_image_key(acc["path"], ik, expect_wxid=acc["path"])
+        if ok:
+            return True, msg
+    else:
+        msg = "缺少图片密钥"
+    derived = sns_reader.derive_image_key_for_account(
+        sns_reader.data_root_of(acc["path"]), acc["path"]
+    )
+    if derived:
+        ok2, msg2 = sns_reader.verify_image_key(
+            acc["path"], derived, expect_wxid=acc["path"]
+        )
+        if ok2:
+            client_common.save_image_key_file(acc["name"], derived)
+            return True, msg2 + "（已按新算法自动推导并保存）"
+    return False, msg
+
+
+def _decrypt_preview(account_path: str, images_key_path: str) -> tuple[bytes | None, str]:
+    """真实解密一张最新 V2 朋友圈图片，返回 (PNG bytes, 源缓存路径)。
+    用于在"图片解密成功"页面下方展示实际解出来的图片。
+    """
+    import io as _io
+
+    image_key = sns_reader.load_image_key(images_key_path)
+    if not image_key:
+        return None, "缺少图片密钥，无法生成预览"
+    try:
+        from PIL import Image as PILImage
+    except ImportError:
+        return None, "缺少 Pillow，无法生成预览（不影响流程）"
+    samples = sns_reader.find_v2_cache_images(account_path, limit=5)
+    if not samples:
+        return None, "该账号暂无 V2 图片缓存，无法生成预览"
+    mod_path = ROOT / "获取微信朋友圈" / "下载朋友圈图片.py"
+    spec = importlib.util.spec_from_file_location("sns_media_preview", mod_path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    aes_raw = image_key.get("aes_key", "")
+    aes_key = bytes.fromhex(aes_raw) if len(aes_raw) == 32 else aes_raw.encode("ascii")[:16]
+    xor_key = image_key.get("xor_key")
+    for sample in samples:
+        try:
+            result, fmt = mod.decrypt_dat_file(sample, aes_key, xor_key)
+            if not (result and fmt and mod.is_complete_image(result, fmt)):
+                continue
+            img = PILImage.open(_io.BytesIO(result))
+            img.thumbnail((240, 240), PILImage.LANCZOS)
+            buf = _io.BytesIO()
+            img.convert("RGB").save(buf, format="PNG")
+            return buf.getvalue(), sample
+        except Exception:
+            continue
+    return None, "解密结果未能生成预览"
+
+
+def gate_checks(cfg: dict, account_path: str) -> list[tuple[str, bool, str]]:
+    results = []
+    key_hex = get_key_hex(cfg)
+    if not key_hex:
+        results.append(("数据库密钥 db_key.txt", False, "缺少 db_key.txt"))
+    else:
+        exp = sns_reader._load_exporter()
+        sns_src = os.path.join(account_path, "db_storage", "sns", "sns.db")
+        ok = os.path.isfile(sns_src) and exp.check_key(sns_src, key_hex)
+        results.append(("朋友圈数据库解密", ok, "OK" if ok else "解密失败，密钥不匹配"))
+    image_key = sns_reader.load_image_key(cfg.get("images_key"))
+    results.append(
+        ("图片密钥文件", image_key is not None, "OK" if image_key else "缺少 图片密钥.json")
+    )
+    if image_key:
+        ok, msg = sns_reader.verify_image_key(account_path, image_key, expect_wxid=account_path)
+        results.append(("图片解密验证", ok, msg))
+    else:
+        results.append(("图片解密验证", False, "需要先补齐图片密钥"))
+    return results
+
+
+def run_headless(cfg: dict) -> int:
+    sc = load_server_config()
+    print(f"服务器访问配置: bind_host={sc['bind_host']} port={sc['port']}"
+          + ("（对外开放，局域网/公网机器可访问）" if sc["bind_host"] == "0.0.0.0" else "（仅本机，可在 server_config.json 改 0.0.0.0 对外开放）"))
+    accounts = scan_accounts(resolve_data_root(cfg), cfg)
+    print(f"找到 {len(accounts)} 个微信账号：")
+    for i, acc in enumerate(accounts, 1):
+        mark = "✅ 密钥匹配" if acc["key_ok"] else "❌ 需要解密"
+        print(f"  {i}. {acc['label']}   [{mark}]")
+        if acc["key_ok"]:
+            for name, ok, msg in gate_checks(_account_cfg(cfg, acc), acc["path"]):
+                print(f"     {'OK ' if ok else 'FAIL'} {name} - {msg}")
+    return 0
+
+
+def _account_cfg(cfg: dict, acc: dict) -> dict:
+    """按账号的配置：密钥优先用账号目录里已保存的副本。"""
+    out = dict(cfg)
+    kf = client_common.account_key_path(acc["name"])
+    if kf.is_file():
+        out["key_file"] = str(kf)
+    ikf = client_common.account_image_key_path(acc["name"])
+    if ikf.is_file():
+        out["images_key"] = str(ikf)
+    out["datadir"] = acc["path"]
+    return out
+
+
+def _fetch_device_token(backend: Path) -> str:
+    """调用后端脚本生成/读取设备令牌，返回 64 位 hex 或空串。"""
+    py = backend / ".venv" / "Scripts" / "python.exe"
+    if not py.is_file():
+        return ""
+    try:
+        result = subprocess.run(
+            [str(py), "scripts/init_wechat_sync.py"],
+            cwd=str(backend),
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+        for line in (result.stdout or "").splitlines():
+            line = line.strip()
+            if len(line) == 64 and all(c in "0123456789abcdefABCDEF" for c in line):
+                return line
+    except Exception:
+        pass
+    return ""
+
+
+GUIDE_DB = (
+    "朋友圈数据库暂时解不开（db_key 不匹配或缺失）。\n\n"
+    "请按以下步骤重抓数据库密钥：\n"
+    "1. 保持微信登录（或准备重新登录）\n"
+    "2. 点下方「运行密钥工具」，工具会自动重启微信并捕获密钥\n"
+    "3. 工具提示登录微信后扫码/登录，等待捕获完成\n"
+    "4. 捕获成功后会自动检测并进入下一步，无需手动操作\n"
+)
+
+GUIDE_IMAGE = (
+    "图片缓存暂时解不开（密钥与当前账号不匹配，或该账号还没有图片缓存）。\n\n"
+    "请按以下步骤恢复：\n"
+    "1. 确认微信已登录该账号\n"
+    "2. 打开「朋友圈」，点开浏览 2-3 张图片（保持一张打开）\n"
+    "3. 点「解密图片」运行密钥工具\n"
+    "4. 解密成功后会自动进入下一步，无需手动操作\n\n"
+    "注：微信重启不会导致密钥失效，无需因重启而重抓。"
+)
+
+
+class StartupWindow:
+    def __init__(self, cfg: dict):
+        self.cfg = cfg
+        self.accounts: list[dict] = []
+        self.test_mode = os.environ.get("LY_TEST_GUI") == "1"
+
+        self.root = tk.Tk()
+        self.selected = tk.StringVar()
+        self.root.title("同伴圈 - 启动服务器（向导）")
+        self.root.geometry("780x640")
+        self.root.resizable(False, False)
+
+        self.container = tk.Frame(self.root)
+        self.container.pack(fill="both", expand=True)
+        self.page_frames: list[tk.Frame] = []
+        self._build_pages()
+        self.show_page(0)
+        self.rerun_accounts()
+
+        auto_close = os.environ.get("LY_AUTOCLOSE_MS")
+        if auto_close:
+            self.root.after(int(auto_close), self.root.destroy)
+        if self.test_mode:
+            self.root.after(500, self._auto_test)
+        self.root.mainloop()
+
+    def _auto_test(self):
+        """测试模式：自动选中密钥匹配的账号并走完向导，最后报告到达的页面。"""
+        if not self.accounts:
+            print("TEST FAIL: no accounts")
+            self.root.destroy()
+            return
+        idx = next((i for i, a in enumerate(self.accounts) if a["key_ok"]), 0)
+        self.selected.set(str(idx))
+        self.listbox.selection_clear(0, tk.END)
+        self.listbox.selection_set(idx)
+        self.step1_next()
+        self.root.after(3800, self._finish_test)
+
+    def _finish_test(self):
+        current = -1
+        for i, f in enumerate(self.page_frames):
+            if f.winfo_ismapped():
+                current = i
+        print(f"TEST wizard reached page index {current} (expect 3)")
+        if current == 3:
+            print("TEST OK")
+        self.root.destroy()
+
+    # ---------- 页面框架 ----------
+    def _new_page(self, title: str) -> tk.Frame:
+        page = tk.Frame(self.container)
+        tk.Label(page, text=title, font=("Microsoft YaHei UI", 14, "bold")).pack(pady=(18, 4))
+        return page
+
+    def _page_body(self, page: tk.Frame) -> tk.Frame:
+        body = tk.Frame(page)
+        body.pack(fill="both", expand=True, padx=24, pady=8)
+        return body
+
+    def _page_buttons(self, page: tk.Frame, buttons: list[tuple[str, callable, str]]) -> None:
+        bar = tk.Frame(page)
+        bar.pack(pady=12)
+        for text, cmd, bg in buttons:
+            tk.Button(bar, text=text, command=cmd, width=14, bg=bg).pack(side="left", padx=6)
+
+    def show_page(self, index: int) -> None:
+        for i, f in enumerate(self.page_frames):
+            f.pack_forget()
+        self.page_frames[index].pack(fill="both", expand=True)
+
+    def _clear(self, frame: tk.Frame) -> None:
+        for w in frame.winfo_children():
+            w.destroy()
+
+    # ---------- 第 1 步：选择微信号 ----------
+    def _build_pages(self):
+        p1 = self._new_page("第 1 步：选择要解密的微信号")
+        self.page_frames.append(p1)
+        self.listbox = tk.Listbox(p1, height=9, font=("Consolas", 10))
+        self.listbox.pack(fill="x", padx=24, pady=6)
+        self.listbox.bind("<<ListboxSelect>>", self._on_select)
+        self.p1_tip = tk.Label(p1, text="", font=("Microsoft YaHei UI", 10), fg="#666")
+        self.p1_tip.pack(pady=4)
+        self._page_buttons(
+            p1,
+            [
+                ("手动选择目录", self.pick_data_root, "#e8f0fe"),
+                ("刷新账号", self.rerun_accounts, "#f0f0f0"),
+                ("下一步", self.step1_next, "#d9ead3"),
+                ("跳过并启动", self.skip_wechat, "#cce0ff"),
+                ("退出", self.root.destroy, "#f4cccc"),
+            ],
+        )
+
+        p2 = self._new_page("第 2 步：朋友圈数据库密钥")
+        self.page_frames.append(p2)
+        self.p2_status = tk.Label(p2, text="", font=("Microsoft YaHei UI", 12, "bold"))
+        self.p2_status.pack(pady=6)
+        self.p2_body = self._page_body(p2)
+        self._page_buttons(
+            p2,
+            [("运行密钥工具", self.run_db_tool, "#fff3cd"), ("重新检测", self.step2_check, "#d9ead3"), ("返回", lambda: self.show_page(0), "#f0f0f0")],
+        )
+
+        p3 = self._new_page("第 3 步：朋友圈图片密钥")
+        self.page_frames.append(p3)
+        self.p3_status = tk.Label(p3, text="", font=("Microsoft YaHei UI", 12, "bold"))
+        self.p3_status.pack(pady=6)
+        self.p3_body = self._page_body(p3)
+        self._page_buttons(
+            p3,
+            [("解密图片", self.run_image_tool, "#fff3cd"), ("重新检测", self.step3_check, "#d9ead3"), ("返回", lambda: self.show_page(1), "#f0f0f0")],
+        )
+
+        p4 = self._new_page("第 4 步：启动服务器")
+        self.page_frames.append(p4)
+        self.p4_body = self._page_body(p4)
+        self.client_var = tk.BooleanVar(value=True)
+        tk.Checkbutton(
+            p4, text="同时启动微信同步客户端", variable=self.client_var, font=("Microsoft YaHei UI", 10)
+        ).pack(pady=4)
+        self._page_buttons(
+            p4,
+            [("启动服务器", self.start_server, "#d9ead3"), ("返回", lambda: self.show_page(2), "#f0f0f0"), ("退出", self.root.destroy, "#f4cccc")],
+        )
+
+    def rerun_accounts(self):
+        self.accounts = scan_accounts(resolve_data_root(self.cfg), self.cfg)
+        self.listbox.delete(0, tk.END)
+        self.selected.set("")
+        self.p1_tip.config(text="")
+        if not self.accounts:
+            self.listbox.insert(tk.END, "（未找到任何微信账号数据，可点「手动选择目录」指定微信数据位置）")
+            return
+        for acc in self.accounts:
+            mark = "✅ 密钥匹配" if acc["key_ok"] else "❌ 需要解密"
+            saved = "（已配置）" if client_common.account_config_path(acc["name"]).is_file() else ""
+            self.listbox.insert(tk.END, f"{acc['label']}   [{mark}] {saved}")
+        self.p1_tip.config(
+            text=f"微信数据目录：{resolve_data_root(self.cfg)}　共 {len(self.accounts)} 个账号，请选择社区运营账号"
+        )
+
+    def pick_data_root(self):
+        chosen = filedialog.askdirectory(
+            title="选择微信数据目录（xwechat_files）",
+            initialdir=resolve_data_root(self.cfg) or os.path.expanduser("~"),
+        )
+        if not chosen:
+            return
+        self.cfg["data_root"] = chosen
+        save_config(self.cfg)
+        self.rerun_accounts()
+
+    def _on_select(self, _event):
+        sel = self.listbox.curselection()
+        if sel:
+            self.selected.set(str(sel[0]))
+
+    def _selected_account(self) -> dict | None:
+        if not self.selected.get():
+            messagebox.showerror("提示", "请先选择微信号")
+            return None
+        return self.accounts[int(self.selected.get())]
+
+    def step1_next(self):
+        acc = self._selected_account()
+        if not acc:
+            return
+        self.cfg["datadir"] = acc["path"]
+        self.cfg["current_account"] = acc["name"]
+        save_config(self.cfg)
+        # 每个账号独立保存，互不覆盖：密钥也复制到账号目录
+        key_file = client_common.account_key_path(acc["name"])
+        if acc["key_ok"] and not key_file.is_file():
+            key_hex = get_key_hex(self.cfg)
+            if key_hex:
+                key_file.parent.mkdir(parents=True, exist_ok=True)
+                key_file.write_text(key_hex + "\n", encoding="utf-8")
+        # 图片密钥同样按账号单独保存：当前密钥能解开该账号缓存才复制
+        acc_img = client_common.account_image_key_path(acc["name"])
+        img_src = self.cfg.get("images_key") or ""
+        if not acc_img.is_file() and img_src and os.path.isfile(img_src):
+            try:
+                ik = sns_reader.load_image_key(img_src)
+                if ik:
+                    img_ok, _m = sns_reader.verify_image_key(acc["path"], ik, expect_wxid=acc["path"])
+                    if img_ok:
+                        acc_img.parent.mkdir(parents=True, exist_ok=True)
+                        shutil.copy2(img_src, acc_img)
+            except Exception:
+                pass
+        overrides = {
+            "datadir": acc["path"],
+            "state_file": "state.json",
+        }
+        if key_file.is_file():
+            overrides["key_file"] = str(key_file)
+        if acc_img.is_file():
+            overrides["images_key"] = str(acc_img)
+        client_common.save_account_config(acc["name"], overrides)
+        self.show_page(1)
+        self.step2_check()
+
+    def skip_wechat(self):
+        """跳过微信配置：不解密朋友圈、不走第 2-4 步，直接启动服务器。"""
+        if self.test_mode:
+            messagebox.showinfo("测试模式", "跳过微信配置流程验证通过，未启动服务器。")
+            self.root.destroy()
+            return
+        if launch_server(None, self.cfg, use_gui=True):
+            self.root.destroy()
+
+    # ---------- 第 2 步：数据库密钥 ----------
+    def step2_check(self):
+        acc = self._selected_account()
+        if not acc:
+            self.show_page(0)
+            return
+        ok = db_decrypt_ok(_account_cfg(self.cfg, acc), acc["path"])
+        if ok:
+            self.p2_status.config(text=f"✓ 数据库解密成功（{acc['label']}）", fg="#2e7d32")
+            self._clear(self.p2_body)
+            self.root.after(600, lambda: self.show_page(2) or self.step3_check())
+        else:
+            self.p2_status.config(text="✗ 数据库解密失败，需要重抓密钥", fg="#c62828")
+            self._clear(self.p2_body)
+            tk.Label(self.p2_body, text=GUIDE_DB, justify="left", font=("Microsoft YaHei UI", 10), fg="#7a3b12").pack(anchor="w")
+
+    def run_db_tool(self):
+        if not DB_KEY_TOOL.is_file():
+            messagebox.showerror("提示", f"找不到数据库密钥工具：\n{DB_KEY_TOOL}")
+            return
+        proc = subprocess.Popen([sys.executable, str(DB_KEY_TOOL)])
+        self.p2_status.config(text="密钥工具运行中，密钥生效后会自动进入下一步…", fg="#666")
+        self.root.after(2000, lambda: self._poll_db_tool(proc, 120))
+
+    def _poll_db_tool(self, proc: subprocess.Popen, remaining: int):
+        acc = self._selected_account()
+        if acc and db_decrypt_ok(_account_cfg(self.cfg, acc), acc["path"]):
+            self.step2_check()  # 成功即自动进入下一步
+            return
+        if proc.poll() is not None and remaining <= 0:
+            messagebox.showwarning(
+                "提示",
+                "密钥工具已结束但仍未捕获到有效密钥，请确认微信已登录后重试。",
+            )
+            return
+        self.root.after(2000, lambda: self._poll_db_tool(proc, remaining - 1))
+
+    # ---------- 第 3 步：图片密钥 ----------
+    def step3_check(self):
+        acc = self._selected_account()
+        if not acc:
+            self.show_page(0)
+            return
+        ok, msg = ensure_image_key_usable(_account_cfg(self.cfg, acc), acc)
+        if ok:
+            self._persist_image_key(acc)
+            self.p3_status.config(text=f"✓ 图片解密成功（{msg}）", fg="#2e7d32")
+            self._clear(self.p3_body)
+            # 下方展示一张真实解出来的图片，再自动进入下一步
+            acc_cfg = _account_cfg(self.cfg, acc)
+            png_bytes, src = _decrypt_preview(acc["path"], acc_cfg.get("images_key") or "")
+            if png_bytes:
+                photo = tk.PhotoImage(data=png_bytes)
+                self._preview_photo = photo  # 防止被 GC 回收
+                tk.Label(self.p3_body, image=photo).pack(pady=8)
+                tk.Label(
+                    self.p3_body,
+                    text=f"真实解密结果：{src}",
+                    fg="#888",
+                    font=("Microsoft YaHei UI", 9),
+                ).pack()
+            else:
+                tk.Label(
+                    self.p3_body,
+                    text=f"（{src}）",
+                    fg="#888",
+                    font=("Microsoft YaHei UI", 9),
+                ).pack(pady=6)
+            self.root.after(2500, lambda: self.show_page(3))
+        else:
+            self.p3_status.config(text=f"✗ 图片解密失败：{msg}", fg="#c62828")
+            self._clear(self.p3_body)
+            tk.Label(self.p3_body, text=GUIDE_IMAGE, justify="left", font=("Microsoft YaHei UI", 10), fg="#7a3b12").pack(anchor="w")
+
+    def _persist_image_key(self, acc: dict):
+        """把验证通过的图片密钥复制到账号目录，该账号以后用自己的密钥，互不覆盖。"""
+        src = _account_cfg(self.cfg, acc).get("images_key") or ""
+        acc_img = client_common.account_image_key_path(acc["name"])
+        if src and os.path.isfile(src):
+            try:
+                if not acc_img.is_file() or Path(src).resolve() != acc_img.resolve():
+                    acc_img.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.copy2(src, acc_img)
+            except OSError:
+                pass
+        overrides = {"datadir": acc["path"], "state_file": "state.json"}
+        kf = client_common.account_key_path(acc["name"])
+        if kf.is_file():
+            overrides["key_file"] = str(kf)
+        if acc_img.is_file():
+            overrides["images_key"] = str(acc_img)
+        client_common.save_account_config(acc["name"], overrides)
+
+    def run_image_tool(self):
+        if not IMAGE_KEY_TOOL.is_file():
+            messagebox.showerror("提示", f"找不到图片密钥工具：\n{IMAGE_KEY_TOOL}")
+            return
+        proc = subprocess.Popen([sys.executable, str(IMAGE_KEY_TOOL)])
+        self.p3_status.config(text="密钥工具运行中，解密成功后会自动进入下一步…", fg="#666")
+        self.root.after(2000, lambda: self._poll_image_tool(proc, 120))
+
+    def _poll_image_tool(self, proc: subprocess.Popen, remaining: int):
+        acc = self._selected_account()
+        if acc:
+            ok, _msg = image_decrypt_ok(_account_cfg(self.cfg, acc), acc["path"])
+            if ok:
+                self.step3_check()  # 成功即自动进入下一步
+                return
+        if proc.poll() is not None and remaining <= 0:
+            messagebox.showwarning(
+                "提示",
+                "图片密钥工具已结束但仍未解密成功。\n请先在微信「朋友圈」里点开两三张图片，再点「解密图片」重试。",
+            )
+            return
+        self.root.after(2000, lambda: self._poll_image_tool(proc, remaining - 1))
+
+    # ---------- 第 4 步：启动服务器 ----------
+    def _render_start_page(self):
+        acc = self._selected_account()
+        self._clear(self.p4_body)
+        sc = load_server_config()
+        lines = [
+            f"账号：{acc['label']}",
+            "数据库解密：✓ 通过",
+            "图片解密：✓ 通过",
+            f"访问地址：http://127.0.0.1:{sc['port']}/  绑定：{sc['bind_host']}"
+            + ("（对外开放）" if sc["bind_host"] == "0.0.0.0" else "（仅本机）"),
+        ]
+        tk.Label(
+            self.p4_body,
+            text="\n".join(lines),
+            justify="left",
+            font=("Microsoft YaHei UI", 11),
+            fg="#2e7d32",
+        ).pack(anchor="w", pady=8)
+        if self.test_mode:
+            tk.Label(
+                self.p4_body,
+                text="【测试模式】不会真正启动服务器。",
+                fg="#b26a00",
+                font=("Microsoft YaHei UI", 11),
+            ).pack(anchor="w", pady=8)
+
+    def start_server(self):
+        if self.test_mode:
+            messagebox.showinfo("测试模式", "向导流程验证通过，未启动服务器。")
+            self.root.destroy()
+            return
+        acc = self._selected_account()
+        if not acc:
+            return
+        if launch_server(acc, self.cfg, use_gui=True):
+            self.root.destroy()
+
+
+def launch_server(acc: dict | None, cfg: dict, use_gui: bool = True) -> bool:
+    """第 4 步（GUI 向导与无界面共用）：迁移 + 前端构建检查 + 启动服务器/
+    同步客户端/图片密钥监控 + 打开浏览器。失败返回 False。
+    acc=None 表示「跳过微信」模式：跳过解密门禁，不启动同步客户端与图片密钥监控。
+    """
+
+    def notify(title: str, msg: str, kind: str = "info") -> None:
+        if use_gui and HAVE_TK:
+            if kind == "error":
+                messagebox.showerror(title, msg)
+            else:
+                messagebox.showinfo(title, msg)
+        else:
+            print(f"[{'错误' if kind == 'error' else '提示'}] {title}: {msg}")
+
+    if acc is not None:
+        acc_cfg = _account_cfg(cfg, acc)
+        if not db_decrypt_ok(acc_cfg, acc["path"]):
+            notify("门禁未通过", "数据库解密未通过，请先完成密钥配置（运行密钥工具抓 db_key）", "error")
+            return False
+        ok, msg = ensure_image_key_usable(acc_cfg, acc)
+        if not ok:
+            notify(
+                "门禁未通过",
+                f"图片解密未通过：{msg}\n请先在微信朋友圈点开两三张图片，再运行 解密图片 工具",
+                "error",
+            )
+            return False
+
+    backend = ROOT / "backend"
+    py = backend / ".venv" / "Scripts" / "python.exe"
+    if not py.is_file():
+        notify("提示", "缺少 backend/.venv，请先运行 启动同伴圈.bat 完成安装", "error")
+        return False
+    mig = subprocess.run(
+        [str(py), "-m", "alembic", "upgrade", "head"],
+        cwd=str(backend),
+        capture_output=True,
+        text=True,
+        timeout=120,
+    )
+    if mig.returncode != 0:
+        notify("数据库迁移失败", mig.stderr[-2000:] or mig.stdout[-2000:], "error")
+        return False
+
+    # 设备令牌：缺失/占位时自动生成并写入配置，无需手动填（仅微信同步模式需要）
+    if acc is not None:
+        token = str(cfg.get("device_token") or "")
+        if not token or "请先运行" in token:
+            token = _fetch_device_token(backend)
+            if token:
+                cfg["device_token"] = token
+                save_config(cfg)
+
+    # 前端生产构建：后端在 server_config 端口直接托管 frontend/dist（不再启动 vite）
+    # 用源码内容哈希判断是否需要重建：git pull 只改 mtime 不改内容时直接跳过
+    _dist_html = ROOT / "frontend" / "dist" / "index.html"
+    _hash_file = ROOT / "frontend" / "dist" / ".src_hash"
+    _src_hash = _src_tree_hash(ROOT / "frontend" / "src")
+    _prev_hash = _hash_file.read_text(encoding="utf-8").strip() if _hash_file.is_file() else ""
+    if not _dist_html.is_file() or _prev_hash != _src_hash:
+        notify("提示", "前端未构建或源码有变化，正在构建（vite build 快速模式）…")
+        _build = subprocess.run(
+            ["cmd", "/c", f"cd /d {ROOT}\\frontend && npm run build:fast"],
+            cwd=str(ROOT),
+            capture_output=True,
+            text=True,
+            timeout=1800,
+        )
+        if _build.returncode != 0:
+            notify("前端构建失败", _build.stderr[-2000:] or _build.stdout[-2000:], "error")
+            return False
+        try:
+            _hash_file.parent.mkdir(parents=True, exist_ok=True)
+            _hash_file.write_text(_src_hash, encoding="utf-8")
+        except OSError:
+            pass
+        _dist_html = ROOT / "frontend" / "dist" / "index.html"
+    if not _dist_html.is_file():
+        notify("提示", "前端构建产物缺失：frontend/dist/index.html 不存在", "error")
+        return False
+
+    server_cfg = load_server_config()
+    bind_host = server_cfg["bind_host"]
+    port = server_cfg["port"]
+    # 对外开放时自动尝试放行防火墙端口（管理员权限才生效，失败不阻塞）
+    if bind_host == "0.0.0.0":
+        try:
+            subprocess.run(
+                ["netsh", "advfirewall", "firewall", "add", "rule",
+                 "name=LY Community %d" % port, "dir=in", "action=allow",
+                 "protocol=TCP", "localport=%d" % port],
+                capture_output=True, timeout=30,
+            )
+        except Exception:
+            pass
+    subprocess.Popen(
+        ["cmd", "/k", f"cd /d {ROOT}\\backend && call .venv\\Scripts\\activate.bat && python -m uvicorn app.main:app --host {bind_host} --port {port} --no-server-header"],
+        cwd=str(ROOT),
+    )
+    _print_access_info(server_cfg)
+
+    # 同步客户端 + 图片密钥后台监控（跳过微信模式不启动）
+    if acc is not None:
+        if cfg.get("start_client", True):
+            token_ok = bool(cfg.get("device_token")) and "请先运行" not in str(cfg.get("device_token"))
+            if token_ok:
+                try:
+                    subprocess.Popen([str(py), "client.py"], cwd=str(CLIENT_DIR))
+                except Exception:
+                    pass
+            else:
+                notify(
+                    "提示",
+                    "同步客户端未启动：设备令牌自动生成失败，请手动运行 backend/scripts/init_wechat_sync.py 查看并填入 config.json",
+                )
+        if MONITOR_PY.is_file():
+            try:
+                subprocess.Popen([str(py), str(MONITOR_PY)])
+            except Exception:
+                pass
+    if server_cfg["open_browser"]:
+        try:
+            os.startfile(f"http://127.0.0.1:{port}/")
+        except Exception:
+            pass
+    return True
+
+
+def run_headless_server(cfg: dict) -> int:
+    """无 tkinter（或 LY_HEADLESS=1）：跳过图形向导，用已保存配置直接启动服务器。"""
+    print("=" * 62)
+    print("  无界面启动模式（Python 缺少 tkinter 组件，或设置了 LY_HEADLESS=1）")
+    print("  使用已保存的账号配置直接启动服务器")
+    print("=" * 62)
+    accounts = scan_accounts(resolve_data_root(cfg), cfg)
+    acc = None
+    cur = cfg.get("current_account")
+    if cur:
+        acc = next((a for a in accounts if a["name"] == cur), None)
+    if not acc:
+        acc = next((a for a in accounts if a["key_ok"]), None)
+    if not acc:
+        print("\n[错误] 找不到可用的账号配置（没有密钥匹配的账号）！")
+        print("       处理办法（任选其一）：")
+        print("       1) 让向导恢复可用：到 https://www.python.org/downloads/ 重装 Python 并勾选「tcl/tk and IDLE」，")
+        print("          再双击 启动同伴圈.bat 打开图形向导完成密钥配置（本脚本也会自动尝试补装 tcl/tk）；")
+        print("       2) 保持无界面，用命令行配置密钥后重试：")
+        print("          数据库密钥: backend\\.venv\\Scripts\\python.exe 工具\\微信密钥工具\\capture_key_hwbp.py")
+        print("          图片密钥  : backend\\.venv\\Scripts\\python.exe 获取微信朋友圈\\获取图片密钥.py --datadir <微信数据根目录> --account-dir <账号名>")
+        print("          然后确认 微信同步客户端/config.json 的 current_account 已填成该账号名。")
+        return 1
+    print(f"\n使用账号：{acc['label']}")
+    ok = launch_server(acc, cfg, use_gui=False)
+    if not ok:
+        print("\n[提示] 无界面模式下可手动配置密钥后重试：")
+        print("       数据库密钥: backend\\.venv\\Scripts\\python.exe 工具\\微信密钥工具\\capture_key_hwbp.py")
+        print("       图片密钥  : backend\\.venv\\Scripts\\python.exe 获取微信朋友圈\\获取图片密钥.py --datadir <微信数据根目录> --account-dir <账号名>")
+        return 1
+    return 0
+
+
+if __name__ == "__main__":
+    cfg = load_config()
+    if "--check" in sys.argv or os.environ.get("LY_CHECK") == "1":
+        sys.exit(run_headless(cfg))
+    if not HAVE_TK or os.environ.get("LY_HEADLESS") == "1":
+        sys.exit(run_headless_server(cfg))
+    StartupWindow(cfg)

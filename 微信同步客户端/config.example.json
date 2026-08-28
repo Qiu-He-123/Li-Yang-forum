@@ -1,0 +1,16 @@
+{
+  "api_base": "http://127.0.0.1:8000",
+  "device_token": "请先运行 backend/scripts/init_wechat_sync.py 查看令牌并填入",
+  "data_root": "",
+  "datadir": "",
+  "key_file": "",
+  "images_key": "",
+  "images_dir": "",
+  "scan_interval_seconds": 8,
+  "refresh_min_interval_seconds": 8,
+  "refresh_stale_after_seconds": 30,
+  "friend_snapshot_interval_seconds": 600,
+  "manual_max_items": 300,
+  "state_file": "state.json",
+  "current_account": ""
+}

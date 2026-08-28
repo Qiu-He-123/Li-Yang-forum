@@ -1,0 +1,81 @@
+.env
+__pycache__/
+.pytest_cache/
+.venv/
+node_modules/
+dist/
+*.tsbuildinfo
+*.pyc
+*.sqlite3
+*.sqlite3-shm
+*.sqlite3-wal
+*.sqlite3-*
+*.sqlite3.*
+*.db
+uploads/
+uploads_private/
+cookies.txt
+cookies.csv
+*_tmp_login*.json
+*_tmp_*.json
+keystore-password.txt
+*.keystore
+*.key
+*.pem
+获取抖音视频/**/cookies.json
+获取抖音视频/**/output/
+logs/
+
+# 本地数据库备份
+backend/backups/
+
+# 调试截图（内测界面，严禁上传 GitHub）
+_diag_*.png
+_swipe_*.png
+
+# ============ 内测服（仅内网部署，严禁上传 GitHub） ============
+内测服/
+
+# 本地开发日志（vite 后台启动产生的临时文件）
+frontend/vite-dev.log
+
+lsremote.*
+
+# 微信同步客户端本地配置与状态（含设备令牌，严禁提交）
+微信同步客户端/config.json
+微信同步客户端/state.json
+微信同步客户端/client.log
+微信同步客户端/账号配置/
+
+# 服务器访问配置（bind_host/port 按机器不同，各自维护；模板 server_config.example.json 入库）
+server_config.json
+
+# ============ 视频分享：登录态/会话（严禁上传 GitHub） ============
+backend/app/services/video_fetch/cookies.json
+获取快手视频/**/废弃/
+获取快手视频/**/*session*.json
+获取快手视频/**/解析结果_*.txt
+
+# ============ 本地调试/截图/日志 ============
+_解密验证.jpg
+browser_*.png
+frontend/dev_server.log
+.workbuddy/
+
+# ============ 微信朋友圈导出产物（大文件+密钥，严禁上传） ============
+获取微信朋友圈/朋友圈图片/
+获取微信朋友圈/图片密钥.json
+获取微信朋友圈/朋友圈导出结果.txt
+
+# ============ 微信数据库密钥/工具产物（严禁上传） ============
+db_key.txt
+*db_key*.txt
+微信聊天记录提取工具.exe
+导出结果/
+账号资料报告.txt
+
+# ============ 安卓/移动端构建产物（含机器绝对路径，严禁上传） ============
+手机app/**/build/
+手机app/.gradle/
+手机app/**/.gradle/
+*.apk

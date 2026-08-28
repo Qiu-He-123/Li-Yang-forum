@@ -1,0 +1,6 @@
+{
+  "nodes": [
+    { "id": "page-index", "type": "page", "status": "planned", "output": "pages/index.html", "dependsOn": [] },
+    { "id": "page-post-detail", "type": "page", "status": "planned", "output": "pages/post-detail.html", "dependsOn": [] }
+  ]
+}

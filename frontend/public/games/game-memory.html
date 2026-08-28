@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>记忆翻牌 - 途放Game小游戏</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+            background: #0f172a;
+            color: #f8fafc;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+        }
+        .back {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            color: #c4b5fd;
+            text-decoration: none;
+            font-size: 0.9rem;
+            font-weight: 700;
+            padding: 10px 20px;
+            border: 3px solid #a78bfa;
+            border-radius: 999px;
+            background: rgba(167, 139, 250, 0.12);
+            transition: all 0.2s;
+            z-index: 100;
+        }
+        .back:hover {
+            background: rgba(167, 139, 250, 0.25);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(167, 139, 250, 0.3);
+        }
+
+        .orient-toggle {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            color: #c4b5fd;
+            font-size: 0.85rem;
+            font-weight: 700;
+            padding: 10px 18px;
+            border: 3px solid #a78bfa;
+            border-radius: 999px;
+            background: rgba(167, 139, 250, 0.12);
+            cursor: pointer;
+            transition: all 0.2s;
+            z-index: 100;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-family: inherit;
+        }
+        .orient-toggle:hover {
+            background: rgba(167, 139, 250, 0.25);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(167, 139, 250, 0.3);
+        }
+        .orient-toggle .icon {
+            display: inline-block;
+            font-size: 1rem;
+            transition: transform 0.3s;
+        }
+        body.landscape .orient-toggle .icon {
+            transform: rotate(90deg);
+        }
+
+        body.landscape {
+            justify-content: center;
+            overflow: hidden;
+        }
+        body.landscape .game-wrapper {
+            transform: rotate(90deg);
+            max-width: calc(100vh - 100px);
+        }
+
+        .game-wrapper {
+            background: rgba(30, 41, 59, 0.7);
+            border: 2px solid rgba(167, 139, 250, 0.3);
+            border-radius: 24px;
+            padding: 30px;
+            max-width: 520px;
+            width: 100%;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.4), 0 0 0 1px rgba(167,139,250,0.1);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        h1 { font-size: 1.6rem; text-align: center; margin-bottom: 6px; font-weight: 900; }
+        h1 .accent { color: #c4b5fd; }
+
+        .status-bar {
+            display: flex; align-items: center; justify-content: center;
+            gap: 16px; margin-bottom: 14px; flex-wrap: wrap;
+        }
+        .status-item {
+            background: #1e293b; border: 2px solid #334155; border-radius: 12px;
+            padding: 8px 16px; font-weight: 800; font-size: 0.9rem;
+            display: flex; align-items: center; gap: 6px;
+        }
+        .status-item .val {
+            color: #c4b5fd;
+            font-family: "SF Mono", "Cascadia Code", "Consolas", monospace;
+            font-size: 1.1rem;
+        }
+
+        .btn {
+            padding: 10px 28px; border: 3px solid #a78bfa; border-radius: 999px;
+            background: transparent; color: #c4b5fd; font-size: 1rem;
+            font-weight: 800; cursor: pointer; transition: all 0.2s; margin-bottom: 20px;
+        }
+        .btn:hover { background: #a78bfa; color: #fff; transform: translateY(-2px); box-shadow: 0 6px 20px rgba(167,139,250,0.35); }
+        .btn.primary { background: #a78bfa; color: #fff; }
+
+        .grid {
+            display: grid; grid-template-columns: repeat(4, 1fr);
+            gap: 10px; max-width: 400px; width: 100%;
+        }
+        .card {
+            aspect-ratio: 1; background: #1e293b; border-radius: 14px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 2.2rem; cursor: pointer; transition: all 0.3s;
+            user-select: none; border: 2px solid #334155;
+        }
+        .card:hover { transform: translateY(-3px); border-color: #a78bfa; }
+        .card.flipped, .card.matched { background: #2d1b4e; border-color: #a78bfa; }
+        .card.matched { opacity: 0.5; cursor: default; }
+        .card .face { display: none; }
+        .card.flipped .face, .card.matched .face { display: block; }
+
+        .overlay {
+            position: fixed; inset: 0; background: rgba(15, 23, 42, 0.94);
+            display: none; align-items: center; justify-content: center;
+            flex-direction: column; z-index: 10;
+        }
+        .overlay.show { display: flex; }
+        .overlay h2 { font-size: 2rem; margin-bottom: 8px; }
+        .overlay p { color: #94a3b8; margin-bottom: 24px; font-size: 1.1rem; }
+
+        @media (max-width: 500px) {
+            .game-wrapper { padding: 20px 14px; }
+            .back { top: 10px; left: 10px; font-size: 0.8rem; padding: 8px 14px; }
+            .orient-toggle { top: 10px; right: 10px; font-size: 0.75rem; padding: 8px 14px; }
+            .card { font-size: 1.8rem; }
+        }
+    /* 内嵌适配统一由 /games/embed.css 提供 */
+    </style>
+    <script>if(self!==top)document.documentElement.classList.add('embed');</script>
+    <link rel="stylesheet" href="embed.css" />
+</head>
+<body>
+    <a href="javascript:void(0)" class="back">← 返回</a>
+    <button class="orient-toggle" onclick="toggleOrientation()" title="切换横竖屏"><span class="icon">📱</span> <span class="label">横屏</span></button>
+
+    <div class="game-wrapper">
+        <h1>🧠 <span class="accent">记忆翻牌</span></h1>
+        <div class="status-bar">
+            <div class="status-item">👆 <span class="val" id="moves">0</span></div>
+            <div class="status-item">🎯 <span class="val" id="left">8</span></div>
+        </div>
+        <button class="btn primary" id="startBtn">重新开始</button>
+        <div class="grid" id="grid"></div>
+    </div>
+
+    <div class="overlay" id="overlay">
+        <h2>🎉 恭喜通关！</h2>
+        <p>你用了 <strong id="finalMoves">0</strong> 步完成挑战</p>
+        <button class="btn primary" id="restartBtn">再玩一次</button>
+    </div>
+
+    <script>
+        function toggleOrientation(){document.body.classList.toggle('landscape');const l=document.querySelector('.orient-toggle .label');l.textContent=document.body.classList.contains('landscape')?'竖屏':'横屏';localStorage.setItem('gameOrient',document.body.classList.contains('landscape')?'landscape':'portrait');}
+        (function(){if(localStorage.getItem('gameOrient')==='landscape'){document.body.classList.add('landscape');const l=document.querySelector('.orient-toggle .label');if(l)l.textContent='竖屏';}})();
+        const gridEl = document.getElementById('grid');
+        const movesEl = document.getElementById('moves');
+        const leftEl = document.getElementById('left');
+        const overlay = document.getElementById('overlay');
+        const finalMovesEl = document.getElementById('finalMoves');
+
+        const EMOJIS = ['🍎','🍊','🍋','🍇','🍓','🍒','🌸','🌻'];
+        let cards = [], flippedIdx = [], matchedSet = new Set();
+        let moves = 0, lockBoard = false;
+
+        function shuffle(arr) {
+            for (let i = arr.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [arr[i], arr[j]] = [arr[j], arr[i]];
+            }
+            return arr;
+        }
+
+        function initGame() {
+            cards = shuffle([...EMOJIS, ...EMOJIS]);
+            flippedIdx = [];
+            matchedSet = new Set();
+            moves = 0; lockBoard = false;
+            movesEl.textContent = '0';
+            leftEl.textContent = '8';
+            overlay.classList.remove('show');
+            renderGrid();
+        }
+
+        function renderGrid() {
+            gridEl.innerHTML = '';
+            cards.forEach((emoji, i) => {
+                const card = document.createElement('div');
+                card.className = 'card';
+                card.innerHTML = `<span class="face">${emoji}</span>`;
+                if (flippedIdx.includes(i) || matchedSet.has(i)) {
+                    card.classList.add(matchedSet.has(i) ? 'matched' : 'flipped');
+                }
+                card.addEventListener('click', () => flipCard(i));
+                gridEl.appendChild(card);
+            });
+        }
+
+        function flipCard(i) {
+            if (lockBoard) return;
+            if (flippedIdx.includes(i) || matchedSet.has(i)) return;
+            if (flippedIdx.length >= 2) return;
+
+            flippedIdx.push(i);
+            renderGrid();
+
+            if (flippedIdx.length === 2) {
+                moves++;
+                movesEl.textContent = moves;
+                lockBoard = true;
+                const [i1, i2] = flippedIdx;
+                if (cards[i1] === cards[i2]) {
+                    matchedSet.add(i1);
+                    matchedSet.add(i2);
+                    flippedIdx = [];
+                    lockBoard = false;
+                    leftEl.textContent = 8 - matchedSet.size / 2;
+                    renderGrid();
+                    if (matchedSet.size === 16) {
+                        setTimeout(() => {
+                            finalMovesEl.textContent = moves;
+                            overlay.classList.add('show');
+                        }, 400);
+                    }
+                } else {
+                    setTimeout(() => {
+                        flippedIdx = [];
+                        lockBoard = false;
+                        renderGrid();
+                    }, 600);
+                }
+            }
+        }
+
+        document.getElementById('startBtn').addEventListener('click', initGame);
+        document.getElementById('restartBtn').addEventListener('click', initGame);
+        initGame();
+    </script>
+</body>
+</html>

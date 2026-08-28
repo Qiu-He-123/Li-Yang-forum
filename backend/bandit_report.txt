@@ -1,0 +1,1 @@
+D:\Users\Downloads\同伴圈\backend\app\core\alembic_helper.py:115: B608[bandit]: MEDIUM: Possible SQL injection vector through string-based query construction.
