@@ -366,10 +366,17 @@ function goMyBadges() {
   router.push('/my/badges')
 }
 
+/** 设置项点击：带路由的统一跳转（修复个别项点不动的问题） */
+function goSetting(item: { icon: string; label: string; desc: string; to: string }) {
+  if (item.to) {
+    router.push(item.to)
+  }
+}
+
 const settingsList = [
   { icon: 'bell', label: '消息通知中心设置', desc: '管理点赞、私信等推送提醒', to: '/settings/notifications' },
   { icon: 'lock', label: '隐私设置', desc: '谁可以看你的内容', to: '/settings' },
-  { icon: 'help-circle', label: '帮助与反馈', desc: '常见问题与意见反馈', to: '' },
+  { icon: 'help-circle', label: '帮助与反馈', desc: '常见问题与意见反馈', to: '/feedback' },
   { icon: 'info', label: '关于同伴圈', desc: '版本 v1.2.0', to: '' },
   { icon: 'star', label: '感谢名单', desc: '感谢一路支持、让它持续长大的伙伴', to: '/gratitude' },
 ]
@@ -1216,7 +1223,7 @@ onMounted(async () => {
           class="settings-row"
           :class="{ 'no-border': idx === settingsList.length - 1 }"
           type="button"
-          @click="item.to && router.push(item.to)"
+          @click="goSetting(item)"
         >
           <span class="settings-ic">
             <Icon :name="item.icon" :size="16" color="#fff" />

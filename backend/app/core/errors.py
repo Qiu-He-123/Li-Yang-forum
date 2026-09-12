@@ -65,6 +65,7 @@ class ErrorCode:
     INVITE_CODE_COOLDOWN = -304  # 自己的邀请码 3 天冷却中
     INVITE_PRIVILEGE_FROZEN = -305  # 因连坐被冻结分享资格
     USERNAME_EXISTS = -306       # 用户名已被注册
+    QQ_EXISTS = -307             # QQ 号已被其他账号使用
 
     # ============ 兜底 ============
     RATE_LIMITED = -400        # 请求过于频繁（反爬限流）
@@ -124,6 +125,7 @@ _ERROR_MESSAGES: dict[int, str] = {
     ErrorCode.INVITE_CODE_COOLDOWN: "邀请码分享冷却中，3 天仅可分享一次",
     ErrorCode.INVITE_PRIVILEGE_FROZEN: "邀请资格已被冻结（被邀请人违规连坐）",
     ErrorCode.USERNAME_EXISTS: "账号已被注册，请换个账号试试",
+    ErrorCode.QQ_EXISTS: "该 QQ 号已被其他账号使用，请换一个",
     ErrorCode.CAPTCHA_REQUIRED: "请先完成图形验证码",
     ErrorCode.CAPTCHA_INVALID: "验证码错误，请重新输入",
     ErrorCode.CAPTCHA_EXPIRED: "验证码已过期，请刷新后重试",

@@ -118,14 +118,15 @@ export function mountToast() {
 }
 .toast-item {
   display: inline-flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 8px;
-  padding: 10px 16px;
+  padding: 11px 16px;
   background: rgba(28, 28, 30, 0.95);
   color: white;
   border-radius: 12px;
   font-size: 14px;
   font-weight: 500;
+  line-height: 1.5;
   box-shadow: 0 8px 16px -4px rgba(0,0,0,0.2), 0 4px 8px -2px rgba(0,0,0,0.1);
   pointer-events: auto;
   cursor: pointer;
@@ -134,9 +135,12 @@ export function mountToast() {
   -webkit-backdrop-filter: blur(10px);
 }
 .toast-message {
-  white-space: nowrap;
+  white-space: normal;
   overflow: hidden;
-  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  word-break: break-word;
 }
 .toast-enter-active, .toast-leave-active {
   transition: all 0.3s cubic-bezier(0.32, 0.72, 0, 1);

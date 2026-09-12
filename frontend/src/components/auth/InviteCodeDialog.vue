@@ -89,6 +89,7 @@ function copyWechat() {
             class="uppercase"
             @keyup.enter="submit"
           />
+          <div class="text-xs text-fuchsia-500 mt-1">邀请码除了能解锁功能，也可作为登录凭证（配合你的密码）</div>
         </el-form-item>
       </el-form>
 

@@ -776,6 +776,25 @@ class StartupWindow:
             self.root.destroy()
 
 
+def _wait_server_ready(host: str, port: int, timeout: int = 40) -> None:
+    """等待后端 uvicorn 就绪后再打开浏览器，避免首开命中 nginx 502 / 页面异常。
+
+    冷启动可能需要几秒（alembic 迁移 / 建表 / 填充），Uvicorn 绑定端口即视为可访问；
+    超时仍继续打开，不阻塞启动流程。
+    """
+    import socket
+    import time
+
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        try:
+            with socket.create_connection((host, port), timeout=1):
+                return
+        except OSError:
+            time.sleep(1)
+    return
+
+
 def launch_server(acc: dict | None, cfg: dict, use_gui: bool = True) -> bool:
     """第 4 步（GUI 向导与无界面共用）：迁移 + 前端构建检查 + 启动服务器/
     同步客户端/图片密钥监控 + 打开浏览器。失败返回 False。
@@ -898,6 +917,7 @@ def launch_server(acc: dict | None, cfg: dict, use_gui: bool = True) -> bool:
             except Exception:
                 pass
     if server_cfg["open_browser"]:
+        _wait_server_ready(bind_host, port)
         try:
             os.startfile(f"http://127.0.0.1:{port}/")
         except Exception:

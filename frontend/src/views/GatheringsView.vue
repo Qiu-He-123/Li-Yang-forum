@@ -135,6 +135,7 @@ function countdown(iso: string | null): string | null {
 function statusText(g: Gathering): string {
   if (g.status === 'cancelled') return '已取消'
   if (g.status === 'ended') return '已结束'
+  if (g.end_time && new Date(g.end_time).getTime() <= Date.now()) return '已结束'
   if (g.joined_people >= g.max_people) return '已满员'
   return '招募中'
 }

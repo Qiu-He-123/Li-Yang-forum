@@ -29,15 +29,17 @@ class GatheringCreateIn(BaseModel):
 def gathering_list(
     category: str | None = Query(None, description="分类筛选"),
     type: str | None = Query(None, description="online/offline", pattern="^(online|offline)$"),
+    all_status: bool = Query(False, description="返回全部状态（含已结束/已取消/已过期）"),
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     db: Session = Depends(get_db),
     user: User | None = Depends(optional_user),
 ) -> dict:
-    """组局列表（仅招募中，按开始时间升序）。"""
+    """组局列表（默认仅招募中且未过截止时间，按开始时间升序）。"""
     return ok(
         gathering_service.list_gatherings(
-            db, category, type, page, page_size, user.id if user else None
+            db, category, type, page, page_size, user.id if user else None,
+            include_all_status=all_status,
         )
     )
 

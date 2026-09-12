@@ -97,10 +97,20 @@ def list_gatherings(
     user_id: int | None = None,
     include_all_status: bool = False,
 ) -> dict:
-    """组局列表（默认仅招募中，按开始时间升序：最快开始的在前）。"""
+    """组局列表（默认仅招募中，按开始时间升序：最快开始的在前）。
+
+    - 默认（include_all_status=False）：仅返回仍在招募中、且未过截止时间的组局
+      （DB 中 status 可能因未及时回写仍为 recruiting，需按 end_time 二次判定）。
+    - include_all_status=True：返回全部状态（招募中/已结束/已取消/已过期），
+      由前端自行筛分「招募中 / 已截至」。
+    """
+    now = now_utc()
     query = select(Gathering)
     if not include_all_status:
-        query = query.where(Gathering.status == "recruiting")
+        query = query.where(
+            Gathering.status == "recruiting",
+            (Gathering.end_time.is_(None)) | (Gathering.end_time > now),
+        )
     if category:
         query = query.where(Gathering.category == category)
     if type:

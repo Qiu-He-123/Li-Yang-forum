@@ -293,6 +293,22 @@ function formatPollDeadline(iso: string | null): string {
   }
 }
 
+/** 距投票截止的剩余时长文案（未截止时显示，明确"还有多久可投"而非笼统的"1天"） */
+const pollRemainText = computed(() => {
+  const iso = poll.value?.deadline
+  if (!iso) return '长期有效'
+  const d = new Date(iso).getTime()
+  if (Number.isNaN(d)) return ''
+  const diff = d - Date.now()
+  if (diff <= 0) return '已截止'
+  const day = Math.floor(diff / 86400000)
+  const hour = Math.floor((diff % 86400000) / 3600000)
+  const min = Math.floor((diff % 3600000) / 60000)
+  if (day > 0) return `剩余 ${day} 天 ${hour} 小时`
+  if (hour > 0) return `剩余 ${hour} 小时 ${min} 分钟`
+  return `剩余 ${min} 分钟`
+})
+
 /** 跳转到话题详情页 */
 function openTopic() {
   if (post.value?.topic_id) {
@@ -898,7 +914,8 @@ onMounted(() => {
                     <span class="poll-meta">
                       {{ poll.multi_vote ? '多选' : '单选' }} · {{ poll.total_votes }} 人参与
                       <span v-if="poll.is_expired">· 已截止</span>
-                      <span v-else-if="poll.deadline">· 截止 {{ formatPollDeadline(poll.deadline) }}</span>
+                      <span v-else-if="poll.deadline">· 截止 {{ formatPollDeadline(poll.deadline) }}（{{ pollRemainText }}）</span>
+                      <span v-else>· 长期有效</span>
                     </span>
                     <button
                       v-if="!poll.user_voted && !poll.is_expired && selectedOptionIds.size > 0"

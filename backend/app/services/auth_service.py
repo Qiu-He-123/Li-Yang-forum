@@ -148,6 +148,11 @@ def register(payload, request, response: Response, db: Session) -> dict[str, Any
     if db.scalar(select(User).where(User.username == payload.username)):
         raise HTTPException(status_code=400, detail=ErrorCode.USERNAME_EXISTS)
 
+    # QQ 号唯一性校验（QQ 号可作登录标识，必须全局唯一）
+    qq = (payload.qq or "").strip() or None
+    if qq and db.scalar(select(User).where(User.qq == qq)):
+        raise HTTPException(status_code=400, detail=ErrorCode.QQ_EXISTS)
+
     # 邀请码处理：尝试匹配用户邀请码或种子码
     inviter_id: int | None = None
     seed_code_record: SeedInviteCode | None = None
@@ -174,7 +179,7 @@ def register(payload, request, response: Response, db: Session) -> dict[str, Any
         username=payload.username,
         password_hash=hash_password(payload.password),
         school_id=payload.school_id,
-        qq=payload.qq,
+        qq=qq,
         verification_status=verification_status,
         verified_at=now_utc() if verification_status == "verified" else None,
         invited_by=inviter_id,
@@ -233,20 +238,32 @@ def login(payload, request, response: Response, db: Session) -> dict[str, Any]:
     verify_captcha(db, payload.captcha_id, payload.captcha_text, ip)
 
     # T7-8：检查用户名是否被锁定（持久化），用 phone 字段兼容旧逻辑
-    lock_key = payload.username
+    identifier = (payload.username or "").strip()
+    lock_key = identifier
     if check_login_locked(db, lock_key):
         raise HTTPException(status_code=429, detail=ErrorCode.LOGIN_LOCKED)
 
-    user = db.scalar(select(User).where(User.username == payload.username))
+    # 支持用「账号」/「QQ 号」/「邀请码」登录
+    identifier = (payload.username or "").strip()
+    user = None
+    # 邀请码统一转为大写比对（邀请码本身为大写字母+数字）
+    if identifier:
+        user = db.scalar(
+            select(User).where(
+                (User.username == identifier)
+                | (User.qq == identifier)
+                | ((User.invite_code != None) & (User.invite_code == identifier.upper()))
+            )
+        )
     if not user:
         # 时间侧信道防护：用户不存在也执行一次 bcrypt，避免响应时间泄露账号存在性
         verify_password(payload.password, _DUMMY_BCRYPT_HASH)
-        db.add(LoginLog(phone=payload.username, success=False))
+        db.add(LoginLog(phone=identifier, success=False))
         log_user_action(
             db,
             None,
             "login_failed",
-            json.dumps({"username": payload.username, "reason": "user_not_found"}, ensure_ascii=False),
+            json.dumps({"username": identifier, "reason": "user_not_found"}, ensure_ascii=False),
             ip,
         )
         db.commit()
@@ -525,13 +542,18 @@ def get_verification_status(user: User) -> dict[str, Any]:
 
 
 def update_qq(payload, request: Request, db: Session, user: User) -> dict[str, Any]:
-    """修改 QQ 号（设置页）。"""
-    user.qq = payload.qq
+    """修改 QQ 号（设置页）。QQ 号用于登录，必须全局唯一。"""
+    qq = (payload.qq or "").strip() or None
+    if qq and qq != user.qq:
+        existing = db.scalar(select(User).where(User.qq == qq, User.id != user.id))
+        if existing:
+            raise HTTPException(status_code=400, detail=ErrorCode.QQ_EXISTS)
+    user.qq = qq
     log_user_action(
         db,
         user.id,
         "update_qq",
-        json.dumps({"qq": payload.qq}, ensure_ascii=False),
+        json.dumps({"qq": qq}, ensure_ascii=False),
         _extract_ip(request),
     )
     db.commit()

@@ -474,7 +474,7 @@ onMounted(() => load())
             v-model="reserveForm.note"
             type="textarea"
             :rows="2"
-            placeholder="选填，如：发给本部校区班长（张三）"
+            placeholder="选填，如：发给'宋城路'校区班长（张三）"
             maxlength="100"
             show-word-limit
           />
@@ -553,7 +553,7 @@ onMounted(() => load())
             v-model="generateForm.note"
             type="textarea"
             :rows="2"
-            placeholder="选填，如：发放给本部校区学生会"
+            placeholder="选填，如：发放给'宋城路'校区学生会"
             maxlength="200"
             show-word-limit
           />

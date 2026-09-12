@@ -84,6 +84,23 @@ from app.models.entities import (
 )
 from app.models.rate_limit import LoginFailure, RateLimit
 from app.models.captcha import CaptchaTicket, DownloadToken
+from app.models.orders import (
+    OrderAiMessage,
+    OrderAiSession,
+    OrderBid,
+    OrderReview,
+    OrderTask,
+    Wallet,
+    WalletTransaction,
+    WithdrawRequest,
+)
+from app.models.lottery import (
+    AiChatLog,
+    LotteryAccount,
+    LotteryDraw,
+    LotteryInventory,
+    LotteryPrize,
+)
 
 __all__ = [
     "Activity",
@@ -172,4 +189,17 @@ __all__ = [
     "WechatRecentMessage",
     "WarningConfig",
     "WarningLog",
+    "OrderAiMessage",
+    "OrderAiSession",
+    "OrderBid",
+    "OrderReview",
+    "OrderTask",
+    "Wallet",
+    "WalletTransaction",
+    "WithdrawRequest",
+    "AiChatLog",
+    "LotteryAccount",
+    "LotteryDraw",
+    "LotteryInventory",
+    "LotteryPrize",
 ]

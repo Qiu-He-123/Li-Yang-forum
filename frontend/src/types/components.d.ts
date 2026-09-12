@@ -11,6 +11,7 @@ export {}
 /* prettier-ignore */
 declare module 'vue' {
   export interface GlobalComponents {
+    AiAssistant: typeof import('./../components/AiAssistant.vue')['default']
     AiAuditCard: typeof import('./../components/sidebar/AiAuditCard.vue')['default']
     AiStatusBadge: typeof import('./../components/common/AiStatusBadge.vue')['default']
     AnnouncementCard: typeof import('./../components/sidebar/AnnouncementCard.vue')['default']
@@ -51,6 +52,7 @@ declare module 'vue' {
     ElRadioButton: typeof import('element-plus/es')['ElRadioButton']
     ElRadioGroup: typeof import('element-plus/es')['ElRadioGroup']
     ElRow: typeof import('element-plus/es')['ElRow']
+    ElScrollbar: typeof import('element-plus/es')['ElScrollbar']
     ElSelect: typeof import('element-plus/es')['ElSelect']
     ElSwitch: typeof import('element-plus/es')['ElSwitch']
     ElTable: typeof import('element-plus/es')['ElTable']
@@ -60,6 +62,7 @@ declare module 'vue' {
     ElTag: typeof import('element-plus/es')['ElTag']
     ElUpload: typeof import('element-plus/es')['ElUpload']
     EmptyState: typeof import('./../components/common/EmptyState.vue')['default']
+    FeedbackPrompt: typeof import('./../components/FeedbackPrompt.vue')['default']
     FloatingPet: typeof import('./../components/FloatingPet.vue')['default']
     HotPostsCard: typeof import('./../components/sidebar/HotPostsCard.vue')['default']
     Icon: typeof import('./../components/native/Icon.vue')['default']

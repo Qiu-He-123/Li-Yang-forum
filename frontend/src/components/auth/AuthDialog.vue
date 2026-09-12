@@ -168,14 +168,20 @@ async function submit() {
       <el-form-item v-if="authMode === 'register'" label="昵称">
         <el-input v-model="authForm.nickname" placeholder="展示给其他用户的名称" />
       </el-form-item>
-      <el-form-item :label="authMode === 'login' ? '账号' : '账号（登录用的，不是昵称）'">
+      <el-form-item :label="authMode === 'login' ? '账号 / QQ号 / 邀请码' : '账号（登录用的，不是昵称）'">
         <el-input
           v-model="authForm.username"
-          :placeholder="authMode === 'login' ? '请输入注册时的账号（不是昵称）' : '设置登录账号，3-32 位字母/数字/下划线'"
+          :placeholder="authMode === 'login' ? '请输入账号、QQ号或邀请码' : '设置登录账号，3-32 位字母/数字/下划线'"
         />
       </el-form-item>
       <p v-if="authMode === 'login'" class="m-0 -mt-1 mb-1 text-xs text-slate-400">
-        登录用「账号」，不是昵称：账号是你注册时自己设置的登录名
+        登录可用「账号」「QQ 号」或「邀请码」：账号是你注册时自己设置的登录名
+      </p>
+      <p
+        v-else
+        class="m-0 -mt-1 mb-1 text-xs text-fuchsia-500"
+      >
+        建议尽量填写你的微信号作为账号，防止忘记登录名
       </p>
       <el-form-item label="密码">
         <el-input v-model="authForm.password" type="password" show-password placeholder="至少 8 位" />
@@ -206,9 +212,9 @@ async function submit() {
           <el-option v-for="school in schoolStore.schools" :key="school.id" :label="school.name" :value="school.id" />
         </el-select>
       </el-form-item>
-      <el-form-item v-if="authMode === 'register'" label="QQ 号（选填）">
-        <el-input v-model="authForm.qq" placeholder="仅用于找回账号，可在设置中修改" />
-        <div class="text-xs text-gray-400 mt-1">不填写账号丢失将无法找回</div>
+      <el-form-item v-if="authMode === 'register'" label="QQ 号（建议填写）">
+        <el-input v-model="authForm.qq" placeholder="填写 QQ 号，可用于登录" />
+        <div class="text-xs text-fuchsia-500 mt-1">QQ 号 和 账号 都可用于登录，且 QQ 号全网唯一，务必填写防止账号丢失</div>
       </el-form-item>
       <el-form-item v-if="authMode === 'register'" label="邀请码（选填）">
         <el-input v-model="authForm.invite_code" placeholder="有邀请码填写后直接解锁全部功能" />

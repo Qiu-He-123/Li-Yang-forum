@@ -115,7 +115,7 @@ async function submitForm() {
       content: form.content.trim(),
       contact: form.contact.trim() || undefined,
     })
-    toast.success('反馈已提交，感谢你的声音')
+    toast.success('反馈已提交，感谢你的声音；被采纳将获得金币奖励')
     formVisible.value = false
     await loadList(true)
   } catch (err) {

@@ -15,7 +15,8 @@ from app.api.routes import (
     admin, announcements, app_download, auth, badges, bottles, browse_history, captcha, circle_apply, circles, checkin,
     coins, comments, deepseek, feedback, follows, gatherings, games, guesses, gratitude_list, images, interactions, match, messages, notifications, onboarding,
     pet_ai, pet_shop, polls, posts, rankings, schools, search, settings as settings_router, stats, target_comments, topics, users, ws,
-    videos, wechat_sync,
+    videos, wechat_sync, orders,
+    assistant, lottery,
 )
 from app.api.deps import extract_ip
 from app.core.config import get_settings
@@ -273,11 +274,11 @@ def startup() -> None:
 
     with SessionLocal() as db:
         for name, code in [
-            ("本部校区", "main"),
-            ("未来校区", "future"),
-            ("香山校区", "xiangshan"),
-            ("东校区", "east"),
-            ("杞县校区", "qixian"),
+            ("'宋城路'校区", "main"),
+            ("'过去'校区", "future"),
+            ("'象山'校区", "xiangshan"),
+            ("'西'校区", "east"),
+            ("'某县'校区", "qixian"),
         ]:
             if not db.scalar(select(School).where(School.code == code)):
                 db.add(School(name=name, code=code))
@@ -700,6 +701,12 @@ app.include_router(gratitude_list.router)
 app.include_router(gratitude_list.admin_router)
 app.include_router(games.router)
 app.include_router(games.admin_router)
+app.include_router(orders.router)
+app.include_router(orders.admin_router)
+app.include_router(lottery.router)
+app.include_router(lottery.admin_router)
+app.include_router(assistant.router)
+app.include_router(assistant.admin_router)
 app.include_router(gatherings.router)
 app.include_router(target_comments.router)
 app.include_router(wechat_sync.router)
@@ -743,5 +750,7 @@ async def serve_spa(full_path: str):
         return FileResponse(candidate)
     # 其余一律返回 index.html（Vue Router 接管）
     if _INDEX_HTML.exists():
-        return FileResponse(_INDEX_HTML)
+        # index.html 必须 no-cache：构建产物每次哈希都变，若旧 HTML 被缓存，
+        # 会引用已被删除的旧 chunk → 动态加载 404 → 「一直加载/页面异常」，需手刷才能恢复。
+        return FileResponse(_INDEX_HTML, headers={"Cache-Control": "no-cache"})
     raise HTTPException(status_code=404, detail="Frontend not built")

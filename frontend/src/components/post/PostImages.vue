@@ -15,7 +15,9 @@ const props = withDefaults(defineProps<{
   videos?: string[]
   /** 列表场景用缩略图（400x400 JPEG ~30KB），详情页传 false 用原图 */
   thumb?: boolean
-}>(), { thumb: true, videos: () => [] })
+  /** 最多展示的图片张数（0=不限制）。超出时在最后一张上叠加「+N」遮罩，用于列表页固定卡片高度 */
+  maxCells?: number
+}>(), { thumb: true, videos: () => [], maxCells: 0 })
 
 const errored = ref<Set<number>>(new Set())
 const loaded = ref<Set<number>>(new Set())
@@ -68,11 +70,18 @@ function onLoad(idx: number) {
   loaded.value.add(idx)
   loaded.value = new Set(loaded.value)
 }
+
+/** 实际渲染的图片（受 maxCells 限制） */
+const visibleUrls = computed(() =>
+  props.maxCells > 0 && props.urls.length > props.maxCells ? props.urls.slice(0, props.maxCells) : props.urls,
+)
+/** 被隐藏的图片数（叠加在最后一张上的「+N」） */
+const hiddenCount = computed(() => props.urls.length - visibleUrls.value.length)
 </script>
 
 <template>
   <div v-if="urls.length" class="post-images-grid">
-    <div v-for="(url, idx) in urls" :key="url + idx" class="img-cell" @click="openPreview(idx)">
+    <div v-for="(url, idx) in visibleUrls" :key="url + idx" class="img-cell" @click="openPreview(idx)">
       <!-- 加载中 -->
       <div v-if="!loaded.has(idx) && !errored.has(idx)" class="img-placeholder">
         <span class="placeholder-text">加载中</span>
@@ -91,6 +100,12 @@ function onLoad(idx: number) {
         @error="onImgError(idx)"
         @load="onLoad(idx)"
       />
+      <!-- 超出 maxCells 的图片：在最后一张上叠「+N」遮罩，点击从隐藏的第一张开始看 -->
+      <div
+        v-if="hiddenCount > 0 && idx === visibleUrls.length - 1"
+        class="img-cell__more"
+        @click.stop="openPreview(visibleUrls.length)"
+      >+{{ hiddenCount }}</div>
     </div>
   </div>
 
@@ -170,6 +185,21 @@ function onLoad(idx: number) {
 .placeholder-text {
   font-size: 12px;
   color: var(--text-500);
+}
+/* 超出 maxCells 的「+N」遮罩：盖在最后一张上 */
+.img-cell__more {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.48);
+  color: #fff;
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  cursor: zoom-in;
 }
 
 /* 预览 */

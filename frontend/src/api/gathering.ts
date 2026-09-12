@@ -58,9 +58,15 @@ export interface GatheringCreatePayload {
   images?: string[]
 }
 
-/** 组局列表（仅招募中，按开始时间升序） */
+/** 组局列表（默认仅招募中且未过截止时间，按开始时间升序；all_status=true 返回全部状态） */
 export function listGatherings(
-  params: { category?: string; type?: 'online' | 'offline'; page?: number; page_size?: number } = {},
+  params: {
+    category?: string
+    type?: 'online' | 'offline'
+    all_status?: boolean
+    page?: number
+    page_size?: number
+  } = {},
   config: LoadingAxiosRequestConfig = {},
 ) {
   return http.get<unknown, { data: { code: number; msg: string; data: GatheringListResp } }>(

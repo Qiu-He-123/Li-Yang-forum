@@ -106,10 +106,23 @@ app.use(router)
 
 // 深链接/扫码直接打开详情页时，先补一条「返回目标」历史，
 // 这样按返回（App 返回键 / 浏览器返回）会直接回首页或会话列表
-router.isReady().then(async () => {
-  await ensureDeepEntryBackTarget(router.currentRoute.value.fullPath)
-  app.mount('#app')
-})
+router
+  .isReady()
+  .then(async () => {
+    await ensureDeepEntryBackTarget(router.currentRoute.value.fullPath)
+    app.mount('#app')
+  })
+  .catch(() => {
+    // 首屏路由懒加载 chunk 失败（部署/重建瞬间，旧 HTML 引用旧 hash）：
+    // router.isReady 拒绝会让 app 永不挂载，出现一直转圈。这里重载一次拿新 HTML；
+    // 已重载过一次仍失败则强制挂载，避免无限刷新。
+    if (sessionStorage.getItem('ly:chunk-reload-once') === '1') {
+      app.mount('#app')
+    } else {
+      sessionStorage.setItem('ly:chunk-reload-once', '1')
+      window.location.reload()
+    }
+  })
 
 // 挂载 Toast 容器
 mountToast()

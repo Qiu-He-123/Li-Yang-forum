@@ -7,7 +7,7 @@
  * - IntersectionObserver 懒加载：滚入视口才拉取宠物数据并开始播放
  * - 同一作者缓存，避免重复请求
  */
-import { onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { listUserPets, type UserPetLight, type PetAnimAction } from '../../api/petShop'
 
 const props = withDefaults(
@@ -28,6 +28,11 @@ const props = withDefaults(
 // 作者宠物缓存：userId -> pet
 const userPetCache = new Map<number, UserPetLight | null>()
 const shownNameCache = new Map<number, string>()
+
+// canvas 逻辑展示尺寸：绘制像素为 size*0.8，物理像素再乘 dpr。
+// 必须显式限定 CSS 尺寸，否则 canvas 会按「物理像素尺寸」显示：
+// 高 DPR 手机（2x/3x，dpr 封顶 2）上会放大到 120*0.8*2=192px，导致宠物占比过大。
+const canvasCssSize = computed(() => Math.round(props.size * 0.8))
 
 const pet = ref<UserPetLight | null>(null)
 const shownName = ref('')
@@ -379,7 +384,7 @@ onBeforeUnmount(() => {
       class="post-pet-box__inner"
       :class="{ 'is-enter': isEnter, 'is-flying': isFlying }"
     >
-      <canvas ref="canvasRef" class="post-pet-box__canvas" />
+      <canvas ref="canvasRef" class="post-pet-box__canvas" :style="{ width: canvasCssSize + 'px', height: canvasCssSize + 'px' }" />
     </div>
     <!-- 姓名帖：xxx 的 [宠物名]（仅别人的宠物显示，自己帖子不显示） -->
     <transition name="post-pet-tag">

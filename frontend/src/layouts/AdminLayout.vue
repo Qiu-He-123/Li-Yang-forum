@@ -120,8 +120,20 @@ const menuGroups = computed<MenuGroup[]>(() => [
     ],
   },
   {
+    title: '交易平台',
+    items: [
+      { index: '/admin/orders', label: '任务管理', icon: '🧾' },
+      { index: '/admin/orders/ai', label: '订单 AI 管理', icon: '🤖' },
+      { index: '/admin/orders/lottery', label: '抽奖管理', icon: '🎲' },
+      { index: '/admin/orders/recharges', label: '充值审核', icon: '💳' },
+      { index: '/admin/orders/withdraws', label: '提现审核', icon: '🏧' },
+      { index: '/admin/orders/settings', label: '平台配置', icon: '⚙️' },
+    ],
+  },
+  {
     title: '系统日志',
     items: [
+      { index: '/admin/assistant-logs', label: 'AI 助手日志', icon: '💬' },
       { index: '/admin/audit-logs', label: 'AI 审核日志', icon: '🗒️' },
       { index: '/admin/logs', label: '管理员操作日志', icon: '📋' },
       { index: '/admin/user-logs', label: '用户操作日志', icon: '📈' },

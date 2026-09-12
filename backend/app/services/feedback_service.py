@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 from app.core.errors import ErrorCode
 from app.core.time_utils import to_iso_zh
 from app.models import Admin, Feedback, FeedbackReply, User
+from app.services import coin_service, settings_service
 
 
 def create_feedback(db: Session, user_id: int, payload) -> dict:
@@ -97,11 +98,28 @@ def reply_feedback(db: Session, feedback_id: int, replier_id: int, content: str)
         content=content,
     )
     db.add(reply)
+
+    # 是否首次被采纳：管理员回复视为「采纳」，采纳后奖励金币（若此前未奖励过）
+    rewarded = feedback.status == "replied"
+    if not rewarded and feedback.user_id:
+        coins = max(0, settings_service.get_int(db, "feedback_reply_coins", 5))
+        author = db.get(User, feedback.user_id)
+        if author and coins > 0:
+            coin_service.record_transaction(
+                db,
+                author,
+                coins,
+                "feedback_reward",
+                ref_id=f"feedback-{feedback_id}",
+                description="意见反馈被采纳",
+            )
     feedback.status = "replied"
     db.commit()
     db.refresh(feedback)
     db.refresh(reply)
-    return _feedback_to_dict(db, feedback, include_replies=True)
+    result = _feedback_to_dict(db, feedback, include_replies=True)
+    result["reward_coins"] = 0 if rewarded else max(0, settings_service.get_int(db, "feedback_reply_coins", 5))
+    return result
 
 
 def close_feedback(db: Session, feedback_id: int) -> dict:

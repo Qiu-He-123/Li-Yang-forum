@@ -109,10 +109,10 @@ let matchedTransitionTimer: ReturnType<typeof setTimeout> | null = null
 // 年龄范围：13-18 岁（中学阶段）
 const AGE_OPTIONS = [13, 14, 15, 16, 17, 18]
 const SCHOOLS = [
-  { id: 1, name: '本部校区' },
-  { id: 2, name: '未来校区' },
-  { id: 3, name: '香山校区' },
-  { id: 4, name: '东校校区' },
+  { id: 1, name: "'宋城路'校区" },
+  { id: 2, name: "'过去'校区" },
+  { id: 3, name: "'象山'校区" },
+  { id: 4, name: "'西'校区" },
 ]
 const TARGET_GENDERS = [
   { value: 'male', label: '男' },

@@ -20,6 +20,8 @@ import { storeToRefs } from 'pinia'
 
 import BottomTabBar from './components/BottomTabBar.vue'
 import FloatingPet from './components/FloatingPet.vue'
+import AiAssistant from './components/AiAssistant.vue'
+import FeedbackPrompt from './components/FeedbackPrompt.vue'
 import { useSessionStore } from './stores/session'
 import { useNotificationStore } from './stores/notification'
 import { useUIStore } from './stores/ui'
@@ -119,12 +121,17 @@ function removeAppPreloader() {
 const showTabBar = computed(() => {
   const p = route.path
   if (p.startsWith('/admin') || p.startsWith('/chat/')) return false
+  // 官网落地页：自带顶部导航，不显示底部 Tab
+  if (p === '/xiguo') return false
   // 宠物聊天页：沉浸式聊天，隐藏底部导航避免遮挡输入框
   if (p.startsWith('/pet-chat/')) return false
   // Detail/publish pages have their own bottom bars - don't show tab bar
   if (p.startsWith('/gatherings/') && p !== '/gatherings') return false
   if (p.startsWith('/publish/')) return false
   if (p.startsWith('/pet-shop/') && p !== '/pet-shop') return false
+  // 订单发布/钱包/明细等子页面自带底部操作栏，隐藏 Tab 避免遮挡；
+  // 接单大厅 /orders 也隐藏，避免底部 Tab 盖住 AI 对话的输入框/发送按钮
+  if (p === '/orders' || p.startsWith('/orders/')) return false
   // 陪我玩：沉浸式小游戏页，自带返回，不显示底部导航
   if (p === '/pet-play') return false
   return true
@@ -180,6 +187,16 @@ function isAdminRoute(): boolean {
   return p === '/admin' || p.startsWith('/admin/')
 }
 
+/** 官网落地页（/xiguo）：自带沉浸式氛围，不弹公告/押注/教程等任何启动弹窗 */
+function isLandingRoute(): boolean {
+  return route.path === '/xiguo'
+}
+
+/** 接单大厅（/orders）：不弹每日竞猜（今日投票）弹窗，避免与大厅打磨中提示冲突 */
+function isOrderHallRoute(): boolean {
+  return route.path === '/orders'
+}
+
 // 编排阶段：避免并发推进
 let schedulingNow = false
 
@@ -192,7 +209,7 @@ let schedulingNow = false
  * - 不是后台管理页
  */
 function guessReallyNeedsPopup(): boolean {
-  if (isAdminRoute()) return false
+  if (isAdminRoute() || isLandingRoute() || isOrderHallRoute()) return false
   if (session.isBanned) return false
   if (!guessStore.guess) return false
   if (guessStore.popupDismissedToday) return false
@@ -212,7 +229,7 @@ function guessReallyNeedsPopup(): boolean {
  */
 async function runStartupPopupQueue() {
   // 后台管理页：永远不弹启动编排。进来也直接走空分支，不打开任何一步的弹窗。
-  if (isAdminRoute()) return
+  if (isAdminRoute() || isLandingRoute()) return
   if (schedulingNow) return
   schedulingNow = true
   try {
@@ -287,6 +304,10 @@ watch(
       uiStore.announcementPopupOpen = false
       uiStore.guessPopupOpen = false
       uiStore.onboardingPopupOpen = false
+    } else if (isOrderHallRoute()) {
+      // 接单大厅：不弹每日竞猜，关掉已弹出的押注弹窗（下一轮由 guessReallyNeedsPopup 拦截）
+      uiStore.guessPopupOpen = false
+      return
     } else if (uiStore.startupPopupsReady) {
       void runStartupPopupQueue()
     }
@@ -409,6 +430,12 @@ onUnmounted(() => {
     <TodayGuessPopup />
     <!-- 主界面漂浮宠物（已领养像素宠物，桌面宠玩法） -->
     <FloatingPet />
+
+    <!-- 全局 AI 助手：告诉 AI 想做什么，帮你跳转到对应功能（官网 /xiguo、接单大厅 /orders 隐藏，各自带专属 AI） -->
+    <AiAssistant v-if="!isLandingRoute() && !route.path.startsWith('/orders')" />
+
+    <!-- 意见反馈：使用过一段后轻提示「给点意见吧」，被采纳可加金币 -->
+    <FeedbackPrompt />
 
     <!-- 新人欢迎礼：首次进入赠送500积分并询问是否购买宠物 -->
     <Teleport to="body">
@@ -569,4 +596,8 @@ onUnmounted(() => {
   color: #fff;
   box-shadow: 0 8px 20px rgba(255, 138, 0, 0.28);
 }
+
+/* ============================================================
+   全局 AI 助手 / 反馈提示 样式由各自组件内部负责
+   ============================================================ */
 </style>

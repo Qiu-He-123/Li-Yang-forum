@@ -29,7 +29,6 @@ import { usePetAiTracker } from '../composables/usePetAiTracker'
 import { Icon } from '../components/native'
 import { toast } from '../components/native/Toast'
 import TodayGuessHero from '../components/home/TodayGuessHero.vue'
-import RankingView from '../components/home/RankingView.vue'
 import { useSessionStore } from '../stores/session'
 import { useUserStore } from '../stores/user'
 import { useUIStore } from '../stores/ui'
@@ -41,7 +40,6 @@ import { getCircleMeta, resolveCircleSlug } from '../utils/circleStyle'
 import { viewPost } from '../api/post'
 import { fetchHomeStats } from '../api/announcement'
 import { fetchPublicSettings } from '../api/settings'
-import { listGatherings, type Gathering } from '../api/gathering'
 import { formatRelative } from '../utils/time'
 import type { Circle, Post } from '../types/api'
 
@@ -129,199 +127,58 @@ function formatStatsNum(n: number): string {
   return String(n)
 }
 
-// 首页 Tab：排行 / 全部 / 为你推荐 / 游戏组局 / 现实组局
-// 「排行」固定在最左边；默认选中「为你推荐」，对应 view=recommend；全部=all；游戏组局=game；现实组局=reality
-type FeedTabKey = 'rank' | 'all' | 'recommend' | 'game' | 'reality'
-const feedTabs: { key: FeedTabKey; label: string }[] = [
-  { key: 'rank', label: '排行' },
-  { key: 'all', label: '全部' },
-  { key: 'recommend', label: '为你推荐' },
-  { key: 'game', label: '游戏组局' },
-  { key: 'reality', label: '现实组局' },
-]
+// 首页 Tab：关注 / 推荐 / 各圈子（与广场一致，默认推荐）
+// · 关注    → 关注流   view=following
+// · 推荐    → 热门推荐 view=hot（加圈子筛选=空）
+// · 圈子slug → 该圈子全部 view=all + category=slug
+// 首页展示老版瀑布流帖子，不再内嵌组局（组局已迁至广场页）。
+const sortedCircles = computed(() =>
+  [...circleStore.circles]
+    .filter((c) => c.slug !== 'default')
+    .sort((a, b) => (a.sort_order ?? 99) - (b.sort_order ?? 99)),
+)
+type FeedTabKey = 'follow' | (string & {})
+const feedTabs = computed<{ key: FeedTabKey; label: string }[]>(() => {
+  const tabs: { key: FeedTabKey; label: string }[] = [
+    { key: 'follow', label: '关注' },
+    { key: 'newest', label: '最新' },
+    { key: 'recommend', label: '推荐' },
+  ]
+  for (const c of sortedCircles.value) tabs.push({ key: c.slug as FeedTabKey, label: c.name })
+  return tabs
+})
+const tabKeys = computed(() => new Set(feedTabs.value.map((t) => t.key)))
 const activeTab = computed<FeedTabKey>(() => {
-  const v = route.query.tab
-  if (v === 'rank' || v === 'all' || v === 'recommend' || v === 'game' || v === 'reality') return v
-  return 'recommend' // 默认焦点在「为你推荐」
+  const v = String(route.query.tab ?? 'recommend')
+  return tabKeys.value.has(v) ? (v as FeedTabKey) : 'recommend'
 })
 
-// 所有 Tab 均展示组局/房间（单列圆角卡片），不再混入广场帖子；排行 Tab 独立渲染 RankingView
 type FeedMode = 'posts' | 'gatherings' | 'rank'
-function feedModeOf(key: FeedTabKey): FeedMode {
-  if (key === 'rank') return 'rank'
-  return 'gatherings'
+function feedModeOf(_key: FeedTabKey): FeedMode {
+  return 'posts' // 首页统一展示帖子瀑布流
 }
-const tabToView: Record<FeedTabKey, 'all' | 'hot'> = {
-  rank: 'all',
-  all: 'all',
-  recommend: 'hot',
-  game: 'all',
-  reality: 'all',
+function tabToView(key: FeedTabKey): 'all' | 'hot' | 'following' {
+  if (key === 'follow') return 'following'
+  if (key === 'recommend') return 'hot'
+  return 'all'
 }
-const tabToCategory: Record<FeedTabKey, string | null> = {
-  rank: null,
-  all: null,
-  recommend: null,
-  game: '游戏组局',
-  reality: '现实组局',
+function tabToCategory(key: FeedTabKey): string {
+  if (key === 'follow' || key === 'newest' || key === 'recommend') return ''
+  return key // 圈子 slug
 }
-const tabToGatheringCategory: Record<FeedTabKey, string | null> = {
-  rank: null,
-  all: null,
-  recommend: null,
-  game: '游戏组局',
-  reality: '现实组局',
+function applyHomeView(key: FeedTabKey) {
+  postStore.setView(tabToView(key))
+  postStore.setCategory(tabToCategory(key))
+  postStore.setPage(1)
 }
 
-const gatherings = ref<Gathering[]>([])
-const gatheringsTotal = ref(0)
-const gatheringsPage = ref(1)
-const GATHERING_PAGE_SIZE = 20
-const gatheringsLoading = ref(false)
-const gatheringsError = ref('')
-const gatheringsHasMore = computed(
-  () => gatheringsPage.value * GATHERING_PAGE_SIZE < gatheringsTotal.value,
-)
-
-async function loadGatherings(resetPage = true) {
-  gatheringsLoading.value = true
-  gatheringsError.value = ''
-  try {
-    const key = activeTab.value
-    const page = resetPage ? 1 : gatheringsPage.value + 1
-    const params: { category?: string; page: number; page_size: number } = {
-      page,
-      page_size: GATHERING_PAGE_SIZE,
-    }
-    const cat = tabToGatheringCategory[key]
-    if (cat) params.category = cat
-    const { data } = await listGatherings(
-      params,
-      resetPage ? {} : { showGlobalLoading: false, showGlobalError: false },
-    )
-    const payload = data.data
-    const items = payload.items || []
-    if (resetPage) {
-      gatherings.value = items
-    } else {
-      const existIds = new Set(gatherings.value.map((g) => g.id))
-      gatherings.value = [...gatherings.value, ...items.filter((g) => !existIds.has(g.id))]
-    }
-    gatheringsTotal.value = payload.total || 0
-    gatheringsPage.value = payload.page || page
-    return true
-  } catch (err) {
-    gatheringsError.value = (err as Error).message || '加载失败'
-    return false
-  } finally {
-    gatheringsLoading.value = false
-  }
-}
-async function loadMoreGatherings() {
-  if (gatheringsLoading.value || !gatheringsHasMore.value) return
-  await loadGatherings(false)
-}
-function openGathering(g: Gathering) {
-  router.push(`/gatherings/${g.id}`)
-}
-function gatheringCover(g: Gathering): string {
-  return g.images?.[0] || ''
-}
-function gatheringCountdown(start: string | null): string {
-  if (!start) return '即将开始'
-  const t = new Date(start).getTime()
-  if (Number.isNaN(t)) return '即将开始'
-  const diff = t - Date.now()
-  if (diff <= 0) return '进行中'
-  const h = Math.floor(diff / 3600000)
-  if (h >= 24) return `${Math.floor(h / 24)}天后开始`
-  if (h >= 1) return `${h}小时后开始`
-  const m = Math.floor((diff % 3600000) / 60000)
-  return `${Math.max(1, m)}分钟后开始`
-}
-
-// === 首页房间卡片辅助函数（图1样式） ===
-function categoryEmoji(cat: string | null): string {
-  if (!cat) return '🎪'
-  if (cat.includes('游戏')) return '🎮'
-  if (cat.includes('现实') || cat.includes('线下')) return '📍'
-  if (cat.includes('聊天') || cat.includes('扩列')) return '💬'
-  if (cat.includes('搞笑')) return '⭐'
-  if (cat.includes('学习')) return '📚'
-  if (cat.includes('美食') || cat.includes('吃')) return '🍜'
-  if (cat.includes('运动')) return '⚽'
-  if (cat.includes('音乐')) return '🎵'
-  if (cat.includes('电影')) return '🎬'
-  return '🎪'
-}
-
-function categoryDisplayName(cat: string | null): string {
-  if (!cat) return '推荐'
-  return cat
-}
-
-function roomSubtitle(g: Gathering): string {
-  // 优先显示描述（主题/标语），截断
-  if (g.description && g.description.trim()) {
-    const d = g.description.trim().replace(/\n/g, ' ').replace(/\s+/g, ' ')
-    return d.length > 20 ? d.slice(0, 20) + '…' : d
-  }
-  // 否则显示主持人+时间
-  const host = g.host?.nickname || '匿名'
-  const timeAgo = g.start_time ? gatheringCountdown(g.start_time) : '即将开始'
-  return `${host.slice(0, 6)} · ${timeAgo}`
-}
-
-function roomHostLabel(g: Gathering): string {
-  // 房主角标文字
-  const cat = g.category || ''
-  if (cat.includes('搞笑')) return '搞笑房主'
-  if (cat.includes('游戏')) return '游戏房主'
-  if (cat.includes('聊天') || cat.includes('扩列')) return '聊天房主'
-  return cat ? cat.slice(0, 4) + '房主' : '房主'
-}
-
-function shouldShowHostBadge(g: Gathering): boolean {
-  // 显示房主角标：自己是房主 或 房间人数>=3（热门房主）
-  if (g.is_host) return true
-  if (g.joined_people >= 3) return true
-  return false
-}
-
-function shouldShowHotBadge(g: Gathering): boolean {
-  return g.joined_people >= 5
-}
-
-function avatarInitial(nickname: string | null | undefined): string {
-  if (!nickname) return '?'
-  return nickname.slice(0, 1).toUpperCase()
-}
-
-function avatarColorClass(id: number | null | undefined): string {
-  return `av-${((id || 0) % 5) + 1}`
-}
-
-function onCardMore(e: Event, g: Gathering) {
-  e.stopPropagation()
-  // TODO: 显示更多操作菜单
-  toast.success('更多操作')
-}
 const feedMode = computed(() => feedModeOf(activeTab.value))
-const feedLoading = computed(() =>
-  feedMode.value === 'posts' ? postStore.loading : feedMode.value === 'rank' ? false : gatheringsLoading.value,
-)
-const feedError = computed(() =>
-  feedMode.value === 'posts' ? postStore.error : feedMode.value === 'rank' ? '' : gatheringsError.value,
-)
-const feedHasMore = computed(() =>
-  feedMode.value === 'posts' ? postStore.hasMore : feedMode.value === 'rank' ? false : gatheringsHasMore.value,
-)
-const feedItems = computed<any[]>(() =>
-  feedMode.value === 'posts' ? postStore.posts : feedMode.value === 'rank' ? [] : gatherings.value,
-)
+const feedLoading = computed(() => postStore.loading)
+const feedError = computed(() => postStore.error)
+const feedHasMore = computed(() => postStore.hasMore)
+const feedItems = computed<Post[]>(() => postStore.posts)
 async function feedLoadMore() {
-  if (feedMode.value === 'posts') await postStore.loadMore()
-  else if (feedMode.value === 'gatherings') await loadMoreGatherings()
+  await postStore.loadMore()
 }
 
 function switchTab(key: FeedTabKey) {
@@ -331,19 +188,8 @@ function switchTab(key: FeedTabKey) {
 watch(
   activeTab,
   async (key) => {
-    // 排行页数据由 RankingView 自己管理，切到排行时不触发组局加载
-    if (feedModeOf(key) === 'rank') return
-    if (feedModeOf(key) === 'posts') {
-      postStore.setView(tabToView[key])
-      const cat = tabToCategory[key]
-      if (cat) postStore.setCategory(cat)
-      else postStore.setCategory('')
-      postStore.setPage(1)
-      await postStore.loadPosts()
-    } else {
-      gatheringsPage.value = 1
-      await loadGatherings(true)
-    }
+    applyHomeView(key)
+    await postStore.loadPosts()
   },
 )
 
@@ -387,21 +233,14 @@ onMounted(async () => {
   ])
   // 在线人数定时刷新（30s），让首页统计实时反映在线状态
   homeStatsTimer = setInterval(loadHomeStats, 60_000)
-  // 初始化：按 tab 模式分派（组局 / 帖子）
+  // 初始化：应用首页 feed 视图（关注/推荐/圈子）
   const firstKey = activeTab.value
-  if (feedModeOf(firstKey) === 'posts') {
-    postStore.setView(tabToView[firstKey])
-    const initCat = tabToCategory[firstKey]
-    if (initCat) postStore.setCategory(initCat)
-    else postStore.setCategory('')
-  }
+  applyHomeView(firstKey)
 
   const hasUserId = !!session.userId
   maybeShowGuestGuide()
   async function loadInitialFeed() {
-    if (feedModeOf(firstKey) === 'rank') return
-    if (feedModeOf(firstKey) === 'posts') await postStore.loadPosts()
-    else await loadGatherings(true)
+    await postStore.loadPosts()
   }
   if (hasUserId) {
     await Promise.all([
@@ -422,17 +261,11 @@ onMounted(async () => {
   }
 })
 
-/** Feed 首次加载失败后的手动重试（帖子 / 组局 双模式分发；排行页无此入口） */
+/** Feed 首次加载失败后的手动重试（帖子模式） */
 async function retryFeed() {
-  const mode = feedModeOf(activeTab.value)
-  if (mode === 'rank') return
-  if (mode === 'posts') {
-    postStore.setPage(1)
-    await postStore.loadPosts()
-  } else {
-    gatheringsPage.value = 1
-    await loadGatherings(true)
-  }
+  applyHomeView(activeTab.value)
+  postStore.setPage(1)
+  await postStore.loadPosts()
 }
 
 /**
@@ -450,31 +283,16 @@ onActivated(() => {
     return
   }
   const key = activeTab.value
-  const mode = feedModeOf(key)
-  // 排行页数据由 RankingView 自己管理，重新激活时跳过
-  if (mode === 'rank') return
-  if (mode === 'posts') {
-    const expectedView = tabToView[key]
-    const expectedCat = tabToCategory[key] || ''
-    if (postStore.activeView !== expectedView) {
-      postStore.setView(expectedView)
-    }
-    postStore.setCategory(expectedCat)
-    if (postStore.restoreFromCache()) {
-      postStore.ensureFresh().then((changed) => { if (changed) triggerFade() })
-    } else {
-      postStore.loadPosts()
-    }
+  const expectedView = tabToView(key)
+  const expectedCat = tabToCategory(key)
+  if (postStore.activeView !== expectedView) {
+    postStore.setView(expectedView)
+  }
+  postStore.setCategory(expectedCat)
+  if (postStore.restoreFromCache()) {
+    postStore.ensureFresh().then((changed) => { if (changed) triggerFade() })
   } else {
-    if (gatherings.value.length) {
-      const oldIds = gatherings.value.map((g) => g.id).join(',')
-      loadGatherings(true).then(() => {
-        const newIds = gatherings.value.map((g) => g.id).join(',')
-        if (oldIds !== newIds) triggerFade()
-      })
-    } else {
-      loadGatherings(true)
-    }
+    postStore.loadPosts()
   }
 })
 
@@ -520,7 +338,7 @@ function openCreatePost() {
     uiStore.openAuthDialog()
     return
   }
-  router.push('/publish/gathering')
+  router.push('/publish')
 }
 
 function openFeature(slug: string) {
@@ -547,6 +365,15 @@ function openFeature(slug: string) {
     return
   }
   router.push(`/circle/${slug}`)
+}
+
+/** 接单 / 放单大厅：未登录先弹登录框，已登录进入接单大厅 tab */
+function openOrders() {
+  if (!session.userId) {
+    uiStore.openAuthDialog()
+    return
+  }
+  router.push('/orders?tab=hall')
 }
 
 /** 统计入口：未登录先弹登录框，已登录才进列表页 */
@@ -655,6 +482,40 @@ onUnmounted(() => {
         </button>
       </section>
 
+      <!-- ====== 接单 / 放单大厅：竞猜式渐变 Hero 卡片 ====== -->
+      <button
+        type="button"
+        class="orders-hero"
+        @click="openOrders"
+        :aria-label="'进入接单大厅'"
+      >
+        <span class="orders-hero__decor orders-hero__decor--1" aria-hidden="true"></span>
+        <span class="orders-hero__decor orders-hero__decor--2" aria-hidden="true"></span>
+        <div class="orders-hero__left">
+          <span class="orders-hero__tag">
+            <span class="orders-hero__dot" aria-hidden="true"></span>
+            接单 · 放单
+          </span>
+          <h3 class="orders-hero__title">接单大厅</h3>
+          <p class="orders-hero__desc">校园互助 · 找活赚钱 · 免费发布悬赏</p>
+          <div class="orders-hero__stats">
+            <span class="orders-hero__stat">
+              <b>0 抽成</b>
+              <i>平台免费</i>
+            </span>
+            <span class="orders-hero__sep" aria-hidden="true"></span>
+            <span class="orders-hero__stat">
+              <b>全品类</b>
+              <i>代买代送 · 助教跑腿</i>
+            </span>
+          </div>
+        </div>
+        <span class="orders-hero__cta">
+          去接单
+          <Icon name="chevron-right" :size="14" />
+        </span>
+      </button>
+
       <!-- ====== 透明统计：在线人数 / 今日发帖 / 注册人数 ====== -->
       <section class="home-stats" aria-label="站点统计">
         <div class="stats-item stats-item--link" title="查看在线用户" @click="onStatsClick('/stats/online')">
@@ -706,12 +567,7 @@ onUnmounted(() => {
 
         <PostListSkeleton v-if="feedLoading" :count="5" />
 
-        <!-- ===== 排行 Tab：全部/金币/亲密度/游戏 ===== -->
-        <template v-else-if="feedModeOf(activeTab) === 'rank'">
-          <RankingView />
-        </template>
-
-        <!-- ===== 全部 Tab：广场帖子瀑布流 ===== -->
+        <!-- ===== 帖子瀑布流（关注/推荐/圈子 全走此分支） ===== -->
         <template v-else-if="feedModeOf(activeTab) === 'posts'">
           <div v-if="postStore.posts.length" :class="{ 'swr-updated': fadeActive }" class="feed">
             <article
@@ -814,95 +670,6 @@ onUnmounted(() => {
             <button class="feed-error-btn" type="button" @click="retryFeed">重新加载</button>
           </div>
           <EmptyState v-else text="暂无帖子，发布第一条校园动态。" />
-        </template>
-
-        <!-- ===== 所有 Tab：组局/房间卡片（图1样式，单列圆角卡片） ===== -->
-        <template v-else>
-          <div v-if="gatherings.length" :class="{ 'swr-updated': fadeActive }" class="room-feed">
-            <article
-              v-for="g in gatherings"
-              :key="'g-'+g.id"
-              class="room-card"
-              @click="openGathering(g)"
-            >
-              <!-- 顶部：分类标签 + 房主角标 + 更多按钮 -->
-              <div class="room-card__top">
-                <div class="room-card__tags">
-                  <span class="room-tag room-tag--category">
-                    <span class="room-tag__emoji">{{ categoryEmoji(g.category) }}</span>
-                    {{ categoryDisplayName(g.category) }}
-                  </span>
-                  <span v-if="shouldShowHostBadge(g)" class="room-tag room-tag--host">
-                    <span class="room-tag__emoji">🏠</span>
-                    {{ roomHostLabel(g) }}
-                  </span>
-                </div>
-                <button class="room-card__more" type="button" @click="onCardMore($event, g)" aria-label="更多">
-                  <Icon name="more-vertical" :size="18" />
-                </button>
-              </div>
-
-              <!-- 中部：头像 + 房间名 + 副标题 -->
-              <div class="room-card__body">
-                <div class="room-card__avatar-wrap">
-                  <img
-                    v-if="g.host?.avatar"
-                    class="room-card__avatar"
-                    :src="g.host.avatar"
-                    :alt="g.host.nickname"
-                    loading="lazy"
-                  />
-                  <span v-else class="room-card__avatar room-card__avatar--ph" :class="avatarColorClass(g.host?.id)">
-                    {{ avatarInitial(g.host?.nickname) }}
-                  </span>
-                  <!-- 头像右下角粉色♀标记 -->
-                  <span class="room-card__avatar-badge" aria-hidden="true">♀</span>
-                </div>
-                <div class="room-card__info">
-                  <h3 class="room-card__title">{{ g.title }}</h3>
-                  <p class="room-card__hostname"><Icon name="user" :size="12" />{{ g.host?.nickname || '神秘发起人' }}</p>
-                  <p class="room-card__subtitle">
-                    <span class="room-card__sub-icon" aria-hidden="true">
-                      <Icon v-if="g.type === 'online'" name="mic" :size="14" />
-                      <Icon v-else name="map-pin" :size="12" />
-                    </span>
-                    {{ roomSubtitle(g) }}
-                  </p>
-                  <div v-if="shouldShowHotBadge(g)" class="room-card__rank">
-                    <span aria-hidden="true">🔥</span>
-                    热门房间 · {{ g.joined_people }}人在聊
-                  </div>
-                </div>
-              </div>
-
-              <!-- 右下角：组局信息 -->
-              <div class="room-card__foot">
-                <span class="room-card__stat">
-                  <Icon :name="g.type === 'online' ? 'mic' : 'calendar'" :size="18" />
-                  <span>{{ g.joined_people }}</span>
-                </span>
-                <span class="room-card__stat">
-                  <Icon name="users" :size="18" />
-                  <span>{{ g.joined_people }}/{{ g.max_people }}</span>
-                </span>
-              </div>
-              <!-- 发起人的可互动宠物：浮在组局卡片内，可拖动可移动、随机动作、不挡文字；
-                   自己发起的组局默认隐藏卡片内宠物，由桌面漂浮宠自动飞入 -->
-              <PostPetBox
-                v-if="g.host?.id"
-                :user-id="g.host.id"
-                :size="CARD_PET_SIZE"
-                :self="g.host.id === session.userId"
-                :author-name="g.host?.nickname"
-              />
-            </article>
-          </div>
-
-          <div v-else-if="gatheringsError" class="feed-error">
-            <p class="feed-error-text">加载失败，请检查网络后重试</p>
-            <button class="feed-error-btn" type="button" @click="retryFeed">重新加载</button>
-          </div>
-          <EmptyState v-else icon="calendar" text="暂无招募中组局，去发布一个吧～" />
         </template>
 
         <!-- 底部状态：放在瀑布流容器之外，避免多列布局把它排到帖子右边 -->
@@ -1270,7 +1037,11 @@ onUnmounted(() => {
   margin-bottom: 14px;
   padding: 0 2px;
   border-bottom: 0.5px solid rgba(0,0,0,0.06);
+  overflow-x: auto;
+  white-space: nowrap;
+  scrollbar-width: none;
 }
+.feed-tabs::-webkit-scrollbar { display: none; }
 .feed-tab {
   position: relative;
   padding: 8px 2px 10px;
@@ -1278,6 +1049,7 @@ onUnmounted(() => {
   font-weight: 400;
   color: var(--home-tab-unselected);   /* 未选中 #606474，不再太淡 */
   background: transparent;
+  flex: 0 0 auto;
   border: none;
   cursor: pointer;
   transition: color 150ms cubic-bezier(0.32, 0.72, 0, 1),
@@ -2070,6 +1842,142 @@ onUnmounted(() => {
 }
 .qe-card:active {
   transform: scale(0.98);
+}
+
+/* —— 接单大厅：竞猜式蓝紫渐变 Hero 卡片 —— */
+.orders-hero {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  margin: 4px 0 14px;
+  padding: 16px 18px;
+  border: none;
+  border-radius: 18px;
+  color: #fff;
+  text-align: left;
+  cursor: pointer;
+  overflow: hidden;
+  isolation: isolate;
+  background: linear-gradient(135deg, #5856d6 0%, #007aff 100%);
+  box-shadow: 0 6px 16px rgba(88, 86, 214, 0.28);
+  transition: box-shadow 0.25s var(--ease-apple), transform 0.15s var(--ease-apple);
+}
+.orders-hero:hover {
+  box-shadow: 0 10px 24px rgba(88, 86, 214, 0.32);
+  transform: translateY(-1px);
+}
+.orders-hero:active {
+  transform: scale(0.98);
+}
+.orders-hero__decor {
+  position: absolute;
+  border-radius: 50%;
+  z-index: -1;
+  pointer-events: none;
+}
+.orders-hero__decor--1 {
+  width: 200px;
+  height: 200px;
+  background: rgba(255, 255, 255, 0.08);
+  top: -80px;
+  right: -60px;
+}
+.orders-hero__decor--2 {
+  width: 140px;
+  height: 140px;
+  background: rgba(255, 255, 255, 0.05);
+  bottom: -40px;
+  left: -30px;
+}
+.orders-hero__left {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+.orders-hero__tag {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.2);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  font-weight: 600;
+  font-size: 12px;
+}
+.orders-hero__dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #ffd60a;
+  animation: ordersPulse 1.6s infinite;
+}
+@keyframes ordersPulse {
+  0%   { box-shadow: 0 0 0 0 rgba(255, 214, 10, 0.6); }
+  70%  { box-shadow: 0 0 0 8px rgba(255, 214, 10, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(255, 214, 10, 0); }
+}
+.orders-hero__title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+}
+.orders-hero__desc {
+  margin: 0;
+  font-size: 13px;
+  opacity: 0.9;
+}
+.orders-hero__stats {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-top: 2px;
+}
+.orders-hero__stat {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.15;
+}
+.orders-hero__stat b {
+  font-size: 15px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.orders-hero__stat i {
+  font-style: normal;
+  font-size: 10.5px;
+  color: rgba(255, 255, 255, 0.65);
+  margin-top: 2px;
+}
+.orders-hero__sep {
+  width: 1px;
+  height: 26px;
+  background: rgba(255, 255, 255, 0.25);
+}
+.orders-hero__cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 0;
+  padding: 10px 20px;
+  border-radius: 999px;
+  background: #fff;
+  color: #5856d6;
+  font-weight: 700;
+  font-size: 14px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.18);
+}
+.orders-hero__cta :deep(svg) {
+  width: 14px;
+  height: 14px;
 }
 
 /* —— 每个入口一个独立底色（与名字语义一致，整体饱和度在原蓝紫/粉/绿/橙的基础上 +15%）—— */

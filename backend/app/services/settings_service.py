@@ -100,6 +100,12 @@ _DEFAULTS: dict[str, str] = {
         "说话简短自然，像真正的宠物伙伴。"
         "想分多条消息表达时，用 #换行符 分隔。"
     ),
+    # ============ 订单 AI（接单大厅对话助手） ============
+    # 复用宠物 AI 的 DeepSeek 账号（pet_ai_* key/model/base_url）；此处仅独立控制开关与限额
+    "order_ai_enabled": "false",           # 总开关：接单大厅 AI 对话助手是否启用
+    "order_ai_daily_token_limit": "200000",# 订单 AI 每人每日 Token 上限
+    "order_ai_context_messages": "12",     # 注入上下文的最近消息条数
+    "order_ai_ask_confirm_accept": "true", # 是否需用户确认后才「接单 / 发布 / 订阅」等敏感操作
 }
 
 _DESC: dict[str, str] = {
@@ -154,6 +160,10 @@ _DESC: dict[str, str] = {
     "pet_ai_daily_proactive_max": "每日主动消息最大次数（事件触发也计入，达到后不再主动说话）",
     "pet_ai_user_actions_count": "注入 AI 上下文的最近用户动作条数（默认 10）",
     "pet_ai_default_persona": "默认提示词（宠物未单独设置人设时使用；{pet_name}/{owner} 占位会被替换；用 #换行符 分段发送多条消息）",
+    "order_ai_enabled": "订单 AI 总开关：接单大厅 AI 对话助手是否启用",
+    "order_ai_daily_token_limit": "订单 AI 每人每日 Token 上限",
+    "order_ai_context_messages": "订单 AI 注入上下文的最近消息条数",
+    "order_ai_ask_confirm_accept": "订单 AI 敏感操作是否需要用户确认（接单/发布/订阅等）",
 }
 
 
