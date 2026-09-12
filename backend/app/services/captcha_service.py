@@ -154,38 +154,38 @@ def verify_captcha(db: Session, captcha_id: str | None, captcha_text: str | None
 # ============ 下载令牌（验证码 → 放行下载） ============
 
 def issue_download_token(db: Session, ip: str | None) -> str:
-    """验证码通过后签发下载放行令牌（2 分钟过期，有效期内可重复使用、不绑 IP）。
-
-    签发时顺手清理过期令牌，防止表无限膨胀。"""
+    """验证码通过后签发下载放行令牌（2 分钟过期，期限内任意 IP 可多次下载）。"""
     safe_ip = ip or "unknown"
     if not check_rate_limit(db, f"cap:{safe_ip}:download_token", DOWNLOAD_TOKEN_LIMIT_PER_MINUTE):
         raise HTTPException(status_code=429, detail=ErrorCode.RATE_LIMITED)
 
-    # 顺手清理过期令牌
+    # 顺手清理过期令牌，防止表无限膨胀
     db.execute(delete(DownloadToken).where(DownloadToken.created_at < now_utc() - DOWNLOAD_TOKEN_TTL))
     db.commit()
 
     token = secrets.token_urlsafe(32)
-    db.add(DownloadToken(token=token))
+    db.add(DownloadToken(token=token, ip=safe_ip))
     db.commit()
     return token
 
 
 def consume_download_token(db: Session, token: str | None, ip: str | None = None) -> bool:
-    """消费下载令牌：有效期内放行（不销毁、不绑 IP）；过期才删除并拒绝。
+    """校验下载令牌：有效期内返回 True。
 
-    说明：令牌由"一次性 + 绑定 IP"改为"2 分钟内任意 IP 可重复使用"，
-    避免下载链接被分享到不同 IP 网络时被误拒（之前报"下载凭证无效/安装包损坏"）。"""
+    令牌 2 分钟内、任意 IP 均可重复下载，方便把链接分享给他人安装；
+    防刷仍由 issue 时的签发限流与 app_download 的每 IP 小时/日限流兜底。
+    过期令牌返回 False 并清理。
+    """
     if not token:
         return False
     record = db.scalar(select(DownloadToken).where(DownloadToken.token == token))
     if not record:
         return False
     if record.created_at < now_utc() - DOWNLOAD_TOKEN_TTL:
-        db.delete(record)  # 只在过期时才删
+        db.delete(record)
         db.commit()
         return False
-    return True  # 有效期内：不销毁、不绑 IP，直接放行
+    return True
 
 
 # ============ 挑战通行证（高频访问验证码） ============
