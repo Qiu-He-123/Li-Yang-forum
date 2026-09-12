@@ -29,6 +29,7 @@ import { useGuessStore } from './stores/guess'
 import { useCoinStore } from './stores/coin'
 import { connectWs, wsClient } from './utils/ws'
 import { recordVisit } from './api/announcement'
+import { useVersionCheck } from './utils/versionCheck'
 
 // 弹窗类组件改为异步加载：避免 element-plus 被打入首屏主 chunk（EP ~400KB）
 const AuthDialog = defineAsyncComponent(() => import('./components/auth/AuthDialog.vue'))
@@ -337,6 +338,9 @@ function waitGuessFirstReady(timeoutMs = 5000): Promise<boolean> {
 }
 
 onMounted(async () => {
+  // 前端版本检测：发现线上有新版本时提示用户刷新，解决"发版后仍显示旧页面"。
+  // 放最前面且独立于下方 return 分支，管理端/用户端都要监听。
+  useVersionCheck()
   recordVisit().catch(() => {})
   // 启动时立即校验 session（封号/解封实时生效）
   if (session.userId) {

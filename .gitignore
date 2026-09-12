@@ -85,3 +85,6 @@ db_key.txt
 手机app/.gradle/
 手机app/**/.gradle/
 *.apk
+
+# 本地下载的便携 JDK（480MB，仅本机签名构建用，不入库）
+工具/jdk17/

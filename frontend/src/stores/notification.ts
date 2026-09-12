@@ -1,13 +1,13 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 
-import { fetchUnreadCount } from '../api/notification'
+import { fetchUnreadCount, type PerTypeUnread } from '../api/notification'
 import { useSessionStore } from './session'
 
 export const useNotificationStore = defineStore('notification', () => {
   const notifUnread = ref(0)
   const dmUnread = ref(0)
-  const byType = ref<Record<string, number>>({})
+  const byType = ref<Record<string, PerTypeUnread>>({})
   const unreadCount = computed(() => notifUnread.value + dmUnread.value)
   const hasUnread = computed(() => unreadCount.value > 0)
 
@@ -32,7 +32,13 @@ export const useNotificationStore = defineStore('notification', () => {
         notifUnread.value = Number(result.unread) || 0
         dmUnread.value = Number(result.dm_unread) || 0
         byType.value = Object.fromEntries(
-          Object.entries(result.by_type || {}).map(([type, count]) => [type, Number(count) || 0]),
+          Object.entries(result.by_type || {}).map(([type, val]) => [
+            type,
+            {
+              count: Number((val as PerTypeUnread).count) || 0,
+              global_badge: (val as PerTypeUnread).global_badge !== false,
+            },
+          ]),
         )
       } catch {
         // Badge refresh is best-effort.

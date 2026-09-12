@@ -146,6 +146,31 @@ export function adminUpdateSettings(settings: Record<string, string>) {
   return http.put('/admin/settings', { settings })
 }
 
+// ============ 全局推送管理 ============
+
+export interface AdminPushTypeConfig {
+  label: string
+  desc: string
+  user_setting: string
+  show_badge: boolean
+  notify_enabled: boolean
+}
+
+/** 读取全局推送管理配置（每个通知类型的红点 + 推送开关） */
+export function adminGetPushSettings() {
+  return http.get<unknown, { data: { code: number; msg: string; data: { items: Record<string, AdminPushTypeConfig> } } }>(
+    '/admin/push-settings',
+  )
+}
+
+/** 更新全局推送管理配置 payload: {ntype: {show_badge, notify_enabled}} */
+export function adminUpdatePushSettings(payload: Record<string, { show_badge?: boolean; notify_enabled?: boolean }>) {
+  return http.put<
+    unknown,
+    { data: { code: number; msg: string; data: { items: Record<string, AdminPushTypeConfig> } } }
+  >('/admin/push-settings', payload)
+}
+
 // ============ 微信朋友圈管理 ============
 
 export interface AdminWechatBinding {

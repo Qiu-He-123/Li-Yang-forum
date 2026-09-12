@@ -1,13 +1,35 @@
+import fs from 'node:fs'
+import path from 'node:path'
 import vue from '@vitejs/plugin-vue'
-import { defineConfig } from 'vite'
+import { defineConfig, type Plugin } from 'vite'
 import AutoImport from 'unplugin-auto-import/vite'
 import Components from 'unplugin-vue-components/vite'
 import { ElementPlusResolver } from 'unplugin-vue-components/resolvers'
+
+/**
+ * 发版更新标记：
+ * 每个构建写一个 build_version.json（时间戳），前端轮询比对，检测到新版本即提示刷新，
+ * 解决"发版后用户浏览器仍是旧页面"的问题。该文件放在 / 根，nginx 需让其不缓存（见 nginx.conf）。
+ */
+function buildVersionPlugin(): Plugin {
+  return {
+    name: 'ly-build-version',
+    apply: 'build',
+    writeBundle(_opts, _bundle) {
+      // outDir 由 vite config 的 build.outDir 决定（默认 dist）
+      const out = path.resolve(process.cwd(), 'dist')
+      const version =
+        new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d+Z$/, 'Z')
+      fs.writeFileSync(path.join(out, 'build_version.json'), JSON.stringify({ version }))
+    },
+  }
+}
 
 export default defineConfig({
   base: '/',
   plugins: [
     vue(),
+    buildVersionPlugin(),
     // Element Plus 按需引入：仅打包实际使用的组件 + 对应样式
     // 用户端页面（首页/圈子/帖子）不使用 EP 组件 → 0 KB EP 代码
     // 管理端页面（/admin/*）使用 EP 组件 → 按需加载，不再全量引入

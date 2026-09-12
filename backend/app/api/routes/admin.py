@@ -12,7 +12,7 @@ from app.models import Admin
 from app.schemas.auth import AdminLoginIn
 from app.schemas.common import ok
 from app.schemas.interactions import AnnouncementCreate
-from app.services import activity_service, admin_service, badge_service, circle_apply_service, explore_service, guess_service, pet_shop_service
+from app.services import activity_service, admin_service, badge_service, circle_apply_service, explore_service, guess_service, notification_service, pet_shop_service
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -477,6 +477,27 @@ def admin_update_settings(
 ) -> dict:
     """批量更新系统设置。payload: {"settings": {"key": "value", ...}}"""
     return ok(admin_service.admin_update_settings(payload, request, db, admin))
+
+
+# ============ 全局推送管理 ============
+
+@router.get("/push-settings")
+def admin_get_push_settings(
+    db: Session = Depends(get_db),
+    _: Admin = Depends(admin_user),
+) -> dict:
+    """读取全局推送管理配置（每个通知类型的红点开关 + 推送开关）。"""
+    return ok(notification_service.get_push_global_settings(db))
+
+
+@router.put("/push-settings")
+def admin_put_push_settings(
+    payload: dict,
+    db: Session = Depends(get_db),
+    _: Admin = Depends(admin_user),
+) -> dict:
+    """更新全局推送管理配置。payload: {ntype: {"show_badge": bool, "notify_enabled": bool}}"""
+    return ok(notification_service.update_push_global_settings(db, payload))
 
 
 # ============ 微信朋友圈管理 ============

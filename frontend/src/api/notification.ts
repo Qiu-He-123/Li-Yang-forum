@@ -72,6 +72,12 @@ export function markAllNotificationsRead(type?: NotificationType) {
   )
 }
 
+/** 单类型未读信息：count 原始未读数；global_badge 是否计入红点（管理员全局开关） */
+export interface PerTypeUnread {
+  count: number
+  global_badge: boolean
+}
+
 /** 未读通知数（含私信未读数） */
 export function fetchUnreadCount() {
   const config: LoadingAxiosRequestConfig = {
@@ -80,6 +86,12 @@ export function fetchUnreadCount() {
   }
   return http.get<
     unknown,
-    { data: { code: number; msg: string; data: { unread: number; by_type: Record<string, number>; dm_unread: number } } }
+    {
+      data: {
+        code: number
+        msg: string
+        data: { unread: number; by_type: Record<string, PerTypeUnread>; dm_unread: number }
+      }
+    }
   >('/notifications/unread-count', config)
 }

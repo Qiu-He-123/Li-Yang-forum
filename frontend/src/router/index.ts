@@ -553,6 +553,11 @@ path: '/announcements',
         component: () => import('../views/Admin/SystemSettings.vue'),
       },
       {
+        path: 'push-settings',
+        name: 'admin-push-settings',
+        component: () => import('../views/Admin/PushManage.vue'),
+      },
+      {
         path: 'logs',
         name: 'admin-logs',
         component: () => import('../views/Admin/Logs.vue'),

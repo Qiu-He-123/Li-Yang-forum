@@ -394,14 +394,17 @@ def mark_all_read(user_id: int, db: Session, ntype: str | None = None) -> dict:
 
 
 def unread_count(user_id: int, db: Session) -> dict:
-    """返回未读通知总数 + 各类型未读数（前端红点 + 分类 badge 用）。"""
+    """返回未读通知总数 + 各类型未读数（前端红点 + 分类 badge 用）。
+
+    受全局推送管理影响：管理员把某类型 show_badge 关闭后，该类型不再计入返回的
+    unread 总数（主红点消失），但 by_type 仍返回其原始未读数，并附带 global_badge
+    / type_label 供前端展示"该类型红点已由管理员关闭"。
+    """
     _cleanup_stale_notifications(db, user_id)
-    count = db.scalar(
-        select(func.count(Notification.id)).where(Notification.user_id == user_id, Notification.is_read.is_(False))
-    )
-    # 按类型统计未读（含阶段二新增 mention/topic/vote_end）
     type_counts = {}
-    for ntype in ["comment", "like", "follow", "system", "interaction", "announcement", "mention", "topic", "vote_end"]:
+    all_types = ["comment", "like", "follow", "system", "interaction", "announcement", "mention", "topic", "vote_end"]
+    enabled_total = 0
+    for ntype in all_types:
         tc = db.scalar(
             select(func.count(Notification.id)).where(
                 Notification.user_id == user_id,
@@ -409,11 +412,110 @@ def unread_count(user_id: int, db: Session) -> dict:
                 Notification.type == ntype,
             )
         )
-        type_counts[ntype] = int(tc or 0)
-    return {"unread": int(count or 0), "by_type": type_counts}
+        c = int(tc or 0)
+        gb = global_badge_enabled(db, ntype)
+        type_counts[ntype] = {
+            "count": c,
+            "global_badge": gb,
+        }
+        if gb:
+            enabled_total += c
+    return {"unread": int(enabled_total or 0), "by_type": type_counts}
 
 
 SETTING_FIELDS = ["like", "comment", "mention", "follow", "system", "dm"]
+
+# 全局推送管理：可被管理员开关的通知类型全集（站内通知 + 私信）。
+# user_setting: 该类型联动到的用户侧开关（用于"全局已开 AND 用户已开"判断）
+# dm 特殊：用户侧由 NotificationSetting.dm 控制，不写入 notifications 表
+# label: 后台展示用中文名；desc: 后台展示用说明
+PUSH_TYPES: dict[str, dict] = {
+    "like": {"label": "点赞", "user_setting": "like", "desc": "有人点赞你的作品或评论"},
+    "comment": {"label": "评论", "user_setting": "comment", "desc": "有人评论你的作品"},
+    "mention": {"label": "@我", "user_setting": "mention", "desc": "有人在作品或评论中提到你"},
+    "follow": {"label": "新增粉丝", "user_setting": "follow", "desc": "有新用户关注了你"},
+    "interaction": {"label": "收藏/互动", "user_setting": "system", "desc": "收藏等其余互动通知"},
+    "system": {"label": "系统通知", "user_setting": "system", "desc": "审核结果、封禁提醒、奖励等系统消息"},
+    "announcement": {"label": "公告", "user_setting": "system", "desc": "平台公告通知"},
+    "topic": {"label": "话题新帖", "user_setting": "system", "desc": "订阅的话题有新帖子"},
+    "vote_end": {"label": "投票结束", "user_setting": "system", "desc": "参与的投票已结束"},
+    "dm": {"label": "私信", "user_setting": "dm", "desc": "收到新的私信消息"},
+}
+
+# 迁移部署/首次启动时默认种子（全开）。新增类型时无需改表，只在此登记即可被后台识别。
+PUSH_TYPE_SEED = ["like", "comment", "mention", "follow", "interaction", "system", "announcement", "topic", "vote_end", "dm"]
+
+
+def _ensure_push_global_seed(db: Session) -> None:
+    """确保 push_global_settings 表里已有全部 PUSH_TYPE_SEED 行，缺则补成默认全开。"""
+    from app.models import PushGlobalSetting
+
+    existing = {
+        r.ntype
+        for r in db.scalars(select(PushGlobalSetting).where(PushGlobalSetting.ntype.in_(PUSH_TYPE_SEED)))
+    }
+    for ntype in PUSH_TYPE_SEED:
+        if ntype not in existing:
+            db.add(PushGlobalSetting(ntype=ntype, show_badge=True, notify_enabled=True))
+    db.commit()
+
+
+def get_push_global_settings(db: Session) -> dict:
+    """读取全局推送管理配置（按通知类型分组），缺失类型按默认全开补齐。"""
+    _ensure_push_global_seed(db)
+    from app.models import PushGlobalSetting
+
+    rows = db.scalars(select(PushGlobalSetting)).all()
+    result: dict[str, dict] = {}
+    for t in PUSH_TYPE_SEED:
+        row = next((r for r in rows if r.ntype == t), None)
+        result[t] = {
+            "label": PUSH_TYPES[t]["label"],
+            "desc": PUSH_TYPES[t]["desc"],
+            "user_setting": PUSH_TYPES[t]["user_setting"],
+            "show_badge": bool(row.show_badge) if row else True,
+            "notify_enabled": bool(row.notify_enabled) if row else True,
+        }
+    return {"items": result}
+
+
+def update_push_global_settings(db: Session, payload: dict) -> dict:
+    """按需更新全局推送管理配置。payload: {ntype: {"show_badge": bool, "notify_enabled": bool}}"""
+    _ensure_push_global_seed(db)
+    from app.models import PushGlobalSetting
+
+    for ntype, conf in (payload or {}).items():
+        if ntype not in PUSH_TYPES:
+            continue
+        row = db.scalar(select(PushGlobalSetting).where(PushGlobalSetting.ntype == ntype))
+        if row is None:
+            row = PushGlobalSetting(ntype=ntype, show_badge=True, notify_enabled=True)
+            db.add(row)
+        if isinstance(conf, dict):
+            if "show_badge" in conf:
+                row.show_badge = bool(conf["show_badge"])
+            if "notify_enabled" in conf:
+                row.notify_enabled = bool(conf["notify_enabled"])
+    db.commit()
+    return get_push_global_settings(db)["items"]
+
+
+def global_notify_enabled(db: Session, ntype: str) -> bool:
+    """判断某类型全局是否允许发送推送；未配置（新类型）默认允许。"""
+    from app.models import PushGlobalSetting
+    st = db.scalar(select(PushGlobalSetting).where(PushGlobalSetting.ntype == ntype))
+    if st is None:
+        return True
+    return bool(st.notify_enabled)
+
+
+def global_badge_enabled(db: Session, ntype: str) -> bool:
+    """判断某类型全局是否计入红点；未配置（新类型）默认计入。"""
+    from app.models import PushGlobalSetting
+    st = db.scalar(select(PushGlobalSetting).where(PushGlobalSetting.ntype == ntype))
+    if st is None:
+        return True
+    return bool(st.show_badge)
 
 
 def get_notification_settings(user_id: int, db: Session) -> dict:

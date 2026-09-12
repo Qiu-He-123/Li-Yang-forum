@@ -383,6 +383,24 @@ class NotificationSetting(Base, TimestampMixin):
     dm: Mapped[bool] = mapped_column(Boolean, default=True, server_default="1")
 
 
+class PushGlobalSetting(Base, TimestampMixin):
+    """全局推送管理（管理员控制，每个通知类型一行，覆盖所有用户）。
+
+    - ntype: 通知类型（like/comment/mention/follow/interaction/system/announcement/topic/vote_end/dm）
+    - show_badge: 该类型是否计入未读红点（管理员可全局关闭某类红点）
+    - notify_enabled: 该类型是否允许向用户弹出推送（管理员可全局关闭某类推送）
+    默认全开；用户侧 notification_settings 是第二层，最终是否弹出 = 全局已开 AND 用户已开。
+    """
+
+    __tablename__ = "push_global_settings"
+    __table_args__ = (UniqueConstraint("ntype"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    ntype: Mapped[str] = mapped_column(String(20), unique=True, index=True)
+    show_badge: Mapped[bool] = mapped_column(Boolean, default=True, server_default="1")
+    notify_enabled: Mapped[bool] = mapped_column(Boolean, default=True, server_default="1")
+
+
 class Category(Base, TimestampMixin):
     """圈子（分类）表。
 

@@ -86,9 +86,11 @@ const notifCategories = computed(() => [
   { type: 'system', icon: 'bell', color: '#5856d6', label: '系统', route: '/notifications/system' },
 ])
 
-// 某分类未读数：从 notificationStore.byType 读取
+// 某分类未读数：从 notificationStore.byType 读取（含管理员全局红点开关过滤）
 function unreadOfType(type: string): number {
-  return notificationStore.byType[type] || 0
+  const info = notificationStore.byType[type]
+  if (!info) return 0
+  return info.global_badge ? info.count : 0
 }
 
 /** 生成会话列表的指纹：仅包含影响 UI 的关键字段 */
