@@ -520,10 +520,10 @@ def _init_seed_guess(db) -> None:
     from app.models import Guess
 
     today_key = datetime.now().strftime("%Y-%m-%d")
-    active = db.execute(
-        select(Guess).where(Guess.date_key == today_key, Guess.is_active.is_(True))
-    ).scalar_one_or_none()
-    if active:
+    # 幂等：当天只要已存在任意一条竞猜（无论是否活跃/已结算/已删除标记），就不再补插，
+    # 避免每次重启/重新部署因当天活跃标记被改动而重复累积竞猜内容
+    exists = db.execute(select(Guess.id).where(Guess.date_key == today_key).limit(1)).first()
+    if exists:
         return
     # 创建一个示例竞猜
     try:

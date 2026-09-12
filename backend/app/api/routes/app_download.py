@@ -37,9 +37,9 @@ router = APIRouter(prefix="/api/app-download", tags=["app"])
 
 _STATIC_DIR = Path(__file__).resolve().parent.parent.parent.parent / "static"
 
-# 下载限流：每 IP 每小时最多 5 次、每天最多 20 次
-DL_HOURLY_LIMIT = 5
-DL_DAILY_LIMIT = 20
+# 下载限流：每 IP 每小时最多 20 次、每天最多 60 次（放宽，配合令牌放开）
+DL_HOURLY_LIMIT = 20
+DL_DAILY_LIMIT = 60
 
 
 class DownloadTokenIn(BaseModel):

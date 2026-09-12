@@ -168,18 +168,30 @@ const isDragging = ref(false) // 是否发生过拖拽（用于抑制 click 冒�
 let dragStart = { px: 0, py: 0, ox: 0, oy: 0 }
 let dragMoved = false
 let containerRect: DOMRect | null = null
+/** 底部预留的操作行（作者+点赞行）高度：宠物被限制在这一行之上，永不盖住点赞，
+ 该处始终可点击、可滚动；越界拖拽会被 clamp 挡在点赞行上方 */
+let bottomReserve = 0
 
 function clampDrag(x: number, y: number) {
   if (!containerRect) return { x, y }
   const maxX = Math.max(0, containerRect.width - props.size - 4)
-  const maxY = Math.max(0, containerRect.height - props.size - 4)
+  const maxY = Math.max(0, containerRect.height - bottomReserve - props.size - 4)
   return { x: Math.min(maxX, Math.max(0, x)), y: Math.min(maxY, Math.max(0, y)) }
 }
 
-/** 可拖拽范围：相对最近的定位祖先（卡片本身） */
+/** 可拖拽范围：相对最近的定位祖先（卡片本身）；
+ * 若卡片内存在底部操作行(.card-meta，如点赞)，则将其底边到卡片底边的空间预留出来 */
 function measureContainer(): DOMRect | null {
   const el = boxRef.value?.offsetParent as HTMLElement | null
-  return el ? el.getBoundingClientRect() : null
+  if (!el) return null
+  containerRect = el.getBoundingClientRect()
+  bottomReserve = 0
+  const meta = el.querySelector?.('.card-meta')
+  if (meta) {
+    const m = meta.getBoundingClientRect()
+    bottomReserve = Math.max(0, containerRect.bottom - m.bottom) + 6
+  }
+  return containerRect
 }
 
 /** 默认落位：卡片右下角留白处 */
@@ -379,6 +391,8 @@ onBeforeUnmount(() => {
     @pointercancel="onPointerUp"
     @click.stop
   >
+    <!-- 整块盒子即拖动把手（好抓）：touch-action:none 保证上下左右都能自由拖；
+         通过 bottomReserve 把宠物限制在底部作者+点赞行上方，该处照常可点击/可滚动 -->
     <div
       v-if="pet && pet.anim"
       class="post-pet-box__inner"
@@ -403,9 +417,12 @@ onBeforeUnmount(() => {
   left: 0;
   border-radius: 14px;
   background: rgba(255, 255, 255, 0.04);
+  /* 默认不拦截任何指针（含未加载时的隐形盒子）；仅在宠物显示(is-visible)时才作为
+     拖动把手参与交互：全向(touch-action:none)自由拖拽，目标大、易抓住；
+     通过 bottomReserve 限制宠物不进入底部作者+点赞行，该处仍可点击/滚动 */
+  pointer-events: none;
+  touch-action: none;
   cursor: grab;
-  /* 只拦截横向手势用于拖动宠物，纵向放行给页面滚动，避免卡内宠物盒盖住点赞/内容导致页面滚不动 */
-  touch-action: pan-y;
   user-select: none;
   z-index: 3;
   opacity: 0;
@@ -420,12 +437,15 @@ onBeforeUnmount(() => {
   display: inline-flex;
   opacity: 1;
   cursor: default;
+  pointer-events: none;
   touch-action: auto;
   vertical-align: middle;
   flex-shrink: 0;
 }
 .post-pet-box.is-visible {
   opacity: 1;
+  /* 宠物显示后整块盒子才可抓取拖动 */
+  pointer-events: auto;
 }
 /* 随机移动：位置变化用平滑过渡 */
 .post-pet-box.is-float.is-wandering {
@@ -438,6 +458,10 @@ onBeforeUnmount(() => {
 }
 .post-pet-box.is-inline .post-pet-box__inner {
   opacity: 1;
+  /* inline 模式（帖子详情/组局静态宠物）：不参与拖动、不拦截页面滚动 */
+  pointer-events: none;
+  touch-action: auto;
+  cursor: default;
 }
 .post-pet-box__inner {
   position: relative;
@@ -446,9 +470,19 @@ onBeforeUnmount(() => {
   justify-content: flex-end;
   flex-direction: column;
   animation: post-pet-bob 3.2s ease-in-out infinite;
-  pointer-events: none;
+  /* 只有宠物本体可被当作拖动把手：完整上下左右拖拽，且不把拖动抢成页面手势 */
+  pointer-events: auto;
+  touch-action: none;
+  cursor: grab;
+  user-select: none;
+  -webkit-user-select: none;
   /* 默认静止到最终位置（进入时才用 is-enter 覆盖，做"飞入"） */
   opacity: 0;
+}
+.post-pet-box__inner:active { cursor: grabbing; }
+.post-pet-box__canvas {
+  pointer-events: auto;
+  touch-action: none;
 }
 /* 飞入：从偏右下角滑动放大入场 */
 .post-pet-box__inner.is-enter {
