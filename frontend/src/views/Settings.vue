@@ -5,6 +5,7 @@ import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
 
 import AppHeader from '../components/header/AppHeader.vue'
 import { useThemeStore } from '../stores/theme'
+import { aiFabEnabled, setAiFabEnabled } from '../utils/aiFab'
 import {
   changePassword,
   getMyInviteCode,
@@ -518,6 +519,14 @@ onMounted(async () => {
           </el-form>
         </el-tab-pane>
         <el-tab-pane label="外观" name="appearance">
+          <div class="ai-fab-setting">
+            <div class="ai-fab-setting__info">
+              <h3 class="m-0 text-base font-bold">点我提问（AI 助手）</h3>
+              <p class="m-0 mt-1 text-xs text-gray-400">在页面上显示可拖动的「点我提问」悬浮按钮</p>
+            </div>
+            <el-switch :model-value="aiFabEnabled" @change="setAiFabEnabled" />
+          </div>
+          <el-divider />
           <h3 class="mb-3 text-base font-bold">主题模式</h3>
           <div class="theme-switch-card">
             <button
@@ -1128,4 +1137,12 @@ onMounted(async () => {
   color: #dc2626;
   line-height: 1.6;
 }
+.ai-fab-setting {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 4px 0 2px;
+}
+.ai-fab-setting__info { min-width: 0; }
 </style>

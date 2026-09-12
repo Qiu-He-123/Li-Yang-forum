@@ -404,7 +404,8 @@ onBeforeUnmount(() => {
   border-radius: 14px;
   background: rgba(255, 255, 255, 0.04);
   cursor: grab;
-  touch-action: none;
+  /* 只拦截横向手势用于拖动宠物，纵向放行给页面滚动，避免卡内宠物盒盖住点赞/内容导致页面滚不动 */
+  touch-action: pan-y;
   user-select: none;
   z-index: 3;
   opacity: 0;

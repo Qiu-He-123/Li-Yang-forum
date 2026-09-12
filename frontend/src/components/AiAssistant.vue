@@ -5,17 +5,73 @@
  * - 支持项目 2 交易平台 / 广场 / 商城 / 活动等全部站点操作
  * - 匹配到意图直接跳转，匹配不到给出建议入口
  */
-import { computed, nextTick, ref } from 'vue'
+import { computed, nextTick, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 
 import { useSessionStore } from '../stores/session'
 import { http } from '../api/http'
 import { Icon } from './native'
+import { aiFabEnabled, getAiFabPos, setAiFabPos } from '../utils/aiFab'
 
 const open = ref(false)
 const input = ref('')
 const history: string[] = []
 const busy = ref(false)
+
+// ===== 点我提问：登录才显示 + 可拖动 + 记忆位置 + 设置开关 =====
+const fabLeft = ref(14)
+const fabTop = ref<number>(0)
+const dragging = ref(false)
+
+function fabVisible(): boolean {
+  return aiFabEnabled.value && !!session.userId
+}
+
+/** 计算悬浮按钮位置：靠边贴住，避免拖出可视区。 */
+function boundFab(left: number, top: number) {
+  const fallbackW = 132 // 按钮约 132px 宽
+  const fallbackH = 46
+  const maxLeft = window.innerWidth - fallbackW - 8
+  const maxTop = Math.max(10, window.innerHeight - fallbackH - 80)
+  fabLeft.value = Math.max(8, Math.min(maxLeft, left))
+  fabTop.value = Math.max(10, Math.min(maxTop, top))
+}
+
+function initFabPos() {
+  const saved = getAiFabPos()
+  if (saved) {
+    boundFab(saved.left, saved.top)
+  } else {
+    fabTop.value = window.innerHeight - 80 - 46 // 默认贴底
+    boundFab(fabLeft.value, fabTop.value)
+  }
+}
+
+let dragState: { startX: number; startY: number; left: number; top: number } | null = null
+
+function onFabDown(e: PointerEvent) {
+  dragState = { startX: e.clientX, startY: e.clientY, left: fabLeft.value, top: fabTop.value }
+  dragging.value = true
+}
+
+function onFabMove(e: PointerEvent) {
+  if (!dragState) return
+  e.preventDefault()
+  const dx = e.clientX - dragState.startX
+  const dy = e.clientY - dragState.startY
+  boundFab(dragState.left + dx, dragState.top + dy)
+}
+
+function onFabUp() {
+  if (!dragState) return
+  dragState = null
+  dragging.value = false
+  setAiFabPos({ left: fabLeft.value, top: fabTop.value })
+}
+
+onMounted(() => {
+  initFabPos()
+})
 
 interface Intent {
   keys: string[]
@@ -220,8 +276,22 @@ const quickSuggestions = computed(() => {
 </script>
 
 <template>
-  <!-- 漂浮 AI 按钮（左下角紧凑图标 + 明确「点我提问」标签，主打打开询问） -->
-  <button v-if="!open" class="ai-fab" type="button" aria-label="打开 AI 助手提问" title="想知道什么？点我提问" @click="toggle">
+  <!-- 漂浮 AI 按钮（可拖动 + 记住位置；仅登录显示；设置中可关闭） -->
+  <button
+    v-if="fabVisible() && !open"
+    class="ai-fab"
+    :class="{ 'ai-fab--dragging': dragging }"
+    :style="{ left: fabLeft + 'px', top: fabTop + 'px' }"
+    type="button"
+    aria-label="打开 AI 助手提问"
+    title="想知道什么？点我提问"
+    @pointerdown="onFabDown"
+    @pointermove="onFabMove"
+    @pointerup="onFabUp"
+    @pointercancel="onFabUp"
+    @pointerdown.stop
+    @click="toggle"
+  >
     <span class="ai-fab-ring" aria-hidden="true"></span>
     <span class="ai-fab-icon"><Icon name="sparkles" :size="22" /></span>
     <span class="ai-fab-label">点我提问</span>
@@ -292,8 +362,7 @@ const quickSuggestions = computed(() => {
 <style scoped>
 .ai-fab {
   position: fixed;
-  left: 14px;
-  bottom: calc(80px + env(safe-area-inset-bottom, 0px));
+  /* left/top 由 inline 样式控制，支持拖动与记忆位置 */
   z-index: 960;
   height: 46px;
   padding: 0 16px 0 8px;
@@ -304,11 +373,14 @@ const quickSuggestions = computed(() => {
   gap: 8px;
   background: linear-gradient(135deg, #0a0a0f, #2b2b35);
   color: #fff;
-  cursor: pointer;
+  cursor: grab;
+  touch-action: none;
   box-shadow: 0 8px 22px rgba(17, 17, 26, 0.32);
-  transition: transform 0.14s var(--ease-apple, ease);
+  transition: box-shadow 0.14s ease;
+  user-select: none;
+  -webkit-user-select: none;
 }
-.ai-fab:hover { transform: scale(1.04); }
+.ai-fab--dragging { cursor: grabbing; box-shadow: 0 12px 30px rgba(17, 17, 26, 0.5); }
 .ai-fab-label {
   font-size: 13px;
   font-weight: 600;
@@ -463,6 +535,5 @@ const quickSuggestions = computed(() => {
 
 @media (min-width: 720px) {
   .ai-sheet { height: 640px; border-radius: 22px; margin-bottom: 4vh; }
-  .ai-fab { bottom: 30px; }
 }
 </style>
